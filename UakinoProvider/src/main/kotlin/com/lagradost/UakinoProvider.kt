@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -69,6 +70,7 @@ class UakinoProvider : MainAPI() {
         }
     }
 
+    // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
@@ -98,9 +100,9 @@ class UakinoProvider : MainAPI() {
             val episodes =
                 app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
                     .parsedSafe<Responses>()?.response.let {
-                        Jsoup.parse(it.toString()).select("ul > li").mapNotNull { eps ->
-                            val href = fixUrl(eps.attr("data-file"))                      // ashdi.vip/...
-                            val name = "${eps.text().trim()} (${eps.attr("data-voice")})" // Серія 1 (Озвучення)
+                        Jsoup.parse(it.toString()).select("div.playlists-videos li").mapNotNull { eps ->
+                            val href = "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                            val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
                                 Episode(
                                     href,
@@ -111,7 +113,7 @@ class UakinoProvider : MainAPI() {
                             }
                         }
                     }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy{ it.name }) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -135,15 +137,16 @@ class UakinoProvider : MainAPI() {
         }
     }
 
+    // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String,
+        data: String, // Link from load -> Episode -> data (https://uakino.club/engine/ajax/playlists.php?news_id=16379&xfield=playlist&time=1676477550880)
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
 
         val links = ArrayList<String>()
-
+        // TODO: Redo the logic. Put voices in sources
         if (data.startsWith("https://ashdi.vip")) {
             links.add(data)
         } else {
