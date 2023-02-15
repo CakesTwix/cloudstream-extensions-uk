@@ -37,15 +37,15 @@ subprojects {
     cloudstream {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
         // you can modify it to use other git hosting services, like gitlab
-        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/user/repo")
+        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/CakesTwix/cloudstream-extensions-uk")
     }
 
     android {
-        compileSdkVersion(30)
+        compileSdkVersion(33)
 
         defaultConfig {
             minSdk = 21
-            targetSdk = 30
+            targetSdk = 33
         }
 
         compileOptions {
@@ -77,7 +77,7 @@ subprojects {
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle
         implementation(kotlin("stdlib")) // adds standard kotlin features, like listOf, mapOf etc
         implementation("com.github.Blatzar:NiceHttp:0.3.2") // http library
-        implementation("org.jsoup:jsoup:1.13.1") // html parser
+        implementation("org.jsoup:jsoup:1.15.1") // html parser
     }
 }
 
