@@ -1,10 +1,8 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.Jsoup
@@ -105,7 +103,7 @@ class UakinoProvider : MainAPI() {
                             val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
                                 Episode(
-                                    href,
+                                    "$href,$name",
                                     name,
                                 )
                             } else {
@@ -139,46 +137,34 @@ class UakinoProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // Link from load -> Episode -> data (https://uakino.club/engine/ajax/playlists.php?news_id=16379&xfield=playlist&time=1676477550880)
+        data: String, // link, episode name
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val dataList = data.split(",")
 
-        val links = ArrayList<String>()
-        // TODO: Redo the logic. Put voices in sources
-        if (data.startsWith("https://ashdi.vip")) {
-            links.add(data)
-        } else {
-            val iframeUrl = app.get(data).document.selectFirst("iframe#pre")?.attr("src")
-            if (iframeUrl.isNullOrEmpty()) {
-                val id = data.split("/").last().split("-").first()
-                app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
-                    .parsedSafe<Responses>()?.response.let {
-                        Jsoup.parse(it.toString()).select("ul > li").mapNotNull { mirror ->
-                            links.add(fixUrl(mirror.attr("data-file")))
+        app.get(dataList[0]) // Link
+            .parsedSafe<Responses>()?.response.let {
+                Jsoup.parse(it.toString()).select("div.playlists-videos li:contains(${dataList[1]})").mapNotNull { eps ->
+                    val href = eps.attr("data-file")  // ashdi
+                    val dub = eps.attr("data-voice")  // FanWoxUA
+
+                    // Get m3u from player script
+                    app.get("https:$href", referer = "$mainUrl/").document.select("script").map { script ->
+                        if (script.data().contains("var player = new Playerjs({")) {
+                            val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
+
+                            // Add as source
+                            M3u8Helper.generateM3u8(
+                                source = dub,
+                                streamUrl = m3uLink,
+                                referer = "https://ashdi.vip/"
+                            ).forEach(callback)
                         }
-                    }
-            } else {
-                links.add(iframeUrl)
-            }
-        }
-
-        links.apmap { link ->
-            safeApiCall {
-                app.get(link, referer = "$mainUrl/").document.select("script").map { script ->
-                    if (script.data().contains("var player = new Playerjs({")) {
-                        val m3uLink =
-                            script.data().substringAfterLast("file:\"").substringBefore("\",")
-                        M3u8Helper.generateM3u8(
-                            source = this.name,
-                            streamUrl = m3uLink,
-                            referer = "https://ashdi.vip/"
-                        ).forEach(callback)
                     }
                 }
             }
-        }
 
         return true
     }
