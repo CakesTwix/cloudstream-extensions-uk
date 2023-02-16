@@ -142,8 +142,9 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // TODO: OPTIMIZE code!!!
-        if(data.contains("https://uakino.club")){
+        val dataList = data.split(",")
+        // TODO: OPTIMIZE code!!! Remove this shitty code as soon as possible!!!!!!
+        if(dataList.size == 1){
             val id = data.split("/").last().split("-").first()
             val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()
             if (responseGet?.success == true) { // Its serial
@@ -174,10 +175,28 @@ class UakinoProvider : MainAPI() {
                                 }
                         }
                 }
+            } else {
+                // Its maybe film
+                val document = app.get(data).document
+                val iframeUrl = document.selectFirst("iframe#pre")?.attr("src")
+                // Get m3u from player script
+                if (iframeUrl != null) {
+                    app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script ->
+                        if (script.data().contains("var player = new Playerjs({")) {
+                            val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
+
+                            // Add as source
+                            M3u8Helper.generateM3u8(
+                                source = document.selectFirst("h1 span.solototle")?.text()?.trim().toString(),
+                                streamUrl = m3uLink,
+                                referer = "https://ashdi.vip/"
+                            ).forEach(callback)
+                        }
+                    }
+                }
             }
             return true
         }
-        val dataList = data.split(",")
 
         val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
         if (responseGet?.success == true){ // Its serial
