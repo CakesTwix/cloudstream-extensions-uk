@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -104,7 +103,7 @@ class UakinoProvider : MainAPI() {
                             val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
                                 Episode(
-                                    "$href,$name", // ashdi link, Серія 1
+                                    "$href,$name", // link, Серія 1
                                     name,
                                 )
                             } else {
@@ -143,18 +142,21 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("loadLinks", data)
         val dataList = data.split(",")
 
         val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
         if (responseGet?.success == true){ // Its serial
             responseGet?.response?.let {
                 Jsoup.parse(it).select("div.playlists-videos li:contains(${dataList[1]})").mapNotNull { eps ->
-                    val href = eps.attr("data-file")  // ashdi
+                    var href = eps.attr("data-file")  // ashdi
+                    // Can be without https:
+                    if (! href.contains("https://")) {
+                        href = "https:$href"
+                    }
                     val dub = eps.attr("data-voice")  // FanWoxUA
 
                     // Get m3u from player script
-                    app.get("https:$href", referer = "$mainUrl/").document.select("script").map { script ->
+                    app.get(href, referer = "$mainUrl/").document.select("script").map { script ->
                         if (script.data().contains("var player = new Playerjs({")) {
                             val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
 
