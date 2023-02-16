@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -103,7 +104,7 @@ class UakinoProvider : MainAPI() {
                             val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
                                 Episode(
-                                    "$href,$name",
+                                    "$href,$name", // ashdi link, Серія 1
                                     name,
                                 )
                             } else {
@@ -142,11 +143,13 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        Log.d("loadLinks", data)
         val dataList = data.split(",")
 
-        app.get(dataList[0]) // Link
-            .parsedSafe<Responses>()?.response.let {
-                Jsoup.parse(it.toString()).select("div.playlists-videos li:contains(${dataList[1]})").mapNotNull { eps ->
+        val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
+        if (responseGet?.success == true){ // Its serial
+            responseGet?.response?.let {
+                Jsoup.parse(it).select("div.playlists-videos li:contains(${dataList[1]})").mapNotNull { eps ->
                     val href = eps.attr("data-file")  // ashdi
                     val dub = eps.attr("data-voice")  // FanWoxUA
 
@@ -165,6 +168,27 @@ class UakinoProvider : MainAPI() {
                     }
                 }
             }
+        } else {
+            // Its maybe film
+            val document = app.get(data).document
+            val iframeUrl = document.selectFirst("iframe#pre")?.attr("src")
+            // Get m3u from player script
+            if (iframeUrl != null) {
+                app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script ->
+                    if (script.data().contains("var player = new Playerjs({")) {
+                        val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
+
+                        // Add as source
+                        M3u8Helper.generateM3u8(
+                            source = document.selectFirst("h1 span.solototle")?.text()?.trim().toString(),
+                            streamUrl = m3uLink,
+                            referer = "https://ashdi.vip/"
+                        ).forEach(callback)
+                    }
+                }
+            }
+        }
+
 
         return true
     }
