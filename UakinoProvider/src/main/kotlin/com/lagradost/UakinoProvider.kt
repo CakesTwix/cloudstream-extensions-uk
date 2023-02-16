@@ -142,6 +142,41 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // TODO: OPTIMIZE code!!!
+        if(data.contains("https://uakino.club")){
+            val id = data.split("/").last().split("-").first()
+            val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()
+            if (responseGet?.success == true) { // Its serial
+                responseGet?.response?.let {
+                    Jsoup.parse(it).select("div.playlists-videos li")
+                        .mapNotNull { eps ->
+                            var href = eps.attr("data-file")  // ashdi
+                            // Can be without https:
+                            if (!href.contains("https://")) {
+                                href = "https:$href"
+                            }
+                            val dub = eps.attr("data-voice")  // FanWoxUA
+
+                            // Get m3u from player script
+                            app.get(href, referer = "$mainUrl/").document.select("script")
+                                .map { script ->
+                                    if (script.data().contains("var player = new Playerjs({")) {
+                                        val m3uLink = script.data().substringAfterLast("file:\"")
+                                            .substringBefore("\",")
+
+                                        // Add as source
+                                        M3u8Helper.generateM3u8(
+                                            source = dub,
+                                            streamUrl = m3uLink,
+                                            referer = "https://ashdi.vip/"
+                                        ).forEach(callback)
+                                    }
+                                }
+                        }
+                }
+            }
+            return true
+        }
         val dataList = data.split(",")
 
         val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
