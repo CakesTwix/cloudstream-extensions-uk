@@ -1,13 +1,14 @@
 package com.lagradost
 
 import android.util.Log
+import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.util.*
 
@@ -74,7 +75,6 @@ class EneyidaProvider : MainAPI() {
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
-
         // Parse info
         val full_info = document.select(".full_info li")
         val title = document.selectFirst("div.full_header-title h1")?.text()?.trim().toString()
@@ -96,24 +96,27 @@ class EneyidaProvider : MainAPI() {
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries) {
-            val id = url.split("/").last().split("-").first()
-            val episodes =
-                app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
-                    .parsedSafe<Responses>()?.response.let {
-                        Jsoup.parse(it.toString()).select("div.playlists-videos li").mapNotNull { eps ->
-                            val href = "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
-                            val name = eps.text().trim() // Серія 1
-                            if (href.isNotEmpty()) {
-                                Episode(
-                                    "$href,$name", // link, Серія 1
-                                    name,
-                                )
-                            } else {
-                                null
-                            }
-                        }
+            var episodes: List<Episode> = emptyList()
+            val playerRawJson = app.get(playerUrl).document.select("script").html()
+                .substringAfterLast("file:\'")
+                .substringBefore("\',")
+
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
+                for(season in dubs.folder){                              // Seasons
+                    for(episode in season.folder){                       // Episodes
+                        episodes = episodes.plus(
+                            Episode(
+                                "${season.title}, ${episode.title}, $playerUrl",
+                                episode.title,
+                                season.title.replace(" Сезон ","").toIntOrNull(),
+                                episode.title.replace("Серія ","").toIntOrNull(),
+                                episode.poster
+                            )
+                        )
                     }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy{ it.name }) {
+                }
+            }
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -124,7 +127,7 @@ class EneyidaProvider : MainAPI() {
                 addTrailer(trailer)
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
+            newMovieLoadResponse(title, url, TvType.Movie, "$title, $playerUrl") {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -139,121 +142,49 @@ class EneyidaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // link, episode name
+        data: String, // (Serisl) [Season, Episode, Player Url] | (Film) [Title, Player Url]
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(",")
-        // TODO: OPTIMIZE code!!! Remove this shitty code as soon as possible!!!!!!
-        if(dataList.size == 1){
-            val id = data.split("/").last().split("-").first()
-            val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()
-            if (responseGet?.success == true) { // Its serial
-                responseGet?.response?.let {
-                    Jsoup.parse(it).select("div.playlists-videos li")
-                        .mapNotNull { eps ->
-                            var href = eps.attr("data-file")  // ashdi
-                            // Can be without https:
-                            if (!href.contains("https://")) {
-                                href = "https:$href"
-                            }
-                            val dub = eps.attr("data-voice")  // FanWoxUA
+        val dataList = data.split(", ")
 
-                            // Get m3u from player script
-                            app.get(href, referer = "$mainUrl/").document.select("script")
-                                .map { script ->
-                                    if (script.data().contains("var player = new Playerjs({")) {
-                                        val m3uLink = script.data().substringAfterLast("file:\"")
-                                            .substringBefore("\",")
+        // Its film, parse one m3u8
+        if(dataList.size == 2){
+            val m3u8Url = app.get(dataList[1]).document.select("script").html()
+                .substringAfterLast("file:\"")
+                .substringBefore("\",")
+            Log.d("loadLinks-debug", m3u8Url)
+            M3u8Helper.generateM3u8(
+                source = dataList[0],
+                streamUrl = m3u8Url,
+                referer = "https://tortuga.wtf/"
+            ).forEach(callback)
 
-                                        // Add as source
-                                        M3u8Helper.generateM3u8(
-                                            source = dub,
-                                            streamUrl = m3uLink,
-                                            referer = "https://ashdi.vip/"
-                                        ).forEach(callback)
-                                    }
-                                }
-                        }
-                }
-            } else {
-                // Its maybe film
-                val document = app.get(data).document
-                val iframeUrl = document.selectFirst("iframe#pre")?.attr("src")
-                // Get m3u from player script
-                if (iframeUrl != null) {
-                    app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script ->
-                        if (script.data().contains("var player = new Playerjs({")) {
-                            val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
-
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = document.selectFirst("h1 span.solototle")?.text()?.trim().toString(),
-                                streamUrl = m3uLink,
-                                referer = "https://ashdi.vip/"
-                            ).forEach(callback)
-                        }
-                    }
-                }
-            }
             return true
         }
 
-        val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
-        if (responseGet?.success == true){ // Its serial
-            responseGet?.response?.let {
-                Jsoup.parse(it).select("div.playlists-videos li:contains(${dataList[1]})").mapNotNull { eps ->
-                    var href = eps.attr("data-file")  // ashdi
-                    // Can be without https:
-                    if (! href.contains("https://")) {
-                        href = "https:$href"
-                    }
-                    val dub = eps.attr("data-voice")  // FanWoxUA
+        val playerRawJson = app.get(dataList[2]).document.select("script").html()
+            .substringAfterLast("file:\'")
+            .substringBefore("\',")
 
-                    // Get m3u from player script
-                    app.get(href, referer = "$mainUrl/").document.select("script").map { script ->
-                        if (script.data().contains("var player = new Playerjs({")) {
-                            val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
-
+        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
+            for(season in dubs.folder){                                // Seasons
+                if(season.title == dataList[0]){
+                    for(episode in season.folder){                     // Episodes
+                        if(episode.title == dataList[1]){
                             // Add as source
                             M3u8Helper.generateM3u8(
-                                source = dub,
-                                streamUrl = m3uLink,
-                                referer = "https://ashdi.vip/"
+                                source = dubs.title,
+                                streamUrl = episode.file,
+                                referer = "https://tortuga.wtf/"
                             ).forEach(callback)
                         }
                     }
                 }
             }
-        } else {
-            // Its maybe film
-            val document = app.get(data).document
-            val iframeUrl = document.selectFirst("iframe#pre")?.attr("src")
-            // Get m3u from player script
-            if (iframeUrl != null) {
-                app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script ->
-                    if (script.data().contains("var player = new Playerjs({")) {
-                        val m3uLink = script.data().substringAfterLast("file:\"").substringBefore("\",")
-
-                        // Add as source
-                        M3u8Helper.generateM3u8(
-                            source = document.selectFirst("h1 span.solototle")?.text()?.trim().toString(),
-                            streamUrl = m3uLink,
-                            referer = "https://ashdi.vip/"
-                        ).forEach(callback)
-                    }
-                }
-            }
         }
-
-
         return true
     }
-
-    data class Responses(
-        val success: Boolean?,
-        val response: String,
-    )
 
 }
