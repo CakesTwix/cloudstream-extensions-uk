@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -45,8 +46,8 @@ class UakinoProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): SearchResponse {
-        val title = this.selectFirst("a.movie-title")?.text()?.trim().toString()
-        val href = this.selectFirst("a.movie-title")?.attr("href").toString()
+        val title = this.selectFirst("a.movie-title, div.full-movie-title")?.text()?.trim().toString()
+        val href = this.selectFirst("a.movie-title, a.full-movie")?.attr("href").toString()
         val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
         return newMovieSearchResponse(title, href, TvType.Movie) {
             this.posterUrl = posterUrl
@@ -87,7 +88,8 @@ class UakinoProvider : MainAPI() {
             ?.substringBefore("/").toRatingInt()
         val actors = document.select("div.film-info > div:nth-child(6) a").map { it.text() }
 
-        val recommendations = document.select("div#full-slides div.owl-item").map {
+        val recommendations = document.select(".related-item").map {
+            Log.d("load-debug", it.html())
             it.toSearchResponse()
         }
 
