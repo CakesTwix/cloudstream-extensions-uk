@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -8,9 +7,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import java.util.*
 
 class EneyidaProvider : MainAPI() {
 
@@ -60,14 +57,15 @@ class EneyidaProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = mainUrl,
+            url = "$mainUrl",
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
                 "story" to query.replace(" ", "+")
             )
         ).document
-        return document.select("div.movie-item.short-item").map {
+
+        return document.select("article.short").map {
             it.toSearchResponse()
         }
     }
@@ -154,7 +152,6 @@ class EneyidaProvider : MainAPI() {
             val m3u8Url = app.get(dataList[1]).document.select("script").html()
                 .substringAfterLast("file:\"")
                 .substringBefore("\",")
-            Log.d("loadLinks-debug", m3u8Url)
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url,
