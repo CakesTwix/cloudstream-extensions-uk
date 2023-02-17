@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 2
+version = 1
 
 
 cloudstream {
     language = "uk"
     // All of these properties are optional, you can safely remove them
 
-    description = "Дивитися фільми та серіали онлайн в HD якості. У нас можна дивитися кіно онлайн безкоштовно, у високій якості та з якісним українським дубляжем."
+    description = "Мета проекту «Енеїда» - популяризація української мови, демонстрація її різнобарвності та сучасності. Ми плануємо робити це через ретрансляцію якісного кіно, мультфільмів, телесеріалів та різноманітних телешоу в якісному українському перекладі. Тож, у добрий шлях дорогі конфіденти!."
     authors = listOf("CakesTwix")
 
     /**
@@ -16,12 +16,12 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
      * */
-    status = 1 // will be 3 if unspecified
+    status = 3 // will be 3 if unspecified
     tvTypes = listOf(
         "Anime",
         "TvSeries",
         "Movie",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=uakino.club&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=eneyida.tv&sz=%size%"
 }
