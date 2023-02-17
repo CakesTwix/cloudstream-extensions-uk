@@ -48,7 +48,7 @@ class EneyidaProvider : MainAPI() {
 
     private fun Element.toSearchResponse(): SearchResponse {
         val title = this.selectFirst("a.short_title")?.text()?.trim().toString()
-        val href = this.selectFirst("div.short_title")?.attr("href").toString()
+        val href = this.selectFirst("a.short_title")?.attr("href").toString()
         val posterUrl = mainUrl + this.selectFirst("a.short_img img")?.attr("data-src")
 
         return newMovieSearchResponse(title, href, TvType.Movie) {
@@ -76,21 +76,20 @@ class EneyidaProvider : MainAPI() {
         val document = app.get(url).document
 
         // Parse info
-        val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
-        val poster = fixUrl(document.selectFirst("div.film-poster img")?.attr("src").toString())
-        val tags = document.select("div.film-info > div:nth-child(4) a").map { it.text() }
-        val year = document.select("div.film-info > div:nth-child(2) a").text().toIntOrNull()
-        // TODO: Fix Naruto. Its series, not Movie Lol
-        // https://uakino.club/animeukr/6268-naruto-1-sezon.html
-        val tvType =
-            if (url.contains(Regex("(/anime-series)|(/seriesss)|(/cartoonseries)"))) TvType.TvSeries else TvType.Movie
-        val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
-        val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
-        val rating = document.selectFirst("div.film-info > div:nth-child(8) div.fi-desc")?.text()
-            ?.substringBefore("/").toRatingInt()
-        val actors = document.select("div.film-info > div:nth-child(6) a").map { it.text() }
+        val full_info = document.select(".full_info li")
+        val title = document.selectFirst("div.full_header-title h1")?.text()?.trim().toString()
+        val poster = mainUrl + document.selectFirst(".full_content-poster img")?.attr("src")
+        val tags = full_info[1].select("a").map { it.text() }
+        val year = full_info[0].select("a").text().toIntOrNull()
+        val playerUrl = document.select(".tabs_b.visible iframe").attr("src")
 
-        val recommendations = document.select("div#full-slides div.owl-item").map {
+        val tvType = if (tags.contains("фільм") or playerUrl.contains("/vod/")) TvType.Movie else TvType.TvSeries
+        val description = document.selectFirst(".full_content-desc p")?.text()?.trim()
+        val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
+        val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text().toRatingInt()
+        val actors = full_info[4].select("a").map { it.text() }
+
+        val recommendations = document.select(".short.related_item").map {
             it.toSearchResponse()
         }
 
