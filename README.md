@@ -1,21 +1,32 @@
-# `Cloudstream3 Plugin Repo Template`
 
-Template for a [Cloudstream3](https://github.com/recloudstream) plugin repo
+# Cloudstream Extensions (Ukraine)
 
-**⚠️ Make sure you check "Include all branches" when using this template**
+Repository with Ukrainian movie/serial/anime sites parsers
 
- 
-## Getting started with writing your first plugin
 
-This template includes 1 example plugin.
+## Installation
 
-1. Open the root build.gradle.kts, read the comments and replace all the placeholders
-2. Familiarize yourself with the project structure. Most files are commented
-3. Build or deploy your first plugin using:
-   - Windows: `.\gradlew.bat ExampleProvider:make` or `.\gradlew.bat ExampleProvider:deployWithAdb`
-   - Linux & Mac: `./gradlew ExampleProvider:make` or `./gradlew ExampleProvider:deployWithAdb`
+Copy this url and go to application -> settings -> extensions -> add repository
 
-## Attribution
+```
+  https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/master/repo.json
+```
 
-This template as well as the gradle plugin and the whole plugin system is **heavily** based on [Aliucord](https://github.com/Aliucord).
-*Go use it, it's a great mobile discord client mod!*
+## Support
+
+For support, Telegram @CakesTwix or @cakestwix_talk
+
+
+## Badges
+
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/CakesTwix/cloudstream-extensions-uk/build.yml?style=flat-square) ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/CakesTwix/cloudstream-extensions-uk?style=flat-square)
+
+## Contributing
+
+Contributions are always welcome!
+
+
+## Authors
+
+- [@CakesTwix](https://www.github.com/CakesTwix)
+
