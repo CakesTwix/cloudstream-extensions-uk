@@ -3,13 +3,14 @@ package com.lagradost
 import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import okio.ByteString.Companion.decodeBase64
+import okio.ByteString.Companion.decodeHex
+import okio.ByteString.Companion.encodeUtf8
 import org.jsoup.nodes.Element
+import java.nio.charset.Charset
 
 class AnitubeinuaProvider : MainAPI() {
 
@@ -93,10 +94,28 @@ class AnitubeinuaProvider : MainAPI() {
         // 12 - json with episodes
         // Players, Episodes, Number of episodes
         // TODO: Parse Episodes
-        val playerScriptJson = document.select("script")[12].html().substringAfterLast(".init(").substringBefore(");")
-        val playerNames = playerScriptJson.substringAfterLast("],")
-        val numberOfEpisodes = playerScriptJson.substringAfterLast(",")
-        Log.d("load-debug", playerScriptJson.substringAfterLast(","))
+        document.select("script").map{ script ->
+            if (script.data().contains("RalodePlayer.init(")) {
+                val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
+                val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
+                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
+                val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
+                Log.d("load-debug", playerNamesArray[0].dropLast(1).drop(1))
+
+                // TODO: Decode string
+                Log.d("load-debug",  decode(playerNamesArray[0]))
+                val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
+                for(item in playerJson) {
+                    for (item2 in item) {
+                        //Log.d("load-debug", item2.name)
+                    }
+                }
+            }
+
+        } //.substringAfterLast(".init(").substringBefore(");")
+
+
+
 
         var episodes: List<Episode> = emptyList()
 
@@ -138,23 +157,9 @@ class AnitubeinuaProvider : MainAPI() {
             .substringAfterLast("file:\'")
             .substringBefore("\',")
 
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = dubs.title,
-                                streamUrl = episode.file,
-                                referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
-                        }
-                    }
-                }
-            }
-        }
+
         return true
     }
 
+    fun decode(input: String): String = java.net.URLDecoder.decode(input, "utf-16")
 }
