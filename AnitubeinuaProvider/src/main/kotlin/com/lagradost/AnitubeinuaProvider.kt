@@ -2,15 +2,13 @@ package com.lagradost
 
 import android.util.Log
 import com.lagradost.models.PlayerJson
+import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import okio.ByteString.Companion.decodeBase64
-import okio.ByteString.Companion.decodeHex
-import okio.ByteString.Companion.encodeUtf8
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import java.nio.charset.Charset
 
 class AnitubeinuaProvider : MainAPI() {
 
@@ -73,7 +71,7 @@ class AnitubeinuaProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-        var someInfo = document.select("div.story_c_r")[1]
+        val someInfo = document.select("div.story_c_r")[1]
 
         // Parse info
         val title = document.selectFirst(".story_c h2")?.text()?.trim().toString()
@@ -94,30 +92,40 @@ class AnitubeinuaProvider : MainAPI() {
         // 12 - json with episodes
         // Players, Episodes, Number of episodes
         // TODO: Parse Episodes
+        var episodes: List<Episode> = emptyList()
+
         document.select("script").map{ script ->
             if (script.data().contains("RalodePlayer.init(")) {
                 val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
                 val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
                 val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
                 val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
-                Log.d("load-debug", playerNamesArray[0].dropLast(1).drop(1))
 
-                // TODO: Decode string
-                Log.d("load-debug",  decode(playerNamesArray[0]))
+                // Decoded string, thanks to Secozzi
+                // val hexRegex = Regex("\\\\u([0-9a-fA-F]{4})")
+                // val decodedString = hexRegex.replace(playerNamesArray[0]) { matchResult ->
+                //     Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
+                // }
+                // Log.d("load-debug",  decodedString)
+
                 val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                 for(item in playerJson) {
                     for (item2 in item) {
-                        //Log.d("load-debug", item2.name)
+                        if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
+                        {
+                            episodes = episodes.plus(
+                                Episode(
+                                    "${item2.name}, $url",
+                                    item2.name,
+                                    episode = item2.name.replace("Серія ","").toIntOrNull(),
+                                )
+                            )
+                        }
                     }
                 }
             }
 
-        } //.substringAfterLast(".init(").substringBefore(");")
-
-
-
-
-        var episodes: List<Episode> = emptyList()
+        }
 
         return newTvSeriesLoadResponse(title, url, tvType, episodes) {
             this.posterUrl = poster
@@ -132,34 +140,41 @@ class AnitubeinuaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (Serisl) [Season, Episode, Player Url] | (Film) [Title, Player Url]
+        data: String, // Серія, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
+        val document = app.get(dataList[1]).document
+        Log.d("load-debug",  dataList.toString())
 
-        // Its film, parse one m3u8
-        if(dataList.size == 2){
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file:\"")
-                .substringBefore("\",")
-            M3u8Helper.generateM3u8(
-                source = dataList[0],
-                streamUrl = m3u8Url,
-                referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+        document.select("script").map { script ->
+            Log.d("load-debug",  script.data())
+            if (script.data().contains("RalodePlayer.init(")) {
+                val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
+                val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
+                Log.d("load-debug",  playerScriptRawJson)
 
-            return true
+                val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
+                for(item in playerJson) {
+                    for (item2 in item) {
+                        if(item2.name == dataList[0]){
+                            if(item2.code.contains("https://ashdi.vip")){
+                                M3u8Helper.generateM3u8(
+                                    source = dataList[0],
+                                    streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(item2.code).select("iframe").attr("src")),
+                                    referer = "https://qeruya.cyou"
+                                ).forEach(callback)
+                            }
+                        }
+                    }
+                }
+                return true
+            }
         }
-
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file:\'")
-            .substringBefore("\',")
-
-
         return true
     }
 
-    fun decode(input: String): String = java.net.URLDecoder.decode(input, "utf-16")
+    fun decode(input: String): String = java.net.URLDecoder.decode(input, "ISO-8859-1")
 }
