@@ -101,13 +101,6 @@ class AnitubeinuaProvider : MainAPI() {
                 val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
                 val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
 
-                // Decoded string, thanks to Secozzi
-                // val hexRegex = Regex("\\\\u([0-9a-fA-F]{4})")
-                // val decodedString = hexRegex.replace(playerNamesArray[0]) { matchResult ->
-                //     Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
-                // }
-                // Log.d("load-debug",  decodedString)
-
                 val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                 for(item in playerJson) {
                     for (item2 in item) {
@@ -150,19 +143,19 @@ class AnitubeinuaProvider : MainAPI() {
         Log.d("load-debug",  dataList.toString())
 
         document.select("script").map { script ->
-            Log.d("load-debug",  script.data())
             if (script.data().contains("RalodePlayer.init(")) {
                 val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
                 val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                Log.d("load-debug",  playerScriptRawJson)
+                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
 
                 val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
-                for(item in playerJson) {
-                    for (item2 in item) {
+                playerJson.forEachIndexed { index, dub ->
+                    Log.d("load-debug",  dub.toString())
+                    for (item2 in dub) {
                         if(item2.name == dataList[0]){
                             if(item2.code.contains("https://ashdi.vip")){
                                 M3u8Helper.generateM3u8(
-                                    source = dataList[0],
+                                    source = decode(playerNamesArray[index]),
                                     streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(item2.code).select("iframe").attr("src")),
                                     referer = "https://qeruya.cyou"
                                 ).forEach(callback)
@@ -176,5 +169,11 @@ class AnitubeinuaProvider : MainAPI() {
         return true
     }
 
-    fun decode(input: String): String = java.net.URLDecoder.decode(input, "ISO-8859-1")
+    fun decode(input: String): String{
+        // Decoded string, thanks to Secozzi
+        val hexRegex = Regex("\\\\u([0-9a-fA-F]{4})")
+        return hexRegex.replace(input) { matchResult ->
+            Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
+        }
+    }
 }
