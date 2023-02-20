@@ -178,8 +178,9 @@ class AnitubeinuaProvider : MainAPI() {
                 Jsoup.parse(it).select("div.playlists-videos li")
                     .mapNotNull { eps ->
                         // 0 - idk, 1 - dub, 2 - player
+                        // if with sub
+                        // 0 - idk 1 - dub 2 - sub or dub 3 - player
                         // dataList[1] - index
-                        Log.d("load-debug", index.toString())
                         // 0_1_2
                         if(player_tab_id != eps.attr("data-id")){
                             index = -1
@@ -193,8 +194,14 @@ class AnitubeinuaProvider : MainAPI() {
                                 href = "https:$href"
                             }
 
-                            val dub_name = playersTab[0].select(" li[data-id=${ player_tab_id.dropLast(2) }]").text() // G&M
-                            val player_name = playersTab[1].select(" li[data-id=$player_tab_id]").text()
+                            val dub_name = playersTab[0].select(" li[data-id=${ player_tab_id.take(3) }]").text() // G&M
+                            var player_name = playersTab[1].select(" li[data-id=$player_tab_id]").text() // ПЛЕЄР ASHDI
+
+                            if(player_tab_id.count { it == '_' } == 3) {
+                                player_name =
+                                    playersTab[2].selectFirst(" li[data-id=$player_tab_id]")!!
+                                        .text() // ПЛЕЄР ASHDI
+                            }
 
                             if (href.contains("https://ashdi.vip/vod")) {
                                 // Add as source
