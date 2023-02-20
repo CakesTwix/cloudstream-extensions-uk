@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import java.util.*
 
 class AnitubeinuaProvider : MainAPI() {
 
@@ -46,7 +47,7 @@ class AnitubeinuaProvider : MainAPI() {
         val href = this.selectFirst(".story_c h2 a")?.attr("href").toString()
         val posterUrl = mainUrl + this.selectFirst(".story_c_l span.story_post img")?.attr("src")
 
-        return newMovieSearchResponse(title, href, TvType.Movie) {
+        return newMovieSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
         }
 
@@ -89,38 +90,58 @@ class AnitubeinuaProvider : MainAPI() {
         }
 
         // Return to app
-        // 12 - json with episodes
         // Players, Episodes, Number of episodes
-        // TODO: Parse Episodes
         var episodes: List<Episode> = emptyList()
+        val id = url.split("/").last().split("-").first()
+        val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()!!
+        if (responseGet?.success == true) { // First type players
+            episodes =
+                app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
+                    .parsedSafe<Responses>()?.response.let {
+                        Jsoup.parse(it.toString()).select("div.playlists-videos li")
+                            .mapNotNull { eps ->
+                                val href =
+                                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                                val name = eps.text().trim() // Серія 1
+                                if (href.isNotEmpty()) {
+                                    Episode(
+                                        "$href, $name", // link, Серія 1
+                                        name,
+                                    )
+                                } else {
+                                    null
+                                }
+                            }
+                    }
+        } else {
+            document.select("script").map{ script ->
+                if (script.data().contains("RalodePlayer.init(")) {
+                    val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
+                    val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
+                    val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
+                    val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
 
-        document.select("script").map{ script ->
-            if (script.data().contains("RalodePlayer.init(")) {
-                val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
-                val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
-                val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
-
-                val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
-                for(item in playerJson) {
-                    item.forEachIndexed { index, item2 ->
-                        if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
-                        {
-                            episodes = episodes.plus(
-                                Episode(
-                                    "$index, $url",
-                                    item2.name,
-                                    episode = item2.name.replace("Серія ","").toIntOrNull(),
+                    val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
+                    for(item in playerJson) {
+                        item.forEachIndexed { index, item2 ->
+                            if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
+                            {
+                                episodes = episodes.plus(
+                                    Episode(
+                                        "$index, $url",
+                                        item2.name,
+                                        episode = item2.name.replace("Серія ","").toIntOrNull(),
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
-            }
 
+            }
         }
 
-        return newTvSeriesLoadResponse(title, url, tvType, episodes) {
+        return newTvSeriesLoadResponse(title, url, tvType, episodes.distinctBy{ it.name }) {
             this.posterUrl = poster
             this.year = year
             this.plot = description
@@ -133,33 +154,61 @@ class AnitubeinuaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // index, url title
+        data: String, // (First) link, episode name | (Two) index, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        val document = app.get(dataList[1]).document
+
         Log.d("load-debug",  dataList.toString())
+        if(dataList[0].contains("https://")){ // Its First type player
+            // TODO: Rework parse. Need parse dub by data-id
+            Log.d("load-debug",  "First Player pack")
+            val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
+            responseGet?.response?.let {
+                val playersTab = Jsoup.parse(it).select("div.playlists-items")[1]
+                Jsoup.parse(it).select("div.playlists-videos li:contains(${dataList[1]})")
+                    .mapNotNull { eps ->
+                        var href = eps.attr("data-file")  // m3u url
+                        // Can be without https:
+                        if (!href.contains("https://")) {
+                            href = "https:$href"
+                        }
 
-        document.select("script").map { script ->
-            if (script.data().contains("RalodePlayer.init(")) {
-                val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
-                val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
-
-                val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
-                playerJson.forEachIndexed { index, dub ->
-                    if(dub[dataList[0].toInt()].code.contains("https://ashdi.vip")){
-                        M3u8Helper.generateM3u8(
-                            source = decode(playerNamesArray[index]),
-                            streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe").attr("src")),
-                            referer = "https://qeruya.cyou"
-                        ).forEach(callback)
+                        val player_tab_id = eps.attr("data-id")  // 0_0_0
+                        if (href.contains("https://ashdi.vip/vod")) {
+                            // Add as source
+                            M3u8Helper.generateM3u8(
+                                source = playersTab.select("li[data-id=$player_tab_id]").text(),
+                                streamUrl = AshdiExtractor().ParseM3U8(href),
+                                referer = "https://qeruya.cyou"
+                            ).forEach(callback)
+                        }
                     }
+            }
+            return true
+        } else {
+            val document = app.get(dataList[1]).document
+            document.select("script").map { script ->
+                if (script.data().contains("RalodePlayer.init(")) {
+                    val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
+                    val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
+                    val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
 
+                    val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
+                    playerJson.forEachIndexed { index, dub ->
+                        if(dub[dataList[0].toInt()].code.contains("https://ashdi.vip")){
+                            M3u8Helper.generateM3u8(
+                                source = decode(playerNamesArray[index]),
+                                streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe").attr("src")),
+                                referer = "https://qeruya.cyou"
+                            ).forEach(callback)
+                        }
+
+                    }
+                    return true
                 }
-                return true
             }
         }
         return true
@@ -172,4 +221,10 @@ class AnitubeinuaProvider : MainAPI() {
             Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
         }
     }
+
+    data class Responses(
+        val success: Boolean?,
+        val response: String?,
+        val message: String?
+    )
 }
