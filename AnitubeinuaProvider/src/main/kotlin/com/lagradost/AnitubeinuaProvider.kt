@@ -98,17 +98,17 @@ class AnitubeinuaProvider : MainAPI() {
             if (script.data().contains("RalodePlayer.init(")) {
                 val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
                 val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
+                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
                 val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
 
                 val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                 for(item in playerJson) {
-                    for (item2 in item) {
+                    item.forEachIndexed { index, item2 ->
                         if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
                         {
                             episodes = episodes.plus(
                                 Episode(
-                                    "${item2.name}, $url",
+                                    "$index, $url",
                                     item2.name,
                                     episode = item2.name.replace("Серія ","").toIntOrNull(),
                                 )
@@ -133,7 +133,7 @@ class AnitubeinuaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // Серія, url title
+        data: String, // index, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
@@ -146,22 +146,18 @@ class AnitubeinuaProvider : MainAPI() {
             if (script.data().contains("RalodePlayer.init(")) {
                 val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
                 val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).split(",")
+                val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
 
                 val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                 playerJson.forEachIndexed { index, dub ->
-                    Log.d("load-debug",  dub.toString())
-                    for (item2 in dub) {
-                        if(item2.name == dataList[0]){
-                            if(item2.code.contains("https://ashdi.vip")){
-                                M3u8Helper.generateM3u8(
-                                    source = decode(playerNamesArray[index]),
-                                    streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(item2.code).select("iframe").attr("src")),
-                                    referer = "https://qeruya.cyou"
-                                ).forEach(callback)
-                            }
-                        }
+                    if(dub[dataList[0].toInt()].code.contains("https://ashdi.vip")){
+                        M3u8Helper.generateM3u8(
+                            source = decode(playerNamesArray[index]),
+                            streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe").attr("src")),
+                            referer = "https://qeruya.cyou"
+                        ).forEach(callback)
                     }
+
                 }
                 return true
             }
