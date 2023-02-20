@@ -99,13 +99,13 @@ class AnitubeinuaProvider : MainAPI() {
                 app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
                     .parsedSafe<Responses>()?.response.let {
                         Jsoup.parse(it.toString()).select("div.playlists-videos li")
-                            .mapNotNull { eps ->
+                            .mapIndexedNotNull() { index, eps ->
                                 val href =
                                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
                                 val name = eps.text().trim() // Серія 1
                                 if (href.isNotEmpty()) {
                                     Episode(
-                                        "$href, $name", // link, Серія 1
+                                        "$href, $index", // link, Серія 1
                                         name,
                                     )
                                 } else {
@@ -154,7 +154,7 @@ class AnitubeinuaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (First) link, episode name | (Two) index, url title
+        data: String, // (First) link, index | (Two) index, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
@@ -163,31 +163,51 @@ class AnitubeinuaProvider : MainAPI() {
 
         Log.d("load-debug",  dataList.toString())
         if(dataList[0].contains("https://")){ // Its First type player
-            // TODO: Rework parse. Need parse dub by data-id
             Log.d("load-debug",  "First Player pack")
+
+            // Get episodes list (as json)
             val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
             responseGet?.response?.let {
-                val playersTab = Jsoup.parse(it).select("div.playlists-items")[1]
-                Jsoup.parse(it).select("div.playlists-videos li:contains(${dataList[1]})")
+
+                // List Players
+                val playersTab = Jsoup.parse(it).select("div.playlists-items")
+
+                // Parse all episodes by name
+                var index = 0
+                var player_tab_id = ""
+                Jsoup.parse(it).select("div.playlists-videos li")
                     .mapNotNull { eps ->
-                        var href = eps.attr("data-file")  // m3u url
-                        // Can be without https:
-                        if (!href.contains("https://")) {
-                            href = "https:$href"
+                        // 0 - idk, 1 - dub, 2 - player
+                        // dataList[1] - index
+                        Log.d("load-debug", index.toString())
+                        // 0_1_2
+                        if(player_tab_id != eps.attr("data-id")){
+                            index = -1
+                            player_tab_id = eps.attr("data-id")
                         }
 
-                        val player_tab_id = eps.attr("data-id")  // 0_0_0
-                        if (href.contains("https://ashdi.vip/vod")) {
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = playersTab.select("li[data-id=$player_tab_id]").text(),
-                                streamUrl = AshdiExtractor().ParseM3U8(href),
-                                referer = "https://qeruya.cyou"
-                            ).forEach(callback)
+                        if(dataList[1].toInt() == index){
+                            var href = eps.attr("data-file")  // m3u url
+                            // Can be without https:
+                            if (!href.contains("https://")) {
+                                href = "https:$href"
+                            }
+
+                            val dub_name = playersTab[0].select(" li[data-id=${ player_tab_id.dropLast(2) }]").text() // G&M
+                            val player_name = playersTab[1].select(" li[data-id=$player_tab_id]").text()
+
+                            if (href.contains("https://ashdi.vip/vod")) {
+                                // Add as source
+                                M3u8Helper.generateM3u8(
+                                    source = "$player_name ($dub_name)",
+                                    streamUrl = AshdiExtractor().ParseM3U8(href),
+                                    referer = "https://qeruya.cyou"
+                                ).forEach(callback)
+                            }
                         }
+                        index += 1
                     }
             }
-            return true
         } else {
             val document = app.get(dataList[1]).document
             document.select("script").map { script ->
@@ -207,7 +227,6 @@ class AnitubeinuaProvider : MainAPI() {
                         }
 
                     }
-                    return true
                 }
             }
         }
