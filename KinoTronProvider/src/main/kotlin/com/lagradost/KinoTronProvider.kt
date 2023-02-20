@@ -84,7 +84,7 @@ class KinoTronProvider : MainAPI() {
 
         val year = document.select(".flist li")[0].select("a").text().toIntOrNull()
 
-        val tvType = with(document.select(".fsubtitle").text()) {
+        var tvType = with(document.select(".fsubtitle").text()) {
             when {
                 contains("аніме") -> TvType.Anime
                 contains("серіал") -> TvType.TvSeries
@@ -101,6 +101,7 @@ class KinoTronProvider : MainAPI() {
         // Parse episodes
         var episodes: List<Episode> = emptyList()
         val playerUrl = document.select("div.video-box iframe").attr("data-src")
+        if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
         Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
