@@ -1,12 +1,12 @@
 // use an integer for version numbers
-version = 2
+version = 3
 
 
 cloudstream {
     language = "uk"
     // All of these properties are optional, you can safely remove them
 
-    description = "Дивитися фільми та серіали онлайн в HD якості. У нас можна дивитися кіно онлайн безкоштовно, у високій якості та з якісним українським дубляжем."
+    description = "Дивіться фільми та серіали онлайн в HD якості. У нас можна дивитися кіно онлайн безкоштовно, у високій якості та з якісним українським дубляжем."
     authors = listOf("CakesTwix")
 
     /**
