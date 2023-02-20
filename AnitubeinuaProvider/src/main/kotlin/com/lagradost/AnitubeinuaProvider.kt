@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
@@ -15,7 +14,7 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Basic Info
     override var mainUrl = "https://anitube.in.ua"
-    override var name = "Anitubeinua"
+    override var name = "Anitubeinua Beta"
     override val hasMainPage = true
     override var lang = "uk"
     override val hasDownloadSupport = true
@@ -34,7 +33,7 @@ class AnitubeinuaProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        var document = app.get(request.data + page).document
+        val document = app.get(request.data + page).document
 
         val home = document.select(".story").map {
             it.toSearchResponse()
@@ -94,7 +93,7 @@ class AnitubeinuaProvider : MainAPI() {
         var episodes: List<Episode> = emptyList()
         val id = url.split("/").last().split("-").first()
         val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()!!
-        if (responseGet?.success == true) { // First type players
+        if (responseGet.success == true) { // First type players
             episodes =
                 app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
                     .parsedSafe<Responses>()?.response.let {
@@ -118,8 +117,8 @@ class AnitubeinuaProvider : MainAPI() {
                 if (script.data().contains("RalodePlayer.init(")) {
                     val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
                     val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                    val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
-                    val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
+                    // val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
+                    // val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
 
                     val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                     for(item in playerJson) {
@@ -161,20 +160,18 @@ class AnitubeinuaProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(", ")
 
-        Log.d("load-debug",  dataList.toString())
         if(dataList[0].contains("https://")){ // Its First type player
-            Log.d("load-debug",  "First Player pack")
 
             // Get episodes list (as json)
             val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
-            responseGet?.response?.let {
+            responseGet?.response?.let { it ->
 
                 // List Players
                 val playersTab = Jsoup.parse(it).select("div.playlists-items")
 
                 // Parse all episodes by name
                 var index = 0
-                var player_tab_id = ""
+                var playerTabId = ""
                 Jsoup.parse(it).select("div.playlists-videos li")
                     .mapNotNull { eps ->
                         // 0 - idk, 1 - dub, 2 - player
@@ -182,9 +179,9 @@ class AnitubeinuaProvider : MainAPI() {
                         // 0 - idk 1 - dub 2 - sub or dub 3 - player
                         // dataList[1] - index
                         // 0_1_2
-                        if(player_tab_id != eps.attr("data-id")){
+                        if(playerTabId != eps.attr("data-id")){
                             index = -1
-                            player_tab_id = eps.attr("data-id")
+                            playerTabId = eps.attr("data-id")
                         }
 
                         if(dataList[1].toInt() == index){
@@ -194,19 +191,19 @@ class AnitubeinuaProvider : MainAPI() {
                                 href = "https:$href"
                             }
 
-                            val dub_name = playersTab[0].select(" li[data-id=${ player_tab_id.take(3) }]").text() // G&M
-                            var player_name = playersTab[1].select(" li[data-id=$player_tab_id]").text() // ПЛЕЄР ASHDI
+                            val dubName = playersTab[0].select(" li[data-id=${ playerTabId.take(3) }]").text() // G&M
+                            var playerName = playersTab[1].select(" li[data-id=$playerTabId]").text() // ПЛЕЄР ASHDI
 
-                            if(player_tab_id.count { it == '_' } == 3) {
-                                player_name =
-                                    playersTab[2].selectFirst(" li[data-id=$player_tab_id]")!!
+                            if(playerTabId.count { it == '_' } == 3) {
+                                playerName =
+                                    playersTab[2].selectFirst(" li[data-id=$playerTabId]")!!
                                         .text() // ПЛЕЄР ASHDI
                             }
 
                             if (href.contains("https://ashdi.vip/vod")) {
                                 // Add as source
                                 M3u8Helper.generateM3u8(
-                                    source = "$player_name ($dub_name)",
+                                    source = "$playerName ($dubName)",
                                     streamUrl = AshdiExtractor().ParseM3U8(href),
                                     referer = "https://qeruya.cyou"
                                 ).forEach(callback)
@@ -240,7 +237,7 @@ class AnitubeinuaProvider : MainAPI() {
         return true
     }
 
-    fun decode(input: String): String{
+    private fun decode(input: String): String{
         // Decoded string, thanks to Secozzi
         val hexRegex = Regex("\\\\u([0-9a-fA-F]{4})")
         return hexRegex.replace(input) { matchResult ->
