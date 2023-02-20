@@ -54,7 +54,7 @@ class AnitubeinuaProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = "$mainUrl",
+            url = mainUrl,
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
@@ -62,7 +62,7 @@ class AnitubeinuaProvider : MainAPI() {
             )
         ).document
 
-        return document.select("article.short").map {
+        return document.select("article.story").map {
             it.toSearchResponse()
         }
     }
