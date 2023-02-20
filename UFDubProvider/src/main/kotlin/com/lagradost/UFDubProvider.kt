@@ -1,10 +1,8 @@
 package com.lagradost
 
 import android.net.Uri
-import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.nodes.Element
 
@@ -31,7 +29,7 @@ class UFDubProvider : MainAPI() {
         "$mainUrl/serial/page/" to "Серіали",
         "$mainUrl/film/page/" to "Фільми",
         "$mainUrl/cartoon/page/" to "Мультфільми",
-        "$mainUrl/cartoon-fiml/page/" to "Мультсеріали",
+        "$mainUrl/cartoon-serial/page/" to "Мультсеріали",
         "$mainUrl/dorama/page/" to "Дорами",
 
     )
