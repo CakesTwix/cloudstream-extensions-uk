@@ -159,7 +159,6 @@ class AnitubeinuaProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-
         if(dataList[0].contains("https://")){ // Its First type player
 
             // Get episodes list (as json)
@@ -199,14 +198,24 @@ class AnitubeinuaProvider : MainAPI() {
                                     playersTab[2].selectFirst(" li[data-id=$playerTabId]")!!
                                         .text() // ПЛЕЄР ASHDI
                             }
-
-                            if (href.contains("https://ashdi.vip/vod")) {
-                                // Add as source
-                                M3u8Helper.generateM3u8(
-                                    source = "$playerName ($dubName)",
-                                    streamUrl = AshdiExtractor().ParseM3U8(href),
-                                    referer = "https://qeruya.cyou"
-                                ).forEach(callback)
+                            with(href){
+                                when{
+                                    contains("https://tortuga.wtf/vod/") -> {
+                                        M3u8Helper.generateM3u8(
+                                            source = "$playerName ($dubName)",
+                                            streamUrl = AshdiExtractor().ParseM3U8(href),
+                                            referer = "https://tortuga.wtf/"
+                                        ).forEach(callback)
+                                    }
+                                    contains("https://ashdi.vip/vod") -> {
+                                        M3u8Helper.generateM3u8(
+                                            source = "$playerName ($dubName)",
+                                            streamUrl = AshdiExtractor().ParseM3U8(href),
+                                            referer = "https://qeruya.cyou"
+                                        ).forEach(callback)
+                                    }
+                                    else -> {}
+                                }
                             }
                         }
                         index += 1
@@ -222,14 +231,27 @@ class AnitubeinuaProvider : MainAPI() {
 
                     val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
                     playerJson.forEachIndexed { index, dub ->
-                        if(dub[dataList[0].toInt()].code.contains("https://ashdi.vip")){
-                            M3u8Helper.generateM3u8(
-                                source = decode(playerNamesArray[index]),
-                                streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe").attr("src")),
-                                referer = "https://qeruya.cyou"
-                            ).forEach(callback)
+                        with(dub[dataList[0].toInt()].code) {
+                            when {
+                                contains("https://tortuga.wtf/vod/") -> {
+                                    M3u8Helper.generateM3u8(
+                                        source = decode(playerNamesArray[index]),
+                                        streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
+                                            .attr("src")),
+                                        referer = "https://tortuga.wtf/"
+                                    ).forEach(callback)
+                                }
+                                contains("https://ashdi.vip/vod") -> {
+                                    M3u8Helper.generateM3u8(
+                                        source = decode(playerNamesArray[index]),
+                                        streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
+                                            .attr("src")),
+                                        referer = "https://qeruya.cyou"
+                                    ).forEach(callback)
+                                }
+                                else -> {}
+                            }
                         }
-
                     }
                 }
             }
