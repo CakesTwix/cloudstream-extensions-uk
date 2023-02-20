@@ -62,7 +62,7 @@ class UFDubProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = mainUrl,
+            url = "$mainUrl/index.php?do=search",
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
@@ -70,7 +70,7 @@ class UFDubProvider : MainAPI() {
             )
         ).document
 
-        return document.select("article.story").map {
+        return document.select(".short").map {
             it.toSearchResponse()
         }
     }
