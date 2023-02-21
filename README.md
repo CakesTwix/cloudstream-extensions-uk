@@ -1,32 +1,30 @@
+<!-- Title -->
+# 🇺🇦 Розширення Cloudstream (Україна)
 
-# Cloudstream Extensions (Ukraine)
+<!-- Badges -->
+![GitHub code size](https://img.shields.io/github/languages/code-size/CakesTwix/cloudstream-extensions-uk?style=for-the-badge)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/CakesTwix/cloudstream-extensions-uk/build.yml?style=for-the-badge)
+![Made with Kotlin](https://img.shields.io/badge/Made_with-Kotlin-8051ff?style=for-the-badge&logo=kotlin)
 
-Repository with Ukrainian movie/serial/anime sites parsers
+<!-- Brief information about the extension -->
+## 📖 Що це таке?
+Це спеціальне розширення для перегляду фільмів, серіалів та аніме в якісному українському дубляжу від різних постачальників в стрімінговій програмі [Cloudstream](https://github.com/recloudstream/cloudstream).
 
-
-## Installation
-
-Copy this url and go to application -> settings -> extensions -> add repository
-
+<!-- Installation guide -->
+## ⚙️ Інсталяція
+Скопіюйте посилання нижче і перейдіть в Додаток -> Параметри -> Розширення -> Додати репозиторій
 ```
-  https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/master/repo.json
+https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/master/repo.json
 ```
 
-## Support
+<!-- Support -->
+## ✅ Підтримка
+Для підтримки пишіть в Telegram [@CakesTwix](https://t.me/CakesTwix) або [@cakestwix_talk](https://t.me/cakestwix_talk)
 
-For support, Telegram @CakesTwix or @cakestwix_talk
+<!-- Contributing -->
+## 💖 Зробити внесок
+Внески завжди вітаються!
 
-
-## Badges
-
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/CakesTwix/cloudstream-extensions-uk/build.yml?style=flat-square) ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/CakesTwix/cloudstream-extensions-uk?style=flat-square)
-
-## Contributing
-
-Contributions are always welcome!
-
-
-## Authors
-
+<!-- Developers -->
+## ⭐️ Розробники
 - [@CakesTwix](https://www.github.com/CakesTwix)
-
