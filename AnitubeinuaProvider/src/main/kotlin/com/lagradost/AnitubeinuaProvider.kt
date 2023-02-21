@@ -42,9 +42,9 @@ class AnitubeinuaProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): SearchResponse {
-        val title = this.selectFirst(".story_c h2 a")?.text()?.trim().toString()
-        val href = this.selectFirst(".story_c h2 a")?.attr("href").toString()
-        val posterUrl = mainUrl + this.selectFirst(".story_c_l span.story_post img")?.attr("src")
+        val title = this.selectFirst(".story_c h2 a, div.text_content a")?.text()?.trim().toString()
+        val href = this.selectFirst(".story_c h2 a, div.text_content a")?.attr("href").toString()
+        val posterUrl = mainUrl + this.selectFirst(".story_c_l span.story_post img, a img")?.attr("src")
 
         return newMovieSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
@@ -84,7 +84,7 @@ class AnitubeinuaProvider : MainAPI() {
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = document.selectFirst(".lexington-box > div:last-child span")?.text().toRatingInt()
 
-        val recommendations = document.select(".horizontal ul").map {
+        val recommendations = document.select(".horizontal ul li").map {
             it.toSearchResponse()
         }
 
