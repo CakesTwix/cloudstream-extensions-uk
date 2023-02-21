@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.annotation.SuppressLint
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
@@ -85,12 +86,15 @@ class UASerialProvider : MainAPI() {
         // val actors = full_info[4].select("a").map { it.text() }
 
         var episodes: List<Episode> = emptyList()
-            titleJson.partOfTVSeries.containsSeason.map { season ->
+        titleJson.partOfTVSeries.containsSeason.map { season ->
+            val documentSeason = app.get(season.url).document
             season.episode.map { episode ->
+                var episodeName = documentSeason.select("div[data-episode-id=${episode.episodeNumber + 1}] div.name").text().replaceFirstChar { it.uppercase() }
+                if (episodeName.isBlank()) { episodeName = episode.name.replaceFirstChar { it.uppercase() } }
                 episodes = episodes.plus(
                 Episode(
                     "${season.url}, ${episode.episodeNumber}",
-                    episode.name.replaceFirstChar { it.uppercase() },
+                    episodeName,
                     season.seasonNumber,
                     episode.episodeNumber
                 )
