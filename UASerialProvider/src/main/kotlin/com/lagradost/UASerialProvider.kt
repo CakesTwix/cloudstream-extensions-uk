@@ -89,7 +89,7 @@ class UASerialProvider : MainAPI() {
         titleJson.partOfTVSeries.containsSeason.map { season ->
             val documentSeason = app.get(season.url).document
             season.episode.map { episode ->
-                var episodeName = documentSeason.select("div[data-episode-id=${episode.episodeNumber + 1}] div.name").text().replaceFirstChar { it.uppercase() }
+                var episodeName = documentSeason.select("div[data-episode-id=${episode.episodeNumber}] div.name").text().replaceFirstChar { it.uppercase() }
                 if (episodeName.isBlank()) { episodeName = episode.name.replaceFirstChar { it.uppercase() } }
                 episodes = episodes.plus(
                 Episode(
