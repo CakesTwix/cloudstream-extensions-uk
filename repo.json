@@ -1,6 +1,6 @@
 {
-    "name": "Репозиторій з українським контентом.",
-    "description": "У наявності аніме, фільми, серіали тощо. Є безліч озвучок, тому вибір буде!",
+    "name": "CakesTwix Providers Repository",
+    "description": "Cloudstream Ukraine Plugin Repository",
     "manifestVersion": 1,
     "pluginLists": [
       "https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/builds/plugins.json"
