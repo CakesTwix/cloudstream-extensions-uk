@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.extractors.csstExtractor
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.util.*
@@ -214,6 +215,20 @@ class AnitubeinuaProvider : MainAPI() {
                                             referer = "https://qeruya.cyou"
                                         ).forEach(callback)
                                     }
+                                    contains("https://csst.online/embed/") -> {
+                                        csstExtractor().ParseUrl(href).split(",").forEach{
+                                            callback.invoke(
+                                                ExtractorLink(
+                                                    "$playerName ($dubName)",
+                                                    name = "$playerName ($dubName) ${it.substringBefore("]").drop(1)}",
+                                                    it.substringAfter("]"),
+                                                    "",
+                                                    0,
+                                                    isM3u8 = false,
+                                                )
+                                            )
+                                        }
+                                    }
                                     else -> {}
                                 }
                             }
@@ -248,6 +263,19 @@ class AnitubeinuaProvider : MainAPI() {
                                             .attr("src")),
                                         referer = "https://qeruya.cyou"
                                     ).forEach(callback)
+                                }
+                                contains("https://csst.online/embed/") -> {
+                                    callback.invoke(
+                                        ExtractorLink(
+                                            decode(playerNamesArray[index]),
+                                            name = decode(playerNamesArray[index]),
+                                            csstExtractor().ParseUrl(dub[dataList[0].toInt()].code).split(",")[0].substringAfter("]"),
+                                            "",
+                                            1,
+                                            isM3u8 = false
+                                        )
+                                    )
+
                                 }
                                 else -> {}
                             }
