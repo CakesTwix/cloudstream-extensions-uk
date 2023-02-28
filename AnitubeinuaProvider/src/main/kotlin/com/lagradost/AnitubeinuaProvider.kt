@@ -179,13 +179,15 @@ class AnitubeinuaProvider : MainAPI() {
                         // 0 - idk 1 - dub 2 - sub or dub 3 - player
                         // dataList[1] - index
                         // 0_1_2
+                        // Log.d("load-debug", eps.attr("data-id"))
                         if(playerTabId != eps.attr("data-id")){
-                            index = -1
+                            index = 0
                             playerTabId = eps.attr("data-id")
                         }
 
                         if(dataList[1].toInt() == index){
                             var href = eps.attr("data-file")  // m3u url
+
                             // Can be without https:
                             if (!href.contains("https://")) {
                                 href = "https:$href"
@@ -193,12 +195,12 @@ class AnitubeinuaProvider : MainAPI() {
 
                             val dubName = playersTab[0].select(" li[data-id=${ playerTabId.take(3) }]").text() // G&M
                             var playerName = playersTab[1].select(" li[data-id=$playerTabId]").text() // ПЛЕЄР ASHDI
-
                             if(playerTabId.count { it == '_' } == 3) {
                                 playerName =
                                     playersTab[2].selectFirst(" li[data-id=$playerTabId]")!!
                                         .text() // ПЛЕЄР ASHDI
                             }
+
                             with(href){
                                 when{
                                     contains("https://tortuga.wtf/vod/") -> {
@@ -297,7 +299,7 @@ class AnitubeinuaProvider : MainAPI() {
                                             csstExtractor().ParseUrl(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
                                                 .attr("src")).split(",")[0].substringAfter("]"),
                                             "",
-                                            1,
+                                            0,
                                             isM3u8 = false
                                         )
                                     )
