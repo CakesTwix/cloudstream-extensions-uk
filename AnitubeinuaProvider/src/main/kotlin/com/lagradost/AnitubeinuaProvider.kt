@@ -215,6 +215,18 @@ class AnitubeinuaProvider : MainAPI() {
                                             referer = "https://qeruya.cyou"
                                         ).forEach(callback)
                                     }
+                                    contains("https://www.udrop.com") -> {
+                                        callback.invoke(
+                                            ExtractorLink(
+                                                "$playerName ($dubName)",
+                                                name = "$playerName ($dubName)",
+                                                href,
+                                                "",
+                                                0,
+                                                isM3u8 = false,
+                                            )
+                                        )
+                                    }
                                     contains("https://csst.online/embed/") -> {
                                         csstExtractor().ParseUrl(href).split(",").forEach{
                                             callback.invoke(
@@ -264,12 +276,26 @@ class AnitubeinuaProvider : MainAPI() {
                                         referer = "https://qeruya.cyou"
                                     ).forEach(callback)
                                 }
+                                contains("https://www.udrop.com") -> {
+                                    callback.invoke(
+                                        ExtractorLink(
+                                            decode(playerNamesArray[index]),
+                                            name = decode(playerNamesArray[index]),
+                                            Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
+                                                .attr("src"),
+                                            "",
+                                            0,
+                                            isM3u8 = false,
+                                        )
+                                    )
+                                }
                                 contains("https://csst.online/embed/") -> {
                                     callback.invoke(
                                         ExtractorLink(
                                             decode(playerNamesArray[index]),
                                             name = decode(playerNamesArray[index]),
-                                            csstExtractor().ParseUrl(dub[dataList[0].toInt()].code).split(",")[0].substringAfter("]"),
+                                            csstExtractor().ParseUrl(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
+                                                .attr("src")).split(",")[0].substringAfter("]"),
                                             "",
                                             1,
                                             isM3u8 = false
