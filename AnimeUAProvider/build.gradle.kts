@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 1
+version = 2
 
 
 cloudstream {
@@ -16,7 +16,7 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
      * */
-    status = 3 // will be 3 if unspecified
+    status = 1 // will be 3 if unspecified
     tvTypes = listOf(
         "Anime",
         "AnimeMovie",

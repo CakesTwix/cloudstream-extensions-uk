@@ -1,7 +1,10 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -55,13 +58,14 @@ class AnimeUAProvider : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    private fun Element.toSearchResponse(): SearchResponse {
+    private fun Element.toSearchResponse(): AnimeSearchResponse {
         val title = this.selectFirst(titleSelector)?.text()?.trim().toString()
         val href = this.selectFirst(hrefSelector)?.attr("href").toString()
         val posterUrl = mainUrl + this.selectFirst(posterSelector)?.attr("data-src")
-
-        return newMovieSearchResponse(title, href, TvType.Anime) {
+        val status = this.select(".poster__label").text()
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
+            addDubStatus(isDub = true)
         }
 
     }
@@ -87,6 +91,7 @@ class AnimeUAProvider : MainAPI() {
         // Parse info
 
         val title = document.selectFirst(titleLoadSelector)?.text()?.trim().toString()
+        val engTitle = document.select(".pmovie__original-title").text()
         val poster = mainUrl + document.selectFirst("div.page__subcol-side $posterSelector")?.attr("data-src")
         val tags = document.select(genresSelector).map { it.text() }
         val year = document.select(yearSelector).text().substringAfter(": ").substringBefore("-").toIntOrNull()
@@ -107,6 +112,9 @@ class AnimeUAProvider : MainAPI() {
             it.toSearchResponse()
         }
 
+        val (malId, anilistId, image, cover) = Tracker().getTracker(engTitle, "TV", year)
+        Log.d("load-debug", engTitle)
+        //Log.d("load-debug", anilistId!!)
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
@@ -130,13 +138,16 @@ class AnimeUAProvider : MainAPI() {
                     }
                 }
             }
-            newTvSeriesLoadResponse(title, url, tvType, episodes) {
+            newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
                 this.rating = rating
                 this.recommendations = recommendations
+                addEpisodes(DubStatus.Dubbed, episodes)
+                addMalId(malId)
+                addAniListId(anilistId?.toIntOrNull())
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
