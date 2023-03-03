@@ -42,13 +42,20 @@ class AnitubeinuaProvider : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    private fun Element.toSearchResponse(): SearchResponse {
+    private fun Element.toSearchResponse(): AnimeSearchResponse {
         val title = this.selectFirst(".story_c h2 a, div.text_content a")?.text()?.trim().toString()
         val href = this.selectFirst(".story_c h2 a, div.text_content a")?.attr("href").toString()
         val posterUrl = mainUrl + this.selectFirst(".story_c_l span.story_post img, a img")?.attr("src")
 
-        return newMovieSearchResponse(title, href, TvType.Anime) {
+        var isSub = this.select(".box .sub").isNotEmpty()
+        var isDub = this.select(".box .ukr").isNotEmpty()
+        if (!isSub && !isDub){
+            isSub = true
+            isDub = true
+        }
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
+            addDubStatus(isDub, isSub)
         }
 
     }
