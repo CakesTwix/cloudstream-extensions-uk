@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -89,7 +88,6 @@ class UakinoProvider : MainAPI() {
         val actors = document.select("div.film-info > div:nth-child(6) a").map { it.text() }
 
         val recommendations = document.select(".related-item").map {
-            Log.d("load-debug", it.html())
             it.toSearchResponse()
         }
 
