@@ -1,6 +1,5 @@
 package com.lagradost.extractors
 
-import android.util.Log
 import com.lagradost.cloudstream3.app
 
 class csstExtractor {
@@ -9,7 +8,7 @@ class csstExtractor {
             .substringAfterLast("file:\"")
             .substringBefore("\",")
 
-        Log.d("load-debug", playerLinks)
+        // Log.d("load-debug", playerLinks)
 
         return playerLinks
     }

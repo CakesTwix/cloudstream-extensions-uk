@@ -299,18 +299,19 @@ class AnitubeinuaProvider : MainAPI() {
                                     )
                                 }
                                 contains("https://csst.online/embed/") -> {
-                                    callback.invoke(
-                                        ExtractorLink(
-                                            decode(playerNamesArray[index]),
-                                            name = decode(playerNamesArray[index]),
-                                            csstExtractor().ParseUrl(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
-                                                .attr("src")).split(",")[0].substringAfter("]"),
-                                            "",
-                                            0,
-                                            isM3u8 = false
+                                    csstExtractor().ParseUrl(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
+                                        .attr("src")).split(",").forEach{
+                                        callback.invoke(
+                                            ExtractorLink(
+                                                decode(playerNamesArray[index]),
+                                                name = "${decode(playerNamesArray[index])} ${it.substringBefore("]").drop(1)}",
+                                                it.substringAfter("]"),
+                                                "",
+                                                0,
+                                                isM3u8 = false
+                                            )
                                         )
-                                    )
-
+                                    }
                                 }
                                 else -> {}
                             }
