@@ -26,6 +26,7 @@ class AnimeUAProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
+        "$mainUrl/page/" to "Нове аніме",
         "$mainUrl/film/page/" to "Повнометражки",
         "$mainUrl/anime/page/" to "Аніме серіали",
         "$mainUrl/ona/page/" to "ONA",
