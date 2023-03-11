@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.extractors.csstExtractor
 import com.lagradost.models.Ajax
 import com.lagradost.models.Link
+import com.lagradost.models.videoConstructor
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.util.*
@@ -128,24 +129,18 @@ class AnitubeinuaProvider : MainAPI() {
         } else {
             document.select("script").map{ script ->
                 if (script.data().contains("RalodePlayer.init(")) {
-                    val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
-                    val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                    // val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
-                    // val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
+                    val episodesList = fromVideoContructor(script)
 
-                    val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
-                    for(item in playerJson) {
-                        item.forEachIndexed { index, item2 ->
-                            if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
-                            {
-                                dubEpisodes.add(
-                                    Episode(
-                                        "$index, $url",
-                                        item2.name,
-                                        episode = item2.name.replace("Серія ","").toIntOrNull(),
-                                    )
+                    episodesList.forEachIndexed { index, episode ->
+                        if(!episode.playerName.contains("ПЛЕЙЛИСТ")) // UFDub player
+                        {
+                            dubEpisodes.add(
+                                Episode(
+                                    "$index, $url",
+                                    episode.episodeName,
+                                    episode = episode.episodeNumber,
                                 )
-                            }
+                            )
                         }
                     }
                 }
@@ -234,37 +229,29 @@ class AnitubeinuaProvider : MainAPI() {
             val document = app.get(dataList[1]).document
             document.select("script").map { script ->
                 if (script.data().contains("RalodePlayer.init(")) {
-                    val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
-                    val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
-                    val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
-
-                    val playerJson = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
-                    playerJson.forEachIndexed { index, dub ->
-                        with(dub[dataList[0].toInt()].code) {
+                    fromVideoContructor(script).forEach { dub ->
+                        with(dub.episodeUrl) {
                             when {
                                 contains("https://tortuga.wtf/vod/") -> {
                                     M3u8Helper.generateM3u8(
-                                        source = decode(playerNamesArray[index]),
-                                        streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
-                                            .attr("src")),
+                                        source = dub.playerName,
+                                        streamUrl = AshdiExtractor().ParseM3U8(this),
                                         referer = "https://tortuga.wtf/"
                                     ).forEach(callback)
                                 }
                                 contains("https://ashdi.vip/vod") -> {
                                     M3u8Helper.generateM3u8(
-                                        source = decode(playerNamesArray[index]),
-                                        streamUrl = AshdiExtractor().ParseM3U8(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
-                                            .attr("src")),
+                                        source = dub.playerName,
+                                        streamUrl = AshdiExtractor().ParseM3U8(this),
                                         referer = "https://qeruya.cyou"
                                     ).forEach(callback)
                                 }
                                 contains("https://www.udrop.com") -> {
                                     callback.invoke(
                                         ExtractorLink(
-                                            decode(playerNamesArray[index]),
-                                            name = decode(playerNamesArray[index]),
-                                            Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
-                                                .attr("src"),
+                                            dub.playerName,
+                                            name = dub.playerName,
+                                            this,
                                             "",
                                             0,
                                             isM3u8 = false,
@@ -272,12 +259,11 @@ class AnitubeinuaProvider : MainAPI() {
                                     )
                                 }
                                 contains("https://csst.online/embed/") -> {
-                                    csstExtractor().ParseUrl(Jsoup.parse(dub[dataList[0].toInt()].code).select("iframe")
-                                        .attr("src")).split(",").forEach{
+                                    csstExtractor().ParseUrl(this).split(",").forEach{
                                         callback.invoke(
                                             ExtractorLink(
-                                                decode(playerNamesArray[index]),
-                                                name = "${decode(playerNamesArray[index])} ${it.substringBefore("]").drop(1)}",
+                                                dub.playerName,
+                                                name = "${dub.playerName} ${it.substringBefore("]").drop(1)}",
                                                 it.substringAfter("]"),
                                                 "",
                                                 0,
@@ -310,6 +296,8 @@ class AnitubeinuaProvider : MainAPI() {
         val message: String?
     )
 
+    // Thanks to Andro999b
+    // https://github.com/Andro999b/movies-telegram-bot/blob/a296c7d4122a25fa70b612e75d741dd55c154640/functions/src/providers/AnitubeUAProvider.ts#L86-L137
     private suspend fun fromPlaylistAjax(url: String): List<Ajax>? {
         val responseGet = app.get(url).parsedSafe<Responses>()
 
@@ -329,6 +317,7 @@ class AnitubeinuaProvider : MainAPI() {
             audios.add(Pair(it.text(), it.attr("data-id")))
         }
 
+        // Set listPlayers and listDubStatus
         // If has subs - So players in 3 index
         if(playlist.select(".playlists-lists .playlists-items").count() == 3){
             // Players
@@ -340,12 +329,14 @@ class AnitubeinuaProvider : MainAPI() {
                 listDubStatus.add(Pair(it.text(), it.attr("data-id")))
             }
         } else {
+            // No subs
             // Players
             playlist.select(".playlists-lists .playlists-items:nth-child(2) li").forEach {
                 listPlayers.add(Pair(it.text(), it.attr("data-id")))
             }
         }
 
+        // Parse episodes
         playlist.select(".playlists-videos .playlists-items li").forEach { element ->
             val audioId = element.attr("data-id") // 0_0_0 or 0_0_0_0 if subs
             val episodeId = extractIntFromString(element.text())
@@ -382,17 +373,44 @@ class AnitubeinuaProvider : MainAPI() {
                     episodeId,
                     element.text(),
                     Link(
-                        isDub, // TODO: Impl
+                        isDub,
                         url,
                         audio.toString(),
                         playerName,
                     )
-                ))
-
+                )
+            )
         }
+
         return returnEpisodes.toList()
     }
 
+    private fun fromVideoContructor(script: Element): List<videoConstructor> {
+        val playerScriptRawJson = script.data().substringAfterLast(".init(").substringBefore(");")
+        val playerEpisodesRawJson = playerScriptRawJson.substringAfter("],").substringBeforeLast(",")
+        val playerNamesArray = (playerScriptRawJson.substringBefore("],") + "]").dropLast(1).drop(1).replace("\",\"", ",,,").split(",,,")
+        // val numberOfEpisodesInt = playerScriptRawJson.substringAfterLast(",").toIntOrNull()
+
+        val jsonEpisodes = tryParseJson<List<List<PlayerJson>>>(playerEpisodesRawJson)!!
+        val episodes = mutableListOf<videoConstructor>()
+
+        jsonEpisodes.forEachIndexed { index, episode ->
+            val playerName = decode(playerNamesArray[index])
+            episode.forEach{
+                episodes.add(
+                    videoConstructor(
+                        playerName,
+                        it.name,
+                        extractIntFromString(it.name),
+                        Jsoup.parse(it.code).select("iframe").attr("src")
+                    )
+                )
+                // Log.d("load-debug", "$playerName ${it.name}")
+            }
+        }
+        Log.d("load-debug", episodes.toString())
+        return episodes.toList()
+    }
     private fun extractIntFromString(string: String): Int? {
         val value = Regex("(\\d+)").find(string)?.value
         if(value!![0].toString() == "0"){
