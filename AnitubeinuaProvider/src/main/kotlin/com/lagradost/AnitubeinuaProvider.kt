@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
@@ -7,6 +8,8 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.extractors.csstExtractor
+import com.lagradost.models.Ajax
+import com.lagradost.models.Link
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.util.*
@@ -76,7 +79,7 @@ class AnitubeinuaProvider : MainAPI() {
     }
 
     // Detailed information
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): AnimeLoadResponse {
         val document = app.get(url).document
 
         val someInfo = document.select("div.story_c_r")[1]
@@ -98,28 +101,30 @@ class AnitubeinuaProvider : MainAPI() {
 
         // Return to app
         // Players, Episodes, Number of episodes
-        var episodes: List<Episode> = emptyList()
+        var subEpisodes = mutableListOf<Episode>()
+        var dubEpisodes = mutableListOf<Episode>()
         val id = url.split("/").last().split("-").first()
-        val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()!!
-        if (responseGet.success == true) { // First type players
-            episodes =
-                app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
-                    .parsedSafe<Responses>()?.response.let {
-                        Jsoup.parse(it.toString()).select("div.playlists-videos li")
-                            .mapIndexedNotNull() { index, eps ->
-                                val href =
-                                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
-                                val name = eps.text().trim() // Серія 1
-                                if (href.isNotEmpty()) {
-                                    Episode(
-                                        "$href, $index", // link, Серія 1
-                                        name,
-                                    )
-                                } else {
-                                    null
-                                }
-                            }
+
+        val ajax = fromPlaylistAjax("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
+
+        if (!ajax.isNullOrEmpty()) { // Ajax list
+            ajax.groupBy{ it.name }.forEach { episodes ->  // Group by name
+                episodes.value.forEach{
+                    if(it.urls.isDub){
+                        dubEpisodes.add(Episode(
+                            "${it.name}, $id, ${it.urls.isDub}",
+                            it.name,
+                            episode = it.numberEpisode)
+                        )
+                    } else {
+                        subEpisodes.add(Episode(
+                            "${it.name}, $id, ${it.urls.isDub}",
+                            it.name,
+                            episode = it.numberEpisode)
+                        )
                     }
+                }
+            }
         } else {
             document.select("script").map{ script ->
                 if (script.data().contains("RalodePlayer.init(")) {
@@ -133,7 +138,7 @@ class AnitubeinuaProvider : MainAPI() {
                         item.forEachIndexed { index, item2 ->
                             if(!item2.name.contains("ПЛЕЙЛИСТ")) // UFDub player
                             {
-                                episodes = episodes.plus(
+                                dubEpisodes.add(
                                     Episode(
                                         "$index, $url",
                                         item2.name,
@@ -148,114 +153,82 @@ class AnitubeinuaProvider : MainAPI() {
             }
         }
 
-        return newTvSeriesLoadResponse(title, url, tvType, episodes.distinctBy{ it.name }) {
+        return newAnimeLoadResponse(title, url, tvType) {
             this.posterUrl = poster
             this.year = year
             this.plot = description
             this.tags = tags
             this.rating = rating
             this.recommendations = recommendations
+            addEpisodes(DubStatus.Dubbed, dubEpisodes)
+            addEpisodes(DubStatus.Subbed, subEpisodes)
         }
     }
 
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (First) link, index | (Two) index, url title
+        data: String, // (Ajax) Name, id title, isDub | (Two) index, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        if(dataList[0].contains("https://")){ // Its First type player
+        if(dataList[0].toIntOrNull() == null){ // Its ajax list
 
-            // Get episodes list (as json)
-            val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
-            responseGet?.response?.let { it ->
+            val ajax = fromPlaylistAjax("$mainUrl/engine/ajax/playlists.php?news_id=${dataList[1]}&xfield=playlist&time=${Date().time}")
 
-                // List Players
-                val playersTab = Jsoup.parse(it).select("div.playlists-items")
+            // Filter by name and isDub
+            ajax?.filter { it.name == dataList[0] }
+                ?.filter { it.urls.isDub == dataList[2].toBoolean() }
+                ?.forEach {
 
-                // Parse all episodes by name
-                var index = 0
-                var playerTabId = ""
-                Jsoup.parse(it).select("div.playlists-videos li")
-                    .mapNotNull { eps ->
-                        // 0 - idk, 1 - dub, 2 - player
-                        // if with sub
-                        // 0 - idk 1 - dub 2 - sub or dub 3 - player
-                        // dataList[1] - index
-                        // 0_1_2
-                        // Log.d("load-debug", eps.attr("data-id"))
-                        if(playerTabId != eps.attr("data-id")){
-                            index = 0
-                            playerTabId = eps.attr("data-id")
+                // Get m3u8 url
+                with(it){
+                    when{
+                        it.urls.url.contains("https://tortuga.wtf/vod/") -> {
+                            M3u8Helper.generateM3u8(
+                                source = "${it.urls.playerName} (${it.urls.name})",
+                                streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
+                                referer = "https://tortuga.wtf/"
+                            ).forEach(callback)
                         }
-
-                        if(dataList[1].toInt() == index){
-                            var href = eps.attr("data-file")  // m3u url
-
-                            // Can be without https:
-                            if (!href.contains("https://")) {
-                                href = "https:$href"
-                            }
-
-                            val dubName = playersTab[0].select(" li[data-id=${ playerTabId.take(3) }]").text() // G&M
-                            var playerName = playersTab[1].select(" li[data-id=$playerTabId]").text() // ПЛЕЄР ASHDI
-                            if(playerTabId.count { it == '_' } == 3) {
-                                playerName =
-                                    playersTab[2].selectFirst(" li[data-id=$playerTabId]")!!
-                                        .text() // ПЛЕЄР ASHDI
-                            }
-
-                            with(href){
-                                when{
-                                    contains("https://tortuga.wtf/vod/") -> {
-                                        M3u8Helper.generateM3u8(
-                                            source = "$playerName ($dubName)",
-                                            streamUrl = AshdiExtractor().ParseM3U8(href),
-                                            referer = "https://tortuga.wtf/"
-                                        ).forEach(callback)
-                                    }
-                                    contains("https://ashdi.vip/vod") -> {
-                                        M3u8Helper.generateM3u8(
-                                            source = "$playerName ($dubName)",
-                                            streamUrl = AshdiExtractor().ParseM3U8(href),
-                                            referer = "https://qeruya.cyou"
-                                        ).forEach(callback)
-                                    }
-                                    contains("https://www.udrop.com") -> {
-                                        callback.invoke(
-                                            ExtractorLink(
-                                                "$playerName ($dubName)",
-                                                name = "$playerName ($dubName)",
-                                                href,
-                                                "",
-                                                0,
-                                                isM3u8 = false,
-                                            )
-                                        )
-                                    }
-                                    contains("https://csst.online/embed/") -> {
-                                        csstExtractor().ParseUrl(href).split(",").forEach{
-                                            callback.invoke(
-                                                ExtractorLink(
-                                                    "$playerName ($dubName)",
-                                                    name = "$playerName ($dubName) ${it.substringBefore("]").drop(1)}",
-                                                    it.substringAfter("]"),
-                                                    "",
-                                                    0,
-                                                    isM3u8 = false,
-                                                )
-                                            )
-                                        }
-                                    }
-                                    else -> {}
-                                }
+                        it.urls.url.contains("https://ashdi.vip/vod") -> {
+                            M3u8Helper.generateM3u8(
+                                source = "${it.urls.playerName} (${it.urls.name})",
+                                streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
+                                referer = "https://qeruya.cyou"
+                            ).forEach(callback)
+                        }
+                        it.urls.url.contains("https://www.udrop.com") -> {
+                            callback.invoke(
+                                ExtractorLink(
+                                    this.urls.url,
+                                    name = "${it.urls.playerName} (${it.urls.name})",
+                                    this.urls.url,
+                                    "",
+                                    0,
+                                    isM3u8 = false,
+                                )
+                            )
+                        }
+                        it.urls.url.contains("https://csst.online/embed/") -> {
+                            csstExtractor().ParseUrl(it.urls.url).split(",").forEach{ csstUrl ->
+                                callback.invoke(
+                                    ExtractorLink(
+                                        this.urls.url,
+                                        name = "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
+                                        csstUrl.substringAfter("]"),
+                                        "",
+                                        0,
+                                        isM3u8 = false,
+                                    )
+                                )
                             }
                         }
-                        index += 1
+                        else -> {}
                     }
+                }
             }
         } else {
             val document = app.get(dataList[1]).document
@@ -336,4 +309,99 @@ class AnitubeinuaProvider : MainAPI() {
         val response: String?,
         val message: String?
     )
+
+    private suspend fun fromPlaylistAjax(url: String): List<Ajax>? {
+        val responseGet = app.get(url).parsedSafe<Responses>()
+
+        // Not Ajax, return null
+        if(responseGet?.success == false){
+            // Log.d("load-debug", "Not Ajax")
+            return null
+        }
+
+        val returnEpisodes = mutableListOf<Ajax>()
+
+        val playlist = Jsoup.parse(responseGet?.response!!)
+        val audios = mutableListOf<Pair<String,String>>() // (INARI, 0_0, ...)
+        val listDubStatus = mutableListOf<Pair<String,String>>() // (СУБТИТРИ, 0_0_0, ...)
+        val listPlayers = mutableListOf<Pair<String,String>>() // (ПЛЕЄР МОНСТР, 0_0_0_0, ...)
+        playlist.select(".playlists-lists .playlists-items:first-child li").forEach {
+            audios.add(Pair(it.text(), it.attr("data-id")))
+        }
+
+        // If has subs - So players in 3 index
+        if(playlist.select(".playlists-lists .playlists-items").count() == 3){
+            // Players
+            playlist.select(".playlists-lists .playlists-items:nth-child(3) li").forEach {
+                listPlayers.add(Pair(it.text(), it.attr("data-id")))
+            }
+            // Subs/Dubs index
+            playlist.select(".playlists-lists .playlists-items:nth-child(2) li").forEach {
+                listDubStatus.add(Pair(it.text(), it.attr("data-id")))
+            }
+        } else {
+            // Players
+            playlist.select(".playlists-lists .playlists-items:nth-child(2) li").forEach {
+                listPlayers.add(Pair(it.text(), it.attr("data-id")))
+            }
+        }
+
+        playlist.select(".playlists-videos .playlists-items li").forEach { element ->
+            val audioId = element.attr("data-id") // 0_0_0 or 0_0_0_0 if subs
+            val episodeId = extractIntFromString(element.text())
+            val url = element.attr("data-file")
+
+            var isDub = true
+            var audio: String? = null
+            var playerName = ""
+
+            // Set this element Dub name
+            audios.forEach {
+                if(audioId.startsWith(it.second)){
+                    audio = it.first
+                }
+            }
+
+            if(audioId.count { it == '_' } == 3){
+                listDubStatus.forEach {
+                    if(audioId.startsWith(it.second)){
+                        if(it.first == "СУБТИТРИ"){
+                            isDub = false
+                        }
+                    }
+                }
+                listPlayers.forEach {
+                    if(audioId.startsWith(it.second)){
+                        playerName = it.first
+                    }
+                }
+            }
+
+            returnEpisodes.add(
+                Ajax(
+                    episodeId,
+                    element.text(),
+                    Link(
+                        isDub, // TODO: Impl
+                        url,
+                        audio.toString(),
+                        playerName,
+                    )
+                ))
+
+        }
+        return returnEpisodes.toList()
+    }
+
+    private fun extractIntFromString(string: String): Int? {
+        val value = Regex("(\\d+)").find(string)?.value
+        if(value!![0].toString() == "0"){
+            return value.drop(1).toIntOrNull()
+        }
+
+        return value.toIntOrNull()
+
+
+
+    }
 }
