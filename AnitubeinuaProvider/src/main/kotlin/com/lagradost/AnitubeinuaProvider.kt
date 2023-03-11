@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
@@ -136,7 +135,7 @@ class AnitubeinuaProvider : MainAPI() {
                         {
                             dubEpisodes.add(
                                 Episode(
-                                    "$index, $url",
+                                    "${episode.episodeName}, $url",
                                     episode.episodeName,
                                     episode = episode.episodeNumber,
                                 )
@@ -163,13 +162,13 @@ class AnitubeinuaProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (Ajax) Name, id title, isDub | (Two) index, url title
+        data: String, // (Ajax) Name, id title, isDub | (Two) Episode name, url title
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        if(dataList[0].toIntOrNull() == null){ // Its ajax list
+        if(dataList[1].toIntOrNull() != null){ // Its ajax list
 
             val ajax = fromPlaylistAjax("$mainUrl/engine/ajax/playlists.php?news_id=${dataList[1]}&xfield=playlist&time=${Date().time}")
 
@@ -177,59 +176,58 @@ class AnitubeinuaProvider : MainAPI() {
             ajax?.filter { it.name == dataList[0] }
                 ?.filter { it.urls.isDub == dataList[2].toBoolean() }
                 ?.forEach {
-
-                // Get m3u8 url
-                with(it){
-                    when{
-                        it.urls.url.contains("https://tortuga.wtf/vod/") -> {
-                            M3u8Helper.generateM3u8(
-                                source = "${it.urls.playerName} (${it.urls.name})",
-                                streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
-                                referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
-                        }
-                        it.urls.url.contains("https://ashdi.vip/vod") -> {
-                            M3u8Helper.generateM3u8(
-                                source = "${it.urls.playerName} (${it.urls.name})",
-                                streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
-                                referer = "https://qeruya.cyou"
-                            ).forEach(callback)
-                        }
-                        it.urls.url.contains("https://www.udrop.com") -> {
-                            callback.invoke(
-                                ExtractorLink(
-                                    this.urls.url,
-                                    name = "${it.urls.playerName} (${it.urls.name})",
-                                    this.urls.url,
-                                    "",
-                                    0,
-                                    isM3u8 = false,
-                                )
-                            )
-                        }
-                        it.urls.url.contains("https://csst.online/embed/") -> {
-                            csstExtractor().ParseUrl(it.urls.url).split(",").forEach{ csstUrl ->
+                    // Get m3u8 url
+                    with(it){
+                        when{
+                            it.urls.url.contains("https://tortuga.wtf/vod/") -> {
+                                M3u8Helper.generateM3u8(
+                                    source = "${it.urls.playerName} (${it.urls.name})",
+                                    streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
+                                    referer = "https://tortuga.wtf/"
+                                ).forEach(callback)
+                            }
+                            it.urls.url.contains("https://ashdi.vip/vod") -> {
+                                M3u8Helper.generateM3u8(
+                                    source = "${it.urls.playerName} (${it.urls.name})",
+                                    streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
+                                    referer = "https://qeruya.cyou"
+                                ).forEach(callback)
+                            }
+                            it.urls.url.contains("https://www.udrop.com") -> {
                                 callback.invoke(
                                     ExtractorLink(
                                         this.urls.url,
-                                        name = "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
-                                        csstUrl.substringAfter("]"),
+                                        name = "${it.urls.playerName} (${it.urls.name})",
+                                        this.urls.url,
                                         "",
                                         0,
                                         isM3u8 = false,
                                     )
                                 )
                             }
+                            it.urls.url.contains("https://csst.online/embed/") -> {
+                                csstExtractor().ParseUrl(it.urls.url).split(",").forEach{ csstUrl ->
+                                    callback.invoke(
+                                        ExtractorLink(
+                                            this.urls.url,
+                                            name = "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
+                                            csstUrl.substringAfter("]"),
+                                            "",
+                                            0,
+                                            isM3u8 = false,
+                                        )
+                                    )
+                                }
+                            }
+                            else -> {}
                         }
-                        else -> {}
                     }
                 }
-            }
-        } else {
+            } else {
             val document = app.get(dataList[1]).document
             document.select("script").map { script ->
                 if (script.data().contains("RalodePlayer.init(")) {
-                    fromVideoContructor(script).forEach { dub ->
+                    fromVideoContructor(script).filter { it.episodeName == dataList[0] } .forEach { dub ->
                         with(dub.episodeUrl) {
                             when {
                                 contains("https://tortuga.wtf/vod/") -> {
@@ -259,7 +257,7 @@ class AnitubeinuaProvider : MainAPI() {
                                     )
                                 }
                                 contains("https://csst.online/embed/") -> {
-                                    csstExtractor().ParseUrl(this).split(",").forEach{
+                                    csstExtractor().ParseUrl(this).split(",").forEach {
                                         callback.invoke(
                                             ExtractorLink(
                                                 dub.playerName,
@@ -316,7 +314,6 @@ class AnitubeinuaProvider : MainAPI() {
         playlist.select(".playlists-lists .playlists-items:first-child li").forEach {
             audios.add(Pair(it.text(), it.attr("data-id")))
         }
-
         // Set listPlayers and listDubStatus
         // If has subs - So players in 3 index
         if(playlist.select(".playlists-lists .playlists-items").count() == 3){
@@ -335,7 +332,6 @@ class AnitubeinuaProvider : MainAPI() {
                 listPlayers.add(Pair(it.text(), it.attr("data-id")))
             }
         }
-
         // Parse episodes
         playlist.select(".playlists-videos .playlists-items li").forEach { element ->
             val audioId = element.attr("data-id") // 0_0_0 or 0_0_0_0 if subs
@@ -361,10 +357,11 @@ class AnitubeinuaProvider : MainAPI() {
                         }
                     }
                 }
-                listPlayers.forEach {
-                    if(audioId.startsWith(it.second)){
-                        playerName = it.first
-                    }
+            }
+
+            listPlayers.forEach {
+                if(audioId.startsWith(it.second)){
+                    playerName = it.first
                 }
             }
 
@@ -408,15 +405,12 @@ class AnitubeinuaProvider : MainAPI() {
                 // Log.d("load-debug", "$playerName ${it.name}")
             }
         }
-        Log.d("load-debug", episodes.toString())
         return episodes.toList()
     }
     private fun extractIntFromString(string: String): Int? {
         val value = Regex("(\\d+)").find(string)?.value
         if(value?.get(0).toString() == "0"){
-            if (value != null) {
-                return value.drop(1).toIntOrNull()
-            }
+            return value?.drop(1)?.toIntOrNull()
         }
 
         return value?.toIntOrNull()
