@@ -102,8 +102,8 @@ class AnitubeinuaProvider : MainAPI() {
 
         // Return to app
         // Players, Episodes, Number of episodes
-        var subEpisodes = mutableListOf<Episode>()
-        var dubEpisodes = mutableListOf<Episode>()
+        val subEpisodes = mutableListOf<Episode>()
+        val dubEpisodes = mutableListOf<Episode>()
         val id = url.split("/").last().split("-").first()
 
         val ajax = fromPlaylistAjax("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
@@ -413,13 +413,13 @@ class AnitubeinuaProvider : MainAPI() {
     }
     private fun extractIntFromString(string: String): Int? {
         val value = Regex("(\\d+)").find(string)?.value
-        if(value!![0].toString() == "0"){
-            return value.drop(1).toIntOrNull()
+        if(value?.get(0).toString() == "0"){
+            if (value != null) {
+                return value.drop(1).toIntOrNull()
+            }
         }
 
-        return value.toIntOrNull()
-
-
+        return value?.toIntOrNull()
 
     }
 }
