@@ -3,6 +3,7 @@ package com.lagradost
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.extractors.Mp4Upload
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -219,6 +220,22 @@ class AnitubeinuaProvider : MainAPI() {
                                     )
                                 }
                             }
+                            it.urls.url.contains("https://www.mp4upload.com/") -> {
+                                Mp4Upload().getUrl(it.urls.url)?.forEach{ extlink ->
+                                    callback.invoke(
+                                        ExtractorLink(
+                                            extlink.source,
+                                            "${it.urls.playerName} (${it.urls.name})",
+                                            extlink.url,
+                                            extlink.referer,
+                                            extlink.quality,
+                                            extlink.isM3u8,
+                                            extlink.headers,
+
+                                        )
+                                    )
+                                }
+                            }
                             else -> {}
                         }
                     }
@@ -267,6 +284,22 @@ class AnitubeinuaProvider : MainAPI() {
                                                 0,
                                                 isM3u8 = false
                                             )
+                                        )
+                                    }
+                                }
+                                contains("https://www.mp4upload.com/") -> {
+                                    Mp4Upload().getUrl(this)?.forEach{ extlink ->
+                                        callback.invoke(
+                                            ExtractorLink(
+                                                extlink.source,
+                                                dub.playerName,
+                                                extlink.url,
+                                                extlink.referer,
+                                                extlink.quality,
+                                                extlink.isM3u8,
+                                                extlink.headers,
+
+                                                )
                                         )
                                     }
                                 }
