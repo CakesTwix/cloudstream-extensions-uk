@@ -83,7 +83,7 @@ class AnitubeinuaProvider : MainAPI() {
     override suspend fun load(url: String): AnimeLoadResponse {
         val document = app.get(url).document
 
-        val someInfo = document.select("div.story_c_r")[1]
+        val someInfo = document.select(".story_c_r")
 
         // Parse info
         val title = document.selectFirst(".story_c h2")?.text()?.trim().toString()
@@ -115,13 +115,15 @@ class AnitubeinuaProvider : MainAPI() {
                         dubEpisodes.add(Episode(
                             "${it.name}, $id, ${it.urls.isDub}",
                             it.name,
-                            episode = it.numberEpisode)
+                            // episode = it.numberEpisode
+                            )
                         )
                     } else {
                         subEpisodes.add(Episode(
                             "${it.name}, $id, ${it.urls.isDub}",
                             it.name,
-                            episode = it.numberEpisode)
+                            // episode = it.numberEpisode
+                            )
                         )
                     }
                 }
@@ -138,7 +140,7 @@ class AnitubeinuaProvider : MainAPI() {
                                 Episode(
                                     "${episode.episodeName}, $url",
                                     episode.episodeName,
-                                    episode = episode.episodeNumber,
+                                    // episode = episode.episodeNumber,
                                 )
                             )
                         }
