@@ -157,8 +157,8 @@ class AnitubeinuaProvider : MainAPI() {
             this.tags = tags
             this.rating = rating
             this.recommendations = recommendations
-            addEpisodes(DubStatus.Dubbed, dubEpisodes)
-            addEpisodes(DubStatus.Subbed, subEpisodes)
+            addEpisodes(DubStatus.Dubbed, dubEpisodes.distinctBy{ it.name })
+            addEpisodes(DubStatus.Subbed, subEpisodes.distinctBy{ it.name })
         }
     }
 
