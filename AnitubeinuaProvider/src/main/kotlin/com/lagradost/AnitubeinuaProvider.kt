@@ -115,14 +115,14 @@ class AnitubeinuaProvider : MainAPI() {
                         dubEpisodes.add(Episode(
                             "${it.name}, $id, ${it.urls.isDub}",
                             it.name,
-                            // episode = it.numberEpisode
+                            episode = it.numberEpisode
                             )
                         )
                     } else {
                         subEpisodes.add(Episode(
                             "${it.name}, $id, ${it.urls.isDub}",
                             it.name,
-                            // episode = it.numberEpisode
+                            episode = it.numberEpisode
                             )
                         )
                     }
@@ -140,7 +140,7 @@ class AnitubeinuaProvider : MainAPI() {
                                 Episode(
                                     "${episode.episodeName}, $url",
                                     episode.episodeName,
-                                    // episode = episode.episodeNumber,
+                                    episode = episode.episodeNumber,
                                 )
                             )
                         }
@@ -157,8 +157,8 @@ class AnitubeinuaProvider : MainAPI() {
             this.tags = tags
             this.rating = rating
             this.recommendations = recommendations
-            addEpisodes(DubStatus.Dubbed, dubEpisodes.distinctBy{ it.name })
-            addEpisodes(DubStatus.Subbed, subEpisodes.distinctBy{ it.name })
+            addEpisodes(DubStatus.Dubbed, dubEpisodes)
+            addEpisodes(DubStatus.Subbed, subEpisodes)
         }
     }
 
@@ -443,12 +443,12 @@ class AnitubeinuaProvider : MainAPI() {
         return episodes.toList()
     }
     private fun extractIntFromString(string: String): Int? {
-        val value = Regex("(\\d+)").find(string)?.value
-        if(value?.get(0).toString() == "0"){
-            return value?.drop(1)?.toIntOrNull()
+        val value = Regex("(\\d+)").findAll(string).lastOrNull() ?: return null
+        if(value.value[0].toString() == "0"){
+            return value.value.drop(1).toIntOrNull()
         }
 
-        return value?.toIntOrNull()
+        return value.value.toIntOrNull()
 
     }
 }
