@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
@@ -110,7 +111,10 @@ class AnitubeinuaProvider : MainAPI() {
 
         if (!ajax.isNullOrEmpty()) { // Ajax list
             ajax.groupBy{ it.name }.forEach { episodes ->  // Group by name
-                episodes.value.forEach{
+                episodes.value.forEach lit@{
+                    // UFDub player, drop
+                    if(it.name == "ПЛЕЙЛИСТ") return@lit
+
                     if(it.urls.isDub){
                         dubEpisodes.add(Episode(
                             "${it.name}, $id, ${it.urls.isDub}",
@@ -134,16 +138,17 @@ class AnitubeinuaProvider : MainAPI() {
                     val episodesList = fromVideoContructor(script)
 
                     episodesList.forEachIndexed { index, episode ->
-                        if(!episode.playerName.contains("ПЛЕЙЛИСТ")) // UFDub player
-                        {
-                            dubEpisodes.add(
-                                Episode(
-                                    "${episode.episodeName}, $url",
-                                    episode.episodeName,
-                                    episode = episode.episodeNumber,
-                                )
+                        // UFDub player, drop
+                        if(episode.episodeName == "ПЛЕЙЛИСТ") return@forEachIndexed
+
+                        dubEpisodes.add(
+                            Episode(
+                                "${episode.episodeName}, $url",
+                                episode.episodeName,
+                                episode = episode.episodeNumber,
                             )
-                        }
+                        )
+
                     }
                 }
 
