@@ -105,7 +105,7 @@ class UFDubProvider : MainAPI() {
             }
 
         // Parse episodes
-        var episodes: List<Episode> = emptyList()
+        val episodes = mutableListOf<Episode>()
         // Get Player URL
         val playerURl = document.select("input[value*=https://video.ufdub.com]").attr("value")
 
@@ -116,14 +116,17 @@ class UFDubProvider : MainAPI() {
         val regexUFDubEpisodes = """https:\/\/ufdub.com\/video\/VIDEOS\.php\?(.*?)'""".toRegex()
         val matchResult = regexUFDubEpisodes.findAll(player)
 
-        for (item: MatchResult in matchResult) {
-            val parsedUrl = Uri.parse(item.value)
-            episodes = episodes.plus(
-                Episode(
-                    item.value.dropLast(1), // Drop '
-                    parsedUrl.getQueryParameter("Seriya")!!,
+        // Drop trailers from episodes
+        matchResult.filter { !(Uri.parse(it.value).getQueryParameter("Seriya")!!.contains("Трейлер")) }
+            .forEach { item ->
+
+                val parsedUrl = Uri.parse(item.value)
+                episodes.add(
+                    Episode(
+                        item.value.dropLast(1), // Drop '
+                        parsedUrl.getQueryParameter("Seriya")!!,
+                    )
                 )
-            )
         }
 
         return newTvSeriesLoadResponse(title, url, tvType, episodes) {
