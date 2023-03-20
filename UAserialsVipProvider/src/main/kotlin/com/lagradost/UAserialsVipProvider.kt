@@ -91,7 +91,7 @@ class UAserialsVipProvider : MainAPI() {
 
         val description = document.select(".full-text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
-        val rating = document.selectFirst(".dd-imdb-colours")?.text().toRatingInt()
+        val rating = document.selectFirst(".page__rating-item--critics div")?.text().toRatingInt()
 
         val recommendations = document.select(".poster-item").map {
             it.toSearchResponse()
