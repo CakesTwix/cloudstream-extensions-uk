@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.nodes.Element
+import org.jsoup.select.Elements
 
 class UFDubProvider : MainAPI() {
 
@@ -89,7 +90,7 @@ class UFDubProvider : MainAPI() {
         val tvType = TvType.Anime
         val description = document.select("div.full-text p").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
-        val rating = document.selectFirst(".lexington-box > div:last-child span")?.text().toRatingInt()
+        val rating = toRatingInt(document.select(".fp-rate"))
 
         val recommendations = document.select(".horizontal ul").map {
             it.toSearchResponse()
@@ -162,5 +163,17 @@ class UFDubProvider : MainAPI() {
         return hexRegex.replace(input) { matchResult ->
             Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
         }
+    }
+
+    private fun toRatingInt(el: Elements): Int? {
+        // +54
+        val raterate = el.select(".ratingtypeplusminus").text().toInt();
+        // 60
+        val ratecount = el.select("span").last()!!.text().toInt();
+
+        val minusik = (ratecount - raterate) / 2;
+        val plusik = ratecount - minusik;
+
+        return (plusik.toFloat() / ratecount.toFloat() * 10).toString().toRatingInt();
     }
 }
