@@ -1,13 +1,13 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.models.GeneralInfo
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
 class KlonTVProvider : MainAPI() {
@@ -92,9 +92,15 @@ class KlonTVProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
         // Parse info
+        val titleJson = tryParseJson<GeneralInfo>(document.selectFirst("script[type=application/ld+json]")?.html())!!
 
-        val title = document.selectFirst(titleLoadSelector)?.text()?.trim().toString()
-        val poster = mainUrl + document.selectFirst(posterSelector)?.attr("data-src")
+        // JSON
+        val title = titleJson.name
+        val poster = titleJson.image
+        val rating = titleJson.aggregateRating.ratingValue.toString().toRatingInt()
+        val actors = titleJson.actor.map { it.name }
+
+        // HTML
         val tags = document.select(genresSelector).map { it.text() }
         val year = document.selectFirst(yearSelector)?.text()?.toIntOrNull()
         val playerUrl = document.select(playerSelector).attr("data-src")
@@ -109,7 +115,7 @@ class KlonTVProvider : MainAPI() {
                 else -> TvType.TvSeries
             }
         }
-        val description = document.selectFirst(descriptionSelector)?.text()?.trim()
+        val description = Jsoup.parse(titleJson.description).text()
 
         val recommendations = document.select(recommendationsSelector).map {
             it.toSearchResponse()
@@ -146,6 +152,7 @@ class KlonTVProvider : MainAPI() {
                 this.rating = rating
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
+                addActors(actors)
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
@@ -155,6 +162,7 @@ class KlonTVProvider : MainAPI() {
                 this.tags = tags
                 this.rating = rating
                 this.recommendations = recommendations
+                addActors(actors)
             }
         }
     }
