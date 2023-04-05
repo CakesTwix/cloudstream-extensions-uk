@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
@@ -137,15 +136,18 @@ class AnitubeinuaProvider : MainAPI() {
                 if (script.data().contains("RalodePlayer.init(")) {
                     val episodesList = fromVideoContructor(script)
 
-                    episodesList.forEachIndexed { index, episode ->
+                    episodesList.forEach { episode ->
                         // UFDub player, drop
-                        if(episode.episodeName == "ПЛЕЙЛИСТ") return@forEachIndexed
-
+                        var varEpisodeNumber = episode.episodeNumber
+                        if(episode.episodeName == "ПЛЕЙЛИСТ") return@forEach
+                        if(varEpisodeNumber == null){
+                            varEpisodeNumber = episodesList.last().episodeNumber?.plus(1);
+                        }
                         dubEpisodes.add(
                             Episode(
-                                "${episode.episodeName}, $url",
+                                "$varEpisodeNumber, $url",
                                 episode.episodeName,
-                                episode = episode.episodeNumber,
+                                episode = varEpisodeNumber,
                             )
                         )
 
@@ -251,7 +253,19 @@ class AnitubeinuaProvider : MainAPI() {
             val document = app.get(dataList[1]).document
             document.select("script").map { script ->
                 if (script.data().contains("RalodePlayer.init(")) {
-                    fromVideoContructor(script).filter { it.episodeName == dataList[0] } .forEach { dub ->
+                    var latestNumber: Int? = 0
+                    fromVideoContructor(script).forEach { dub ->
+                        if(dub.episodeName == "ПЛЕЙЛИСТ") return@forEach
+
+                        // Parse by number episode
+                        // If null, just add +1
+                        if(dub.episodeNumber == null){
+                            dub.episodeNumber = latestNumber?.plus(1);
+                        }
+
+                        latestNumber = dub.episodeNumber
+                        if(latestNumber != dataList[0].toIntOrNull()) return@forEach
+
                         with(dub.episodeUrl) {
                             when {
                                 contains("https://tortuga.wtf/vod/") -> {
