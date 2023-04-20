@@ -75,17 +75,46 @@ class UakinoProvider : MainAPI() {
         // Parse info
         val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
         val poster = fixUrl(document.selectFirst("div.film-poster img")?.attr("src").toString())
-        val tags = document.select("div.film-info > div:nth-child(4) a").map { it.text() }
-        val year = document.select("div.film-info > div:nth-child(2) a").text().toIntOrNull()
-        // TODO: Fix Naruto. Its series, not Movie Lol
-        // https://uakino.club/animeukr/6268-naruto-1-sezon.html
-        val tvType =
-            if (url.contains(Regex("(/anime-series)|(/seriesss)|(/cartoonseries)"))) TvType.TvSeries else TvType.Movie
+
+        var tags = emptyList<String>()
+        var year = 2023
+        var actors = emptyList<String>()
+        var rating = "0".toRatingInt()
+
+        document.select(".fi-item-s, .fi-item").forEach { metadata ->
+            with(metadata.select(".fi-label").text()) {
+                when {
+                    contains("Рік виходу:") -> year = metadata.select(".fi-desc").text().toInt()
+                    contains("Жанр:") -> tags = metadata.select(".fi-desc").text().split(" , ")
+                    contains("Актори:") -> actors = metadata.select(".fi-desc").text().split(", ")
+                    contains("") -> rating = metadata.select(".fi-desc").text().substringBefore("/").toRatingInt()
+                }
+                // Log.d("CakesTwix-Debug", this)
+                // Log.d("CakesTwix-Debug", metadata.select(".fi-desc").text())
+            }
+        }
+
+        // reversed need for check "Мультсеріали"
+        // tags: Мультфільми , Мультсеріали
+        // It's Cartoon, not Movie
+        var tvType = with(tags.reversed()){
+            when{
+                contains("Повнометражне аніме") -> TvType.AnimeMovie
+                contains("Мультсеріали") -> TvType.Cartoon
+                contains("Мультфільми") -> TvType.Movie
+                contains("Багатосерійне аніме") -> TvType.Anime
+                contains("Дорами") -> TvType.AsianDrama
+                else -> TvType.Others
+            }
+        }
+        // Log.d("CakesTwix-Debug", tvType.toString())
+        if (tvType == TvType.Others) {
+            tvType = if (url.contains(Regex("(/anime-series)|(/seriesss)|(/cartoonseries)"))) TvType.TvSeries else TvType.Movie
+        }
+
         val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
         val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
-        val rating = document.selectFirst("div.film-info > div:nth-child(8) div.fi-desc")?.text()
-            ?.substringBefore("/").toRatingInt()
-        val actors = document.select("div.film-info > div:nth-child(6) a").map { it.text() }
+
 
         val recommendations = document.select(".related-item").map {
             it.toSearchResponse()
@@ -93,7 +122,7 @@ class UakinoProvider : MainAPI() {
 
         // Return to app
         // Parse Episodes as Series
-        return if (tvType == TvType.TvSeries) {
+        return if (tvType != TvType.Movie && tvType != TvType.AnimeMovie) {
             val id = url.split("/").last().split("-").first()
             val episodes =
                 app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}")
@@ -111,7 +140,7 @@ class UakinoProvider : MainAPI() {
                             }
                         }
                     }
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes.distinctBy{ it.name }) {
+            newTvSeriesLoadResponse(title, url, tvType, episodes.distinctBy{ it.name }) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -122,7 +151,7 @@ class UakinoProvider : MainAPI() {
                 addTrailer(trailer)
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
+            newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -148,7 +177,7 @@ class UakinoProvider : MainAPI() {
             val id = data.split("/").last().split("-").first()
             val responseGet = app.get("$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}").parsedSafe<Responses>()
             if (responseGet?.success == true) { // Its serial
-                responseGet?.response?.let {
+                responseGet.response?.let {
                     Jsoup.parse(it).select("div.playlists-videos li")
                         .mapNotNull { eps ->
                             var href = eps.attr("data-file")  // ashdi
