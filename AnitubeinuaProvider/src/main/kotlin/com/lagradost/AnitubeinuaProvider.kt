@@ -4,6 +4,7 @@ import com.lagradost.models.PlayerJson
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.extractors.Mp4Upload
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -31,7 +32,7 @@ class AnitubeinuaProvider : MainAPI() {
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/anime/page/" to "Нові",
-        "$mainUrl/f/sort=rating/order=desc/page/" to "Популярне",
+        "$mainUrl/f/sort=rating/order=desc/page/" to "Популярні",
     )
 
     override suspend fun getMainPage(
@@ -88,12 +89,13 @@ class AnitubeinuaProvider : MainAPI() {
         // Parse info
         val title = document.selectFirst(".story_c h2")?.text()?.trim().toString()
         val poster = mainUrl + document.selectFirst(".story_c_left span.story_post img")?.attr("src")
-        val tags = someInfo.select("noindex a").html().split("\n").map { it }
-        val year = someInfo.select("strong:contains(Рік випуску аніме:)").next().html().toIntOrNull()
+        val tags = someInfo.select("a[href*=/anime/]").map { it.text() }
+        val year = someInfo.select("a[href*=/xfsearch/year/]").text().toIntOrNull()
 
         val tvType = TvType.Anime
         val description = document.selectFirst("div.my-text")?.text()?.trim()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
+        val trailer = document.selectFirst(".rcol a.rollover")?.attr("href").toString()
         val rating = document.selectFirst(".lexington-box > div:last-child span")?.text().toRatingInt()
 
         val recommendations = document.select(".horizontal ul li").map {
@@ -163,6 +165,7 @@ class AnitubeinuaProvider : MainAPI() {
             this.plot = description
             this.tags = tags
             this.rating = rating
+            addTrailer(trailer)
             this.recommendations = recommendations
             addEpisodes(DubStatus.Dubbed, dubEpisodes)
             addEpisodes(DubStatus.Subbed, subEpisodes)
