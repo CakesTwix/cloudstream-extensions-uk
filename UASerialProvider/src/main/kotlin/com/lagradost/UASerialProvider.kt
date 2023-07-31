@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.util.Log
 import com.google.gson.Gson
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -86,12 +87,15 @@ class UASerialProvider : MainAPI() {
             val tvType = TvType.Movie
             val description = document.selectFirst(".text")?.text()?.trim()
             val rating = document.select("div.rating__item--imdb div.number").text().toRatingInt()
+            val actors = titleJson.actor.map { it.name }
+
             return newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
                 this.rating = rating
+                addActors(actors)
             }
         } else {
             // Parse info for Serials
@@ -104,7 +108,7 @@ class UASerialProvider : MainAPI() {
             val description = document.selectFirst(".text")?.text()?.trim()
             val rating = document.select("div.rating__item--imdb div.number").text().toRatingInt()
 
-            // val actors = full_info[4].select("a").map { it.text() }
+            val actors = titleJson.partOfTVSeries.actor.map { it.name }
 
             var episodes: List<Episode> = emptyList()
             titleJson.partOfTVSeries.containsSeason.map { season ->
@@ -129,6 +133,7 @@ class UASerialProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.rating = rating
+                addActors(actors)
             }
         }
     }
