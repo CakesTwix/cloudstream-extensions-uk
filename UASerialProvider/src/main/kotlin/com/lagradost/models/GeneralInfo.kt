@@ -1,9 +1,11 @@
 package com.lagradost.models
 
+import com.google.gson.annotations.SerializedName
+
 data class GeneralInfo (
 
 	// val @context : String,
-	// val @type : String,
+	@SerializedName("@type") val type : String,
 	val datePublished : String,
 	val numberOfEpisodes : Int,
 	val partOfTVSeries : PartOfTVSeries,
