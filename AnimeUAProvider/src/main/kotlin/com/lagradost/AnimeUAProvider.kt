@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
@@ -114,8 +113,8 @@ class AnimeUAProvider : MainAPI() {
         }
 
         val (malId, anilistId, image, cover) = Tracker().getTracker(engTitle, "TV", year)
-        Log.d("load-debug", engTitle)
-        //Log.d("load-debug", anilistId!!)
+        // Log.d("load-debug", engTitle)
+        // Log.d("load-debug", anilistId!!)
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
@@ -141,10 +140,10 @@ class AnimeUAProvider : MainAPI() {
             }
             newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
+                this.engName = engTitle
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addMalId(malId)
@@ -153,10 +152,10 @@ class AnimeUAProvider : MainAPI() {
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
                 this.posterUrl = poster
+                this.name = engTitle
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
                 this.recommendations = recommendations
             }
         }
