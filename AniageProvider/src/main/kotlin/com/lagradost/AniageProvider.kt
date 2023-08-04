@@ -115,6 +115,19 @@ class AniageProvider : MainAPI() {
             }
         }
 
+        val tvType = with(animeJSON.pageProps.type){
+            when{
+                contains("ТБ-Серіал") -> TvType.Anime
+                contains("ТБ-Спешл") -> TvType.Anime
+                contains("OVA") -> TvType.OVA
+                contains("SPECIAL") -> TvType.OVA
+                contains("ONA") -> TvType.OVA
+                contains("Повнометражне") -> TvType.AnimeMovie
+                contains("Короткометражне") -> TvType.AnimeMovie
+                else -> TvType.Anime
+            }
+        }
+
         // Episodes
         // https://master.api.aniage.net/anime/episodes
         // ?animeId=2c60c269-049e-428b-96ba-fae23ac718ec
@@ -143,7 +156,7 @@ class AniageProvider : MainAPI() {
         return newAnimeLoadResponse(
             animeJSON.pageProps.title,
             "$mainUrl/watch/$animeID",
-            TvType.Anime,
+            tvType,
         ) {
             this.posterUrl = "$cdnUrl${animeJSON.pageProps.posterId}"
             this.engName = animeJSON.pageProps.alternativeTitle

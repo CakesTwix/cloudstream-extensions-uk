@@ -1,6 +1,6 @@
-<p align="center" style="font-size:25px;">
+<p align="center">
 	<!-- Title -->
-	<img src="assets/cloudstream3.png" width="256"/><br>
+	<img src="assets/cloudstream3.png" width="128"/><br>
 	<b>🇺🇦 Розширення Cloudstream (Україна)</b>
 </p>
 <p align="center">
