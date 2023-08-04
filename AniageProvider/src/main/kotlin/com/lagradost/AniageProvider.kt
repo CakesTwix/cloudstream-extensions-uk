@@ -140,16 +140,18 @@ class AniageProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
 
         // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${teams.teamId}&volume=1").url)
-        Gson().fromJson<List<EpisodesModel>>(app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").text, listEpisodeModel).map {
-            episodes.add(Episode
-                (
+        if(animeJSON.pageProps.teams.isNotEmpty()){
+            Gson().fromJson<List<EpisodesModel>>(app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").text, listEpisodeModel).map {
+                episodes.add(Episode
+                    (
                     "${it.animeId}, ${it.episodeNum}",
                     "Серія ${it.title}",
                     it.volume,
                     it.episodeNum,
                     "$cdnUrl${it.previewPath}",
                 )
-            )
+                )
+            }
         }
 
 
