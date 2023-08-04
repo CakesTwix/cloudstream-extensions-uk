@@ -25,6 +25,7 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeDetail
 import com.lagradost.models.EpisodesModel
 import com.lagradost.models.FindModel
+import com.lagradost.models.PageProps
 import com.lagradost.models.TeamsModel
 import org.json.JSONArray
 import org.json.JSONObject
@@ -44,11 +45,13 @@ class AniageProvider : MainAPI() {
     )
 
     private val apiUrl = "https://master.api.aniage.net"
+    private val findUrl = "https://finder-master.api.aniage.net/?query="
     private val cdnUrl = "https://aniage.fra1.cdn.digitaloceanspaces.com/main/"
     private val pageSize = 30
 
     private val listEpisodeModel = object : TypeToken<List<EpisodesModel>>() { }.type
     private val listTeamsModel = object : TypeToken<List<TeamsModel>>() { }.type
+    private val listPageModel = object : TypeToken<List<PageProps>>() { }.type
 
     // Sections
     override val mainPage = mainPageOf(
@@ -88,10 +91,16 @@ class AniageProvider : MainAPI() {
         return newHomePageResponse(request.name, homeList)
     }
 
-    // TODO
     override suspend fun search(query: String): List<SearchResponse> {
-
-        return emptyList()
+        val animeJSON = Gson().fromJson<List<PageProps>>(app.get("$findUrl$query").text, listPageModel)
+        val findList = animeJSON.map {
+            newAnimeSearchResponse(it.title, it.id, TvType.Anime) {
+                this.posterUrl = "$cdnUrl${it.posterId}"
+                addDubStatus(isDub = true, it.episodes)
+                this.otherName = it.alternativeTitle
+            }
+        }
+        return findList
     }
 
     // Detailed information
