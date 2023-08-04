@@ -57,6 +57,13 @@ class AniageProvider : MainAPI() {
     // Sections
     override val mainPage = mainPageOf(
         mainUrl to "Нове",
+        mainUrl to "Повнометражне",
+        mainUrl to "ONA",
+        mainUrl to "OVA",
+        mainUrl to "SPECIAL",
+        mainUrl to "ТБ-Серіал",
+        mainUrl to "ТБ-Спешл",
+        mainUrl to "Короткометражне",
     )
 
     // Done
@@ -64,9 +71,20 @@ class AniageProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        // Log.d("CakesTwix-Debug", page.toString())
         val body = JSONObject()
-        body.put("cleanup", JSONArray())
+
+        val cleanup = with(request.name){
+            when{
+                this == "Нове" -> JSONArray()
+                else -> JSONArray().put(JSONObject()
+                    .put("property","type")
+                    .put("type", "=")
+                    .put("value", JSONArray().put(this))
+                )
+            }
+        }
+
+        body.put("cleanup", cleanup)
         val orderBody = JSONObject()
         orderBody.put("by", "lastUpdated")
         orderBody.put("direction", "DESC")
