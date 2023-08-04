@@ -88,13 +88,12 @@ class KinoVezhaProvider : MainAPI() {
         val rating = document.selectFirst(".dd-imdb-colours")?.text().toRatingInt()
 
         // Parse episodes
-        var episodes: List<Episode> = emptyList()
+        val episodes = mutableListOf<Episode>()
         val playerUrl = document.select(".video-responsive > iframe").attr("src")
 
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries) {
-            var episodes: List<Episode> = emptyList()
             val playerRawJson = app.get(playerUrl).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
@@ -102,7 +101,7 @@ class KinoVezhaProvider : MainAPI() {
             AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
-                        episodes = episodes.plus(
+                        episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,

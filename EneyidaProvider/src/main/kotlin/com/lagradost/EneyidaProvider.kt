@@ -36,7 +36,7 @@ class EneyidaProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        var document = app.get(request.data + page).document
+        val document = app.get(request.data + page).document
 
         val home = document.select("article.short").map {
             it.toSearchResponse()
@@ -57,7 +57,7 @@ class EneyidaProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = "$mainUrl",
+            url = mainUrl,
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
@@ -74,18 +74,18 @@ class EneyidaProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
         // Parse info
-        val full_info = document.select(".full_info li")
+        val fullInfo = document.select(".full_info li")
         val title = document.selectFirst("div.full_header-title h1")?.text()?.trim().toString()
         val poster = mainUrl + document.selectFirst(".full_content-poster img")?.attr("src")
-        val tags = full_info[1].select("a").map { it.text() }
-        val year = full_info[0].select("a").text().toIntOrNull()
+        val tags = fullInfo[1].select("a").map { it.text() }
+        val year = fullInfo[0].select("a").text().toIntOrNull()
         val playerUrl = document.select(".tabs_b.visible iframe").attr("src")
 
         val tvType = if (tags.contains("фільм") or playerUrl.contains("/vod/")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".full_content-desc p")?.text()?.trim()
         val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
         val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text().toRatingInt()
-        val actors = full_info[4].select("a").map { it.text() }
+        val actors = fullInfo[4].select("a").map { it.text() }
 
         val recommendations = document.select(".short.related_item").map {
             it.toSearchResponse()
@@ -94,7 +94,7 @@ class EneyidaProvider : MainAPI() {
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries) {
-            var episodes: List<Episode> = emptyList()
+            val episodes = mutableListOf<Episode>()
             val playerRawJson = app.get(playerUrl).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
@@ -102,7 +102,7 @@ class EneyidaProvider : MainAPI() {
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
-                        episodes = episodes.plus(
+                        episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,

@@ -1,11 +1,8 @@
 package com.lagradost
 
-import android.annotation.SuppressLint
-import android.util.Log
 import com.google.gson.Gson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.GeneralInfo
@@ -36,7 +33,7 @@ class UASerialProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        var document = app.get(request.data.format(page)).document
+        val document = app.get(request.data.format(page)).document
 
         val home = document.select(".row .col").map {
             it.toSearchResponse()
@@ -57,7 +54,7 @@ class UASerialProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = "$mainUrl",
+            url = mainUrl,
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
@@ -77,9 +74,9 @@ class UASerialProvider : MainAPI() {
         val titleJson = Gson().fromJson(document.select("script[type*=json]").html(), GeneralInfo::class.java)
 
         if(titleJson.type == "Movie"){
-            val titleJson = Gson().fromJson(document.select("script[type*=json]").html(), GeneralInfoMovie::class.java)
+            val titleJsonMovie = Gson().fromJson(document.select("script[type*=json]").html(), GeneralInfoMovie::class.java)
             // Parse info for Serials
-            val title = titleJson.name
+            val title = titleJsonMovie.name
             val poster = mainUrl + document.selectFirst("img.cover")?.attr("src")
             val tags = document.select("div.genre div a").map { it.text() }
             val year = document.select("div.release div a").text().toIntOrNull()
@@ -87,7 +84,7 @@ class UASerialProvider : MainAPI() {
             val tvType = TvType.Movie
             val description = document.selectFirst(".text")?.text()?.trim()
             val rating = document.select("div.rating__item--imdb div.number").text().toRatingInt()
-            val actors = titleJson.actor.map { it.name }
+            val actors = titleJsonMovie.actor.map { it.name }
 
             return newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
@@ -110,13 +107,13 @@ class UASerialProvider : MainAPI() {
 
             val actors = titleJson.partOfTVSeries.actor.map { it.name }
 
-            var episodes: List<Episode> = emptyList()
+            val episodes = mutableListOf<Episode>()
             titleJson.partOfTVSeries.containsSeason.map { season ->
                 val documentSeason = app.get(season.url).document
                 season.episode.map { episode ->
                     var episodeName = documentSeason.select("div[data-episode-id=${episode.episodeNumber}] div.name").text().replaceFirstChar { it.uppercase() }
                     if (episodeName.isBlank()) { episodeName = episode.name.replaceFirstChar { it.uppercase() } }
-                    episodes = episodes.plus(
+                    episodes.add(
                         Episode(
                             "${season.url}, ${episode.episodeNumber}",
                             episodeName,

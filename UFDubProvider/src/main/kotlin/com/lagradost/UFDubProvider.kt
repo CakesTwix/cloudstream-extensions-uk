@@ -83,7 +83,7 @@ class UFDubProvider : MainAPI() {
         // Parse info
         val title = document.select("h1.top-title").text()
         val poster = mainUrl + document.select("div.f-poster img").attr("src")
-        var tags = emptyList<String>()
+        val tags = mutableListOf<String>()
         val year = someInfo.select("strong:contains(Рік випуску аніме:)").next().html().toIntOrNull()
 
         // TODO: Check type by url
@@ -101,7 +101,7 @@ class UFDubProvider : MainAPI() {
                     ele ->
                 when (ele.select("span").text()) {
                     //"Студія:" -> tags = ele.select("a").text().split(" / ")
-                    "Жанр:" -> ele.select("a").map { tags = tags.plus(it.text()) }
+                    "Жанр:" -> ele.select("a").map { tags.add(it.text()) }
                 }
             }
 

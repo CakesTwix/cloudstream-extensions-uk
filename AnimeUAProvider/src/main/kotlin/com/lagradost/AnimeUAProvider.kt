@@ -62,6 +62,8 @@ class AnimeUAProvider : MainAPI() {
         val title = this.selectFirst(titleSelector)?.text()?.trim().toString()
         val href = this.selectFirst(hrefSelector)?.attr("href").toString()
         val posterUrl = mainUrl + this.selectFirst(posterSelector)?.attr("data-src")
+
+        // TODO: Use it
         val status = this.select(".poster__label").text()
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             this.posterUrl = posterUrl
@@ -118,7 +120,7 @@ class AnimeUAProvider : MainAPI() {
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
-            var episodes: List<Episode> = emptyList()
+            val episodes = mutableListOf<Episode>()
             val playerRawJson = app.get(playerUrl).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
@@ -126,7 +128,7 @@ class AnimeUAProvider : MainAPI() {
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
-                        episodes = episodes.plus(
+                        episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,

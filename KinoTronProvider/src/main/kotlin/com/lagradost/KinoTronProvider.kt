@@ -1,12 +1,25 @@
 package com.lagradost
 
 import android.util.Log
-import com.lagradost.cloudstream3.*
-import com.lagradost.models.PlayerJson
+import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newHomePageResponse
+import com.lagradost.cloudstream3.newMovieLoadResponse
+import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
 
 class KinoTronProvider : MainAPI() {
@@ -80,7 +93,7 @@ class KinoTronProvider : MainAPI() {
         // Parse info
         val title = document.select(".full h1").text()
         val poster = mainUrl + document.select(".img-box img").attr("data-src")
-        var tags = document.select(".flist li")[2].select("a").map { it.text() }
+        val tags = document.select(".flist li")[2].select("a").map { it.text() }
 
         val year = document.select(".flist li")[0].select("a").text().toIntOrNull()
 
@@ -99,14 +112,13 @@ class KinoTronProvider : MainAPI() {
         val rating = document.selectFirst(".fqualityimdb")?.text().toRatingInt()
 
         // Parse episodes
-        var episodes: List<Episode> = emptyList()
+        val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("data-src")
         if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
         Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries || tvType == TvType.Anime) {
-            var episodes: List<Episode> = emptyList()
             val playerRawJson = app.get(playerUrl).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
@@ -114,7 +126,7 @@ class KinoTronProvider : MainAPI() {
             AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
-                        episodes = episodes.plus(
+                        episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,

@@ -121,15 +121,15 @@ class BambooUAProvider : MainAPI() {
             it.toSearchResponse()
         }
 
-        var subEpisodes: List<Episode> = emptyList()
-        var dubEpisodes: List<Episode> = emptyList()
+        val subEpisodes = mutableListOf<Episode>()
+        val dubEpisodes = mutableListOf<Episode>()
 
         // Parse episodes (sub/dub)
         document.select(".mt-4").forEach {
             // Parse sub
             if(it.select("h3.my-4").text() == "Субтитри"){
                 it.select("span.play_me").forEach{ episode ->
-                    subEpisodes = subEpisodes.plus(
+                    subEpisodes.add(
                         Episode(
                             episode.attr("data-file"),
                             episode.attr("data-title"),
@@ -140,7 +140,7 @@ class BambooUAProvider : MainAPI() {
                 // Parse dub
             } else if(it.select("h3.my-4").text() == "Озвучення"){
                 it.select("span.play_me").forEach{ episode ->
-                    dubEpisodes = dubEpisodes.plus(
+                    dubEpisodes.add(
                         Episode(
                             episode.attr("data-file"),
                             episode.attr("data-title"),

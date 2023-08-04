@@ -1,12 +1,23 @@
 package com.lagradost
 
-import android.util.Log
-import com.lagradost.cloudstream3.*
-import com.lagradost.models.PlayerJson
+import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newHomePageResponse
+import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
 
 class SerialnoProvider : MainAPI() {
@@ -81,20 +92,21 @@ class SerialnoProvider : MainAPI() {
         val title = document.select(".full h1").text()
         val poster = document.select(".fposter a").attr("href")
 
+        val tags = mutableListOf<String>()
         // Can be smaller
         if (generalInfo.size > 4) {
-            var tags = document.select(".flist li")[4].select("a").map { it.text() }
+            document.select(".flist li")[4].select("a").map { tags.add(it.text()) }
         } else {
-            var tags = document.select(".flist li")[3].select("a").map { it.text() }
+            document.select(".flist li")[3].select("a").map { tags.add(it.text()) }
         }
         val year = document.select(".flist li")[1].select("a").text().toIntOrNull()
-        var tvType = TvType.TvSeries
+        val tvType = TvType.TvSeries
         val description = document.select(".full-text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = document.selectFirst(".th-voice")?.text().toRatingInt()
 
         // Parse episodes
-        var episodes: List<Episode> = emptyList()
+        val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("src")
 
         // Return to app
@@ -106,7 +118,7 @@ class SerialnoProvider : MainAPI() {
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
             for (season in dubs.folder) {                                     // Seasons
                 for (episode in season.folder) {                              // Episodes
-                    episodes = episodes.plus(
+                    episodes.add(
                         Episode(
                             "${season.title}, ${episode.title}, $playerUrl",
                             episode.title,
