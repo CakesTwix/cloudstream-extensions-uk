@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -137,6 +138,16 @@ class AniageProvider : MainAPI() {
             }
         }
 
+        val trailer = with(animeJSON.pageProps.trailerUrl){
+            when{
+                this.isNullOrEmpty() -> null
+                contains("https://iframe.mediadelivery.net/embed") ->
+                    app.get(this).document.select("source[type*=application/x-mpegURL]").attr("src")
+                else ->
+                    this
+            }
+        }
+
         // Episodes
         // https://master.api.aniage.net/anime/episodes
         // ?animeId=2c60c269-049e-428b-96ba-fae23ac718ec
@@ -155,14 +166,12 @@ class AniageProvider : MainAPI() {
                     (
                     "${it.animeId}, ${it.episodeNum}",
                     "Серія ${it.title}",
-                    it.volume,
-                    it.episodeNum,
-                    "$cdnUrl${it.previewPath}",
+                    episode = it.episodeNum,
+                    posterUrl = "$cdnUrl${it.previewPath}",
                 )
                 )
             }
         }
-
 
         return newAnimeLoadResponse(
             animeJSON.pageProps.title,
@@ -173,7 +182,7 @@ class AniageProvider : MainAPI() {
             this.engName = animeJSON.pageProps.alternativeTitle
             this.tags = animeJSON.pageProps.genres.map { it }
             this.plot = animeJSON.pageProps.description
-            // addTrailer(animeJSON.pageProps.trailerUrl)
+            addTrailer(trailer, addRaw = true)
             this.showStatus = showStatus
             this.duration = animeJSON.pageProps.averageDuration
             addEpisodes(DubStatus.Dubbed, episodes)
