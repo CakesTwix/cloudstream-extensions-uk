@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -115,7 +114,7 @@ class KinoTronProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("data-src")
         if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
-        Log.d("load-debug", playerUrl)
+        // Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries || tvType == TvType.Anime) {

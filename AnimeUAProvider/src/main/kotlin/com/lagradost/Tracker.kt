@@ -1,13 +1,12 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.app
 
 class Tracker {
     suspend fun getTracker(title: String?, type: String?, year: Int?): Tracker {
         val res = app.get("https://api.consumet.org/meta/anilist/$title")
             .parsedSafe<AniSearch>()?.results?.find { media ->
-                Log.d("load-debug", media.toString())
+                // Log.d("load-debug", media.toString())
                 (media.title?.english.equals(title, true) || media.title?.romaji.equals(
                     title,
                     true

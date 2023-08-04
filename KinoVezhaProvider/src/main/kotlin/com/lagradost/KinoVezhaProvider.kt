@@ -74,12 +74,11 @@ class KinoVezhaProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-
         // Parse info
         val title = document.select(".inner-page__title").text()
         val poster = mainUrl + document.select(".img-fit-cover img").attr("src")
-        var tags = document.select(".inner-page__list li")[1].select("a").map { it.text() }
-        Log.d("load-debug", tags.toString())
+        val tags = document.select(".inner-page__list li")[1].select("a").map { it.text() }
+        // Log.d("load-debug", tags.toString())
         val year = document.select(".inner-page__list li")[0].select("a").text().toIntOrNull()
 
         val tvType = if(tags.contains("Мультсеріали") or tags.contains("Серіали")) TvType.TvSeries else TvType.Movie

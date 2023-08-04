@@ -1,11 +1,24 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
-import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import com.lagradost.cloudstream3.AnimeSearchResponse
+import com.lagradost.cloudstream3.DubStatus
+import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.MainAPI
+import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.addDubStatus
+import com.lagradost.cloudstream3.addEpisodes
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newAnimeLoadResponse
+import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newHomePageResponse
+import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.nodes.Element
@@ -99,7 +112,7 @@ class BambooUAProvider : MainAPI() {
         // Parse info
         // val json = tryParseJson<JSONModel>(document.select("script[type*=json]").html())
         val gJson = Gson().fromJson(document.select("script[type*=json]").html(), JSONModel::class.java)
-        Log.d("load-debug-json", gJson.graph[0].name)
+        // Log.d("load-debug-json", gJson.graph[0].name)
 
         val title = gJson.graph[0].name
 
@@ -187,7 +200,7 @@ class BambooUAProvider : MainAPI() {
         if(data.startsWith("https://bambooua.com")){
             val document = app.get(data).document
             document.select("span.mr-3").forEach {
-                Log.d("load-debug", it.attr("data-file"))
+                // Log.d("load-debug", it.attr("data-file"))
                 M3u8Helper.generateM3u8(
                     source = it.attr("data-title"),
                     streamUrl = it.attr("data-file"),
