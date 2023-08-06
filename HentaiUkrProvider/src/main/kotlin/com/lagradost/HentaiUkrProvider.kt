@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.Episode
@@ -11,13 +10,10 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
-import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
-import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
-import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
@@ -37,10 +33,11 @@ class HentaiUkrProvider : MainAPI() {
     )
 
     private val listCfgJSONModel = object : TypeToken<List<CfgModel>>() { }.type
+    private val objectsUrl = "$mainUrl/search/objects.json"
 
     // Sections
     override val mainPage = mainPageOf(
-        "https://hentaiukr.com/search/objects.json" to "\uD83D\uDD1E Хентай",
+        objectsUrl to "\uD83D\uDD1E Хентай",
     )
 
     // Done
@@ -64,7 +61,19 @@ class HentaiUkrProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        return emptyList()
+        val document = app.get(objectsUrl).text
+        val hentai = mutableListOf<SearchResponse>()
+        Gson().fromJson(document, ObjectsModel::class.java).video.map {
+            if(it.name.contains(query, true)){
+                hentai.add(newAnimeSearchResponse(it.name, "$mainUrl${it.url}", TvType.NSFW) {
+                    this.posterUrl = "$mainUrl${it.thumb}"
+                    this.otherName = it.orig_name
+                })
+            }
+        }
+
+
+        return hentai
     }
 
     // Detailed information
