@@ -86,8 +86,6 @@ class UFDubProvider : MainAPI() {
         val tags = mutableListOf<String>()
         val year = someInfo.select("strong:contains(Рік випуску аніме:)").next().html().toIntOrNull()
 
-        // TODO: Check type by url
-        val tvType = TvType.Anime
         val description = document.select("div.full-text p").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = toRatingInt(document.select(".fp-rate"))
@@ -104,6 +102,18 @@ class UFDubProvider : MainAPI() {
                     "Жанр:" -> ele.select("a").map { tags.add(it.text()) }
                 }
             }
+
+        val tvType = with(tags){
+            when{
+                contains("Фільми") -> TvType.Movie
+                contains("Мультсеріали") -> TvType.Cartoon
+                contains("Серіали") -> TvType.TvSeries
+                contains("Мультфільми") -> TvType.Movie
+                contains("Аніме") -> TvType.Anime
+                contains("Дорами") -> TvType.AsianDrama
+                else -> TvType.TvSeries
+            }
+        }
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
