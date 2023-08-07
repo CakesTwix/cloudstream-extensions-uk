@@ -90,8 +90,10 @@ class UFDubProvider : MainAPI() {
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = toRatingInt(document.select(".fp-rate"))
 
-        val recommendations = document.select(".horizontal ul").map {
-            it.toSearchResponse()
+        val recommendations = document.select(".rel").map {
+            newMovieSearchResponse(it.select(".img-box img").attr("alt"), it.attr("href"), TvType.Anime) {
+                this.posterUrl = "$mainUrl${it.select(".img-box img").attr("src")}"
+            }
         }
 
         someInfo.select(".full-info div.fi-col-item")
