@@ -42,8 +42,9 @@ class UakinoProvider : MainAPI() {
     ): HomePageResponse {
         val document = app.get(request.data + page).document
         val home = document.select("div.owl-item, div.movie-item")
-            .filterNot { el -> el.select("a.movie-title, a.full-movie").attr("href").contains(blackUrls) }
+            .filterNot { el -> el.select("a.movie-title, a.full-movie").attr("href").contains(Regex(blackUrls)) }
             .map {
+                Log.d("CakesTwix-Debug", it.select("a.movie-title, a.full-movie").attr("href"))
                 it.toSearchResponse()
         }
         return newHomePageResponse(request.name, home)
@@ -68,7 +69,10 @@ class UakinoProvider : MainAPI() {
                 "story" to query.replace(" ", "+")
             )
         ).document
-        return document.select("div.movie-item.short-item").map {
+
+        return document.select("div.movie-item.short-item")
+            .filterNot { el -> el.select("a.movie-title, a.full-movie").attr("href").contains(Regex(blackUrls)) }
+            .map {
             it.toSearchResponse()
         }
     }
