@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -33,13 +34,17 @@ class UakinoProvider : MainAPI() {
         "$mainUrl/cartoon/cartoonseries/page/" to "Мультсеріали",
     )
 
+    val blackUrls = "(/news/)|(/franchise/)"
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
         val document = app.get(request.data + page).document
-        val home = document.select("div.owl-item, div.movie-item").map {
-            it.toSearchResponse()
+        val home = document.select("div.owl-item, div.movie-item")
+            .filterNot { el -> el.select("a.movie-title, a.full-movie").attr("href").contains(blackUrls) }
+            .map {
+                it.toSearchResponse()
         }
         return newHomePageResponse(request.name, home)
     }
