@@ -241,7 +241,7 @@ class AnitubeinuaProvider : MainAPI() {
                                             extlink.url,
                                             extlink.referer,
                                             extlink.quality,
-                                            extlink.isM3u8,
+                                            extlink.type,
                                             extlink.headers,
 
                                         )
@@ -320,7 +320,7 @@ class AnitubeinuaProvider : MainAPI() {
                                                 extlink.url,
                                                 extlink.referer,
                                                 extlink.quality,
-                                                extlink.isM3u8,
+                                                extlink.type,
                                                 extlink.headers,
 
                                                 )
