@@ -1,0 +1,57 @@
+name: "\U0001F195 Нове джерело"
+description: Подати заявку на додавання нового сайту
+labels: ["new-source"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Назва сайту
+      description: |
+        Вкажіть назву сайту
+      placeholder: |
+        Наприклад: "Unimay"
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Посилання на сайт
+      description: |
+        Вказати актуальне посилання на ресурс
+      placeholder: |
+        Наприклад: "https://unimay.media"
+    validations:
+      required: true
+  - type: textarea
+    id: more-info
+    attributes:
+      label: Корисна інформація для парсингу
+      description: Вкажіть наявність API або звідки отримати посилання на m3u8
+      placeholder: |
+        Example:
+          1. https://api.unimay.media
+          2. https://api.unimay.media/api/release/search/?title=Пошук
+          3. etc
+    validations:
+      required: false
+  - type: textarea
+    id: other-details
+    attributes:
+      label: Інша інформація
+      placeholder: |
+        Додаткова інформація, причини додати.
+  - type: checkboxes
+    id: content
+    attributes:
+      label: Який тип медія там є?
+      description: 'Вкажіть наявність серіалів, фільмів і тд'
+      options:
+        - label: Фільми
+        - label: Серіали
+        - label: Мультфільми
+        - label: Мультсеріали
+        - label: Аніме
+        - label: Дорами
+        - label: "\U0001F353 18+"
+    validations:
+      required: true
