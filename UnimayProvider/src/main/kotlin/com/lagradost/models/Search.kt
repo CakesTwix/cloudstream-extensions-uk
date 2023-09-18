@@ -17,7 +17,6 @@ data class SearchModel (
     val lastUpdate : Long,
     val name : String,
     val engName : String,
-    val trailer : String,
     // https://api.unimay.media/api/release/suzume-locking-up-the-doors
     // val trailerPlaylist : String?,
     val timestamp : Long,
