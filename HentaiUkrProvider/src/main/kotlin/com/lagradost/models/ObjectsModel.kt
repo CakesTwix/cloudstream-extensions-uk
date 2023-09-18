@@ -40,7 +40,7 @@ data class Manga (
 )
 
 data class Tags (
-	@SerializedName("id") val id : Int,
+	@SerializedName("id") val id : String,
 	@SerializedName("name") val name : String,
 )
 data class Video (

@@ -1,6 +1,7 @@
 // use an integer for version numbers
-version = 2
+version = 3
 
+// TODO: Need drop this
 dependencies{
     implementation("com.google.code.gson:gson:2.9.0")
 }
