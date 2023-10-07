@@ -46,7 +46,7 @@ data class Actors (
 
 data class Playlist (
 
-    val id : Int,
+    // val id : Int,
     val number : Int,
     val title : String,
     val preview : String?,
