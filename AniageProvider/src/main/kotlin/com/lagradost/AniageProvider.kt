@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
@@ -48,6 +47,8 @@ class AniageProvider : MainAPI() {
     private val apiUrl = "https://master.api.aniage.net"
     private val findUrl = "https://finder-master.api.aniage.net/?query="
     private val cdnUrl = "https://aniage.fra1.cdn.digitaloceanspaces.com/main/"
+    private val imageUrl = "https://image.aniage.net"
+    private val videoCdn = "https://aniage-video-stream.b-cdn.net/"
     private val pageSize = 30
 
     private val listEpisodeModel = object : TypeToken<List<EpisodesModel>>() { }.type
@@ -130,7 +131,7 @@ class AniageProvider : MainAPI() {
         val buildId = jsonObject.getString("buildId")
 
         // https://www.aniage.net/_next/data/F64n_RAvOkYPvB3Z9Bmw2/watch/fea3c510-f42d-4a18-b438-bfab102f4424.json
-        // Log.d("CakesTwix-Debug", app.get("$mainUrl/_next/data/$buildId/watch/$animeID.json").text)
+        // Log.d("CakesTwix-Debug", app.get("$mainUrl/_next/data/$buildId/watch/$animeID.json").url)
         val animeJSON = Gson().fromJson(app.get("$mainUrl/_next/data/$buildId/watch/$animeID.json").text, AnimeDetail::class.java)
 
         // Log.d("CakesTwix-Debug", animeJSON.pageProps.title)
@@ -167,27 +168,37 @@ class AniageProvider : MainAPI() {
         }
 
         // Episodes
-        // https://master.api.aniage.net/anime/episodes
-        // ?animeId=2c60c269-049e-428b-96ba-fae23ac718ec
-        // &page=1
-        // &pageSize=30
-        // &sortOrder=ASC
-        // &teamId=99012182-f177-45df-a21f-6823bb9955c3
-        // &volume=1
-
         val episodes = mutableListOf<Episode>()
 
-        // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${teams.teamId}&volume=1").url)
+        // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").url)
         if(animeJSON.pageProps.teams.isNotEmpty()){
             Gson().fromJson<List<EpisodesModel>>(app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").text, listEpisodeModel).map {
-                episodes.add(Episode
-                    (
-                    "${it.animeId}, ${it.episodeNum}",
-                    "Серія ${it.title}",
-                    episode = it.episodeNum,
-                    posterUrl = "$cdnUrl${it.previewPath}",
-                )
-                )
+                if(it.s3VideoSource != null){
+                    // Episode
+                    // Log.d("CakesTwix-Debug", "Episode ${it.episodeNum}")
+                    episodes.add(Episode
+                        (
+                        "${it.animeId}, ${it.episodeNum}",
+                        "Серія ${it.title}",
+                        episode = it.episodeNum,
+                        posterUrl = "$imageUrl/${it.s3VideoSource.previewPath}",
+                        )
+                    )
+                }
+                else if(it.videoSource != null) {
+                    // Movie
+                    // Log.d("CakesTwix-Debug", app.get(it.playPath).document.select("source").attr("src"))
+                    episodes.add(Episode
+                        (
+                        "${it.animeId}, ${app.get(it.playPath).document.select("source").attr("src")}",
+                        it.title,
+                        episode = it.episodeNum,
+                        posterUrl = "$imageUrl/main/${it.videoSource.previewPath}",
+                        )
+                    )
+                } else {
+
+                }
             }
         }
 
@@ -228,13 +239,24 @@ class AniageProvider : MainAPI() {
         // Parse list, by episode
         animeJSON.pageProps.teams.map { teams ->
             val TeamsList = Gson().fromJson<List<TeamsModel>>(app.get("$apiUrl/anime/teams/by-ids?ids=${teams.teamId}").text, listTeamsModel)[0]
-            // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${teams.teamId}&volume=1").url)
+            // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=${dataList[0]}&page=1&pageSize=30&sortOrder=ASC&teamId=${teams.teamId}&volume=1").url)
             Gson().fromJson<List<EpisodesModel>>(app.get("https://master.api.aniage.net/anime/episodes?animeId=${dataList[0]}&page=1&pageSize=30&sortOrder=ASC&teamId=${teams.teamId}&volume=1").text, listEpisodeModel).map {
-                if(it.episodeNum == dataList[1].toInt()){
-                    // Log.d("CakesTwix-Debug", app.get(it.playPath).document.select("source[type*=application/x-mpegURL]").attr("src"))
+                // Movie
+                // Log.d("CakesTwix-Debug", dataList[1])
+                if(dataList[1].toIntOrNull() == null){
                     M3u8Helper.generateM3u8(
                         source = TeamsList.name,
-                        streamUrl = app.get(it.playPath).document.select("source[type*=application/x-mpegURL]").attr("src"),
+                        streamUrl = dataList[1],
+                        referer = mainUrl
+                    ).forEach(callback)
+                    return true
+                }
+                // Episode
+                if(it.episodeNum == dataList[1].toInt()){
+                    // Log.d("CakesTwix-Debug", "$videoCdn${it.s3VideoSource.playlistPath}")
+                    M3u8Helper.generateM3u8(
+                        source = TeamsList.name,
+                        streamUrl = "$videoCdn${it.s3VideoSource.playlistPath}",
                         referer = mainUrl
                     ).forEach(callback)
                 }
