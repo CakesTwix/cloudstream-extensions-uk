@@ -126,7 +126,7 @@ class AniageProvider : MainAPI() {
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val animeID = url.replace("$mainUrl/", "")
-        val document = app.get("$mainUrl/watch/$animeID").document
+        val document = app.get("$mainUrl/$animeID").document
         val jsonObject = JSONObject(document.selectFirst("script[type*=application/json]")!!.html())
         val buildId = jsonObject.getString("buildId")
 
@@ -204,7 +204,7 @@ class AniageProvider : MainAPI() {
 
         return newAnimeLoadResponse(
             animeJSON.pageProps.title,
-            "$mainUrl/watch/$animeID",
+            "$mainUrl/$animeID",
             tvType,
         ) {
             this.posterUrl = "$cdnUrl${animeJSON.pageProps.posterId}"
