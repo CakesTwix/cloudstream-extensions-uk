@@ -176,7 +176,7 @@ class UASerialsProProvider : MainAPI() {
                     season.episodes.forEachIndexed { episodesIndex, episode ->
                         episodes.add(
                             Episode(
-                                "$seasonsIndex, $seasonsIndex, $url",
+                                "$seasonsIndex, $episodesIndex, $url",
                                 episode.title,
                                 seasonsIndex + 1,
                                 episodesIndex + 1,
