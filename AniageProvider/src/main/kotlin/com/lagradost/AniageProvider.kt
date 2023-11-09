@@ -46,7 +46,6 @@ class AniageProvider : MainAPI() {
 
     private val apiUrl = "https://master.api.aniage.net"
     private val findUrl = "https://finder-master.api.aniage.net/?query="
-    private val cdnUrl = "https://aniage.fra1.cdn.digitaloceanspaces.com/main/"
     private val imageUrl = "https://image.aniage.net"
     private val videoCdn = "https://aniage-video-stream.b-cdn.net/"
     private val pageSize = 30
@@ -102,7 +101,7 @@ class AniageProvider : MainAPI() {
         
         val homeList = parsedJSON.data.map {
             newAnimeSearchResponse(it.title, it.id, TvType.Anime) {
-                this.posterUrl = "$cdnUrl${it.posterId}"
+                this.posterUrl = "$imageUrl/main/${it.posterId}?width=296"
                 addDubStatus(isDub = true, it.episodes)
                 this.otherName = it.alternativeTitle
             }
@@ -115,7 +114,7 @@ class AniageProvider : MainAPI() {
         val animeJSON = Gson().fromJson<List<PageProps>>(app.get("$findUrl$query").text, listPageModel)
         val findList = animeJSON.map {
             newAnimeSearchResponse(it.title, it.id, TvType.Anime) {
-                this.posterUrl = "$cdnUrl${it.posterId}"
+                this.posterUrl = "$imageUrl/main/${it.posterId}?width=296"
                 addDubStatus(isDub = true, it.episodes)
                 this.otherName = it.alternativeTitle
             }
@@ -201,13 +200,12 @@ class AniageProvider : MainAPI() {
                 }
             }
         }
-
         return newAnimeLoadResponse(
             animeJSON.pageProps.title,
             "$mainUrl/$animeID",
             tvType,
         ) {
-            this.posterUrl = "$cdnUrl${animeJSON.pageProps.posterId}"
+            this.posterUrl = "$imageUrl/main/${animeJSON.pageProps.posterId}"
             this.engName = animeJSON.pageProps.alternativeTitle
             this.tags = animeJSON.pageProps.genres.map { it }
             this.plot = animeJSON.pageProps.description
