@@ -105,7 +105,7 @@ class KlonTVProvider : MainAPI() {
         val year = document.selectFirst(yearSelector)?.text()?.toIntOrNull()
         val playerUrl = document.select(playerSelector).attr("data-src")
 
-        val tvType = with(tags){
+        var tvType = with(tags){
             when{
                 contains("Серіали") -> TvType.TvSeries
                 contains("Фільми") -> TvType.Movie
@@ -115,6 +115,9 @@ class KlonTVProvider : MainAPI() {
                 else -> TvType.TvSeries
             }
         }
+
+        // https://klon.tv/filmy/1783-rik-ta-morti.html not movie
+        if(playerUrl.contains("/serial/")){ tvType = TvType.TvSeries }
         val description = Jsoup.parse(titleJson.description).text()
 
         val recommendations = document.select(recommendationsSelector).map {
