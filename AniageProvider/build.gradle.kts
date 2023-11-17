@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 7
+version = 8
 
 dependencies{
     implementation("com.google.code.gson:gson:2.9.0")

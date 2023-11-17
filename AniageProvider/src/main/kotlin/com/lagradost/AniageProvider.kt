@@ -129,9 +129,9 @@ class AniageProvider : MainAPI() {
         val jsonObject = JSONObject(document.selectFirst("script[type*=application/json]")!!.html())
         val buildId = jsonObject.getString("buildId")
 
-        // https://www.aniage.net/_next/data/F64n_RAvOkYPvB3Z9Bmw2/watch/fea3c510-f42d-4a18-b438-bfab102f4424.json
-        // Log.d("CakesTwix-Debug", app.get("$mainUrl/_next/data/$buildId/watch/$animeID.json").url)
-        val animeJSON = Gson().fromJson(app.get("$mainUrl/_next/data/$buildId/watch/$animeID.json").text, AnimeDetail::class.java)
+        // https://www.aniage.net/_next/data/IfKYt_B-o41irAex5hZoV/watch.json?wid=96dcb9ce-e4bc-4248-8ed3-29c3d14aedfc
+        // Log.d("CakesTwix-Debug", "$mainUrl/_next/data/$buildId/watch.json?wid=$animeID")
+        val animeJSON = Gson().fromJson(app.get("$mainUrl/_next/data/$buildId/watch.json?wid=$animeID").text, AnimeDetail::class.java)
 
         // Log.d("CakesTwix-Debug", animeJSON.pageProps.title)
 
@@ -172,13 +172,14 @@ class AniageProvider : MainAPI() {
         // Log.d("CakesTwix-Debug", app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").url)
         if(animeJSON.pageProps.teams.isNotEmpty()){
             Gson().fromJson<List<EpisodesModel>>(app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").text, listEpisodeModel).map {
+                val episodeName = if(it.title == ".") "Серія ${it.episodeNum}" else it.title
                 if(it.s3VideoSource != null){
                     // Episode
                     // Log.d("CakesTwix-Debug", "Episode ${it.episodeNum}")
                     episodes.add(Episode
                         (
                         "${it.animeId}, ${it.episodeNum}",
-                        "Серія ${it.title}",
+                        episodeName,
                         episode = it.episodeNum,
                         posterUrl = "$imageUrl/${it.s3VideoSource.previewPath}",
                         )
@@ -190,7 +191,7 @@ class AniageProvider : MainAPI() {
                     episodes.add(Episode
                         (
                         "${it.animeId}, ${app.get(it.playPath).document.select("source").attr("src")}",
-                        it.title,
+                        episodeName,
                         episode = it.episodeNum,
                         posterUrl = "$imageUrl/main/${it.videoSource.previewPath}",
                         )
