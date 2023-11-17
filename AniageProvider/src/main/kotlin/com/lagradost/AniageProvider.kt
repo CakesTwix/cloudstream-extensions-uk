@@ -233,7 +233,7 @@ class AniageProvider : MainAPI() {
         val jsonObject = JSONObject(document.selectFirst("script[type*=application/json]")!!.html())
         val buildId = jsonObject.getString("buildId")
 
-        val animeJSON = Gson().fromJson(app.get("$mainUrl/_next/data/$buildId/watch/${dataList[0]}.json").text, AnimeDetail::class.java)
+        val animeJSON = Gson().fromJson(app.get("$mainUrl/_next/data/$buildId/watch.json?wid=${dataList[0]}").text, AnimeDetail::class.java)
 
         // Parse list, by episode
         animeJSON.pageProps.teams.map { teams ->
@@ -245,7 +245,7 @@ class AniageProvider : MainAPI() {
                 if(dataList[1].toIntOrNull() == null){
                     M3u8Helper.generateM3u8(
                         source = TeamsList.name,
-                        streamUrl = dataList[1],
+                        streamUrl = dataList[1].replace("}", ""),
                         referer = mainUrl
                     ).forEach(callback)
                     return true
