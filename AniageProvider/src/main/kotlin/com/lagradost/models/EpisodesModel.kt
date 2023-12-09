@@ -17,8 +17,8 @@ data class EpisodesModel(
     @SerializedName("playPath") val playPath : String,
     @SerializedName("title") val title : String,
     @SerializedName("previewPath") val previewPath : String,
-    @SerializedName("videoSource") val videoSource : VideoSource,
-    @SerializedName("s3VideoSource") val s3VideoSource : S3VideoSource
+    @SerializedName("videoSource") val videoSource : VideoSource?,
+    @SerializedName("s3VideoSource") val s3VideoSource : S3VideoSource?
 )
 
 data class VideoSource (
