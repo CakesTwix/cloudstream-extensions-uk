@@ -32,6 +32,10 @@ https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/master/rep
 ## 💖 Зробити внесок
 Внески завжди вітаються!
 
+## Збірка
+ - Windows: `.\gradlew.bat ExampleProvider:make` або `.\gradlew.bat ExampleProvider:deployWithAdb`
+ - Linux & Mac: `./gradlew ExampleProvider:make` або `./gradlew ExampleProvider:deployWithAdb`
+
 <!-- Developers -->
 ## ⭐️ Розробники
 - [@CakesTwix](https://www.github.com/CakesTwix)
