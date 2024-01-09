@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 11
+version = 12
 
 dependencies{
     implementation("com.google.code.gson:gson:2.9.0")
@@ -26,5 +26,5 @@ cloudstream {
         "OVA",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=aniage.net&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=watari-anime.com&sz=%size%"
 }
