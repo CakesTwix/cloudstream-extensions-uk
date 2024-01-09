@@ -49,7 +49,7 @@ class AniageProvider : MainAPI() {
     private val findUrl = "https://finder-master.api.aniage.net/?query="
     private val imageUrl = "https://image.aniage.net"
     private val videoCdn = "https://aniage-video-stream.b-cdn.net/"
-    private val pageSize = 30
+    private val pageSize = 999
 
     private val listEpisodeModel = object : TypeToken<List<EpisodesModel>>() {}.type
     private val listTeamsModel = object : TypeToken<List<TeamsModel>>() {}.type
@@ -94,7 +94,7 @@ class AniageProvider : MainAPI() {
 
         body.put("order", orderBody)
         body.put("page", page)
-        body.put("pageSize", pageSize)
+        body.put("pageSize", 30)
 
         val document = app.post("$apiUrl/v2/anime/find", json = body).text
         val parsedJSON = Gson().fromJson(document, FindModel::class.java)
@@ -183,12 +183,12 @@ class AniageProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
 
         // Log.d("CakesTwix-Debug",
-        // app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").url)
+        // app.get("https://master.api.aniage.net/anime/episodes?animeId=$animeID&page=1&pageSize=$pageSize&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1").url)
         if (animeJSON.pageProps.teams.isNotEmpty()) {
             Gson()
                 .fromJson<List<EpisodesModel>>(
                     app.get(
-                        "$apiUrl/anime/episodes?animeId=$animeID&page=1&pageSize=30&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1"
+                        "$apiUrl/anime/episodes?animeId=$animeID&page=1&pageSize=$pageSize&sortOrder=ASC&teamId=${animeJSON.pageProps.teams[0].teamId}&volume=1"
                     )
                         .text,
                     listEpisodeModel
@@ -260,7 +260,7 @@ class AniageProvider : MainAPI() {
             Gson()
                 .fromJson<List<EpisodesModel>>(
                     app.get(
-                        "$apiUrl/anime/episodes?animeId=${dataList[0]}&page=1&pageSize=30&sortOrder=ASC&teamId=${teamName.id}&volume=1"
+                        "$apiUrl/anime/episodes?animeId=${dataList[0]}&page=1&pageSize=$pageSize&sortOrder=ASC&teamId=${teamName.id}&volume=1"
                     )
                         .text,
                     listEpisodeModel
