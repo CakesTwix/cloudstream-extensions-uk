@@ -33,8 +33,8 @@ import org.json.JSONObject
 class AniageProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://aniage.net"
-    override var name = "Aniage"
+    override var mainUrl = "https://watari-anime.com"
+    override var name = "Watari Anime"
     override val hasMainPage = true
     override var lang = "uk"
     override val hasDownloadSupport = true
