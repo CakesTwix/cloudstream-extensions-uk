@@ -20,7 +20,6 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.models.Releases
 import com.lagradost.models.SearchModel
 
@@ -38,7 +37,7 @@ class UnimayProvider : MainAPI() {
     )
 
     private val apiUrl = "https://api.unimay.media"
-    private val findUrl = "$apiUrl/api/release/search/?title="
+    private val findUrl = "$apiUrl/v1/release/search?title="
     private val imagesUrl = "$apiUrl/storage/images/"
 
     // Sections
@@ -72,7 +71,8 @@ class UnimayProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        val anime = app.get("$apiUrl/api/release/${url.substringAfterLast("/")}").parsedSafe<SearchModel>()!!
+        // Log.d("CakesTwix-Debug", url)
+        val anime = app.get(url).parsedSafe<SearchModel>()!!
         // val anime = Gson().fromJson(app.get("$apiUrl/api/release/${url.substringAfterLast("/")}").text, SearchModel::class.java)
 
         val showStatus = when(anime.statusCode){
@@ -136,23 +136,6 @@ class UnimayProvider : MainAPI() {
                 referer = "https://www.unimay.media"
             ).forEach(callback)
             return true
-        }
-
-        if (episode.sd != null) {
-            callback(ExtractorLink(episode.sd,"Unimay", episode.sd, "https://www.unimay.media",
-                Qualities.P480.value, false))
-        }
-        if (episode.hd != null) {
-            callback(ExtractorLink(episode.hd,"Unimay", episode.hd, "https://www.unimay.media",
-                Qualities.P720.value, false))
-        }
-        if (episode.fhd != null) {
-            callback(ExtractorLink(episode.fhd,"Unimay", episode.fhd, "https://www.unimay.media",
-                Qualities.P1080.value, false))
-        }
-        if (episode.qhd != null) {
-            callback(ExtractorLink(episode.qhd,"Unimay", episode.qhd, "https://www.unimay.media",
-                Qualities.P2160.value, false))
         }
 
         return true
