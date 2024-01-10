@@ -27,4 +27,28 @@ data class Playlist (
     val playlist : String,
 )
 
+data class SearchGet (
+    val content : List<Content>,
+)
 
+data class Content (
+
+    val id : Int,
+    val playlistSize : Int,
+    val code : String,
+    val names : Names,
+    val images : Images,
+)
+
+data class Images (
+
+    val banner : Int?,
+    val poster : Int
+)
+
+data class Names (
+
+    val romaji : String,
+    val ukr : String,
+    val eng : String
+)

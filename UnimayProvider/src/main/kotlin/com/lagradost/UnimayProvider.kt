@@ -21,6 +21,7 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.Releases
+import com.lagradost.models.SearchGet
 import com.lagradost.models.SearchModel
 
 class UnimayProvider : MainAPI() {
@@ -39,6 +40,8 @@ class UnimayProvider : MainAPI() {
     private val apiUrl = "https://api.unimay.media"
     private val findUrl = "$apiUrl/v1/release/search?title="
     private val imagesUrl = "$apiUrl/storage/images/"
+
+    private val TAG = name
 
     // Sections
     override val mainPage = mainPageOf(
@@ -61,10 +64,10 @@ class UnimayProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        return app.get("$findUrl$query&page=1").parsedSafe<Releases>()!!.releases.map{
-            newAnimeSearchResponse(it.name, "$apiUrl/api/release/${it.code}", TvType.Anime) {
-                this.posterUrl = "$imagesUrl${it.imageId}"
-                addDubStatus("${it.playlistSize}/${it.episodes}", it.playlistSize)
+        return app.get("$findUrl$query&page=0").parsedSafe<SearchGet>()!!.content.map{
+            newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release/${it.code}", TvType.Anime) {
+                this.posterUrl = "$imagesUrl${it.images.poster}"
+                addDubStatus("${it.playlistSize}/${it.playlistSize}", it.playlistSize)
             }
         }
     }
