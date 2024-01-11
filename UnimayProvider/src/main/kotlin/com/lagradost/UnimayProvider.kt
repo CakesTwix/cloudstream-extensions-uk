@@ -65,7 +65,7 @@ class UnimayProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         return app.get("$findUrl$query&page=0").parsedSafe<SearchGet>()!!.content.map{
-            newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release/${it.code}", TvType.Anime) {
+            newAnimeSearchResponse(it.names.ukr, "$apiUrl/api/release/${it.code}", TvType.Anime) {
                 this.posterUrl = "$imagesUrl${it.images.poster}"
                 addDubStatus("${it.playlistSize}/${it.playlistSize}", it.playlistSize)
             }
