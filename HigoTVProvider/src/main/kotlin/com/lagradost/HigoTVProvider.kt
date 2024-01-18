@@ -40,6 +40,8 @@ class HigoTVProvider : MainAPI() {
         TvType.Anime
     )
 
+    private val searchUrl = "https://higotv.fun/search/doSearch"
+
     // Sections
     override val mainPage = mainPageOf(
         "vsevishlo" to "Виходить, Вийшло",
@@ -92,12 +94,8 @@ class HigoTVProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = mainUrl,
-            data = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "story" to query.replace(" ", "+")
-            )
+            url = searchUrl,
+            data = mapOf("keyword" to query)
         ).document
 
         return document.select(animeSelector).map {
@@ -213,6 +211,9 @@ class HigoTVProvider : MainAPI() {
 
         val parsedJSON = Gson().fromJson<List<PlayerJson>>(playerRawJson, listPlayer)
 
+        // Sorry for this...
+        // Here we check for the presence of letters in JSON voices and the presence of folder
+        // in them and the scheme is repeated, but further instead of folder, we check file
         parsedJSON[1].folder?.forEach { voices ->
             if(voices != null){
                 if(!voices.title.isNullOrEmpty()){
