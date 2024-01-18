@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.AnimeSearchResponse
@@ -24,7 +23,6 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
 
@@ -36,16 +34,15 @@ class HigoTVProvider : MainAPI() {
     override val hasMainPage = true
     override var lang = "uk"
     override val hasDownloadSupport = true
-    override val supportedTypes = setOf(
-        TvType.Anime
-    )
+    override val supportedTypes = setOf(TvType.Anime)
 
     private val searchUrl = "https://higotv.fun/search/doSearch"
 
     // Sections
-    override val mainPage = mainPageOf(
-        "vsevishlo" to "Виходить, Вийшло",
-    )
+    override val mainPage =
+        mainPageOf(
+            "vsevishlo" to "Виходить, Вийшло",
+        )
 
     // Main Page
     private val animeSelector = "div.poster"
@@ -62,19 +59,14 @@ class HigoTVProvider : MainAPI() {
     private val descriptionSelector = ".anim-txt-all"
     private val ratingSelector = ".rt-tb"
 
-    private val listPlayer = object : TypeToken<List<PlayerJson>>() { }.type
+    private val listPlayer = object : TypeToken<List<PlayerJson>>() {}.type
 
     private val TAG = "$name-Debug"
 
-    override suspend fun getMainPage(
-        page: Int,
-        request: MainPageRequest
-    ): HomePageResponse {
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
 
-        val home = document.select(animeSelector).map {
-            it.toSearchResponse()
-        }
+        val home = document.select(animeSelector).map { it.toSearchResponse() }
         return newHomePageResponse(request.name, home)
     }
 
@@ -89,75 +81,74 @@ class HigoTVProvider : MainAPI() {
             this.posterUrl = posterUrl
             addDubStatus(isDub = true)
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(
-            url = searchUrl,
-            data = mapOf("keyword" to query)
-        ).document
+        val document = app.post(url = searchUrl, data = mapOf("keyword" to query)).document
 
-        return document.select(animeSelector).map {
-            it.toSearchResponse()
-        }
+        return document.select(animeSelector).map { it.toSearchResponse() }
     }
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
         // Parse info
-
         val title = document.select(".anime-op__txt").text()
         val engTitle = document.select(".anime-eng__txt").text()
         val poster = fixUrl(document.select(".anime-op__img > img").attr("src"))
         val tags = document.select(".span-menu-ogg a").map { it.text() }
 
-        val tvType = with(document.select(".tup-anim").text()){
-            when{
-                contains("TV SHORT") -> TvType.OVA
-                contains("OVA") -> TvType.OVA
-                contains("Фільм") -> TvType.Movie
-                else -> TvType.Anime
+        val tvType =
+            with(document.select(".tup-anim").text()) {
+                when {
+                    contains("TV SHORT") -> TvType.OVA
+                    contains("OVA") -> TvType.OVA
+                    contains("Фільм") -> TvType.Movie
+                    else -> TvType.Anime
+                }
             }
-        }
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
-        val rating = extractIntFromString(document.select(ratingSelector).text()).toString().toRatingInt()
+        val rating =
+            extractIntFromString(document.select(ratingSelector).text()).toString().toRatingInt()
 
-        // TODO: Fix
-        val recommendations = document.select("div.owl-item").map {
-            val title = it.select(".popular-item-title").text().trim()
-            // val engTitle = this.selectFirst(engTitleSelector)?.text()?.trim().toString()
-            val href = it.select("a.popular-item-img").attr("href").toString()
-            val posterUrl = fixUrl(it.select(".img-fit img").attr("src"))
+        val recommendations =
+            document.select("div.owl-item").map {
+                val title = it.select(".popular-item-title").text().trim()
+                // val engTitle = this.selectFirst(engTitleSelector)?.text()?.trim().toString()
+                val href = it.select("a.popular-item-img").attr("href").toString()
+                val posterUrl = fixUrl(it.select(".img-fit img").attr("src"))
 
-            newAnimeSearchResponse(title, href, tvType) {
-                this.otherName = engTitle
-                this.posterUrl = posterUrl
-                addDubStatus(isDub = true)
+                newAnimeSearchResponse(title, href, tvType) {
+                    this.otherName = engTitle
+                    this.posterUrl = posterUrl
+                    addDubStatus(isDub = true)
+                }
             }
-        }
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
 
-        val playerRawJson = document.select("div.player").select("script").html()
-            .substringAfterLast("file:")
-            .substringBeforeLast("},")
+        val playerRawJson =
+            document
+                .select("div.player")
+                .select("script")
+                .html()
+                .substringAfterLast("file:")
+                .substringBeforeLast("},")
 
         val parsedJSON = Gson().fromJson<List<PlayerJson>>(playerRawJson, listPlayer)
 
         parsedJSON[1].folder?.forEach { voices ->
-            if(voices != null){
-                if(!voices.title.isNullOrEmpty()){
+            if (voices != null) {
+                if (!voices.title.isNullOrEmpty()) {
                     voices.folder?.forEach {
-                        if(it != null) {
-                            if (!it.file.isNullOrBlank()){
+                        if (it != null) {
+                            if (!it.file.isNullOrBlank()) {
                                 episodes.add(
                                     Episode(
                                         "${url}, ${it.title}",
                                         it.title,
-                                        episode = it.title!!.replace(" Серія","").toIntOrNull(),
+                                        episode = it.title!!.replace(" Серія", "").toIntOrNull(),
                                     )
                                 )
                             }
@@ -181,7 +172,7 @@ class HigoTVProvider : MainAPI() {
             }
         } else { // Parse as Movie.
 
-            newMovieLoadResponse(title, url, tvType, "$title, ") {
+            newMovieLoadResponse(title, url, tvType, "${url}, 1 Серія") {
                 this.posterUrl = poster
                 this.name = engTitle
                 this.year = year
@@ -200,14 +191,18 @@ class HigoTVProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d(TAG, "loadLinks: $data")
+        // Log.d(TAG, "loadLinks: $data")
         val dataList = data.split(", ")
 
         val document = app.get(dataList[0]).document
 
-        val playerRawJson = document.select("div.player").select("script").html()
-            .substringAfterLast("file:")
-            .substringBeforeLast("},")
+        val playerRawJson =
+            document
+                .select("div.player")
+                .select("script")
+                .html()
+                .substringAfterLast("file:")
+                .substringBeforeLast("},")
 
         val parsedJSON = Gson().fromJson<List<PlayerJson>>(playerRawJson, listPlayer)
 
@@ -215,12 +210,12 @@ class HigoTVProvider : MainAPI() {
         // Here we check for the presence of letters in JSON voices and the presence of folder
         // in them and the scheme is repeated, but further instead of folder, we check file
         parsedJSON[1].folder?.forEach { voices ->
-            if(voices != null){
-                if(!voices.title.isNullOrEmpty()){
+            if (voices != null) {
+                if (!voices.title.isNullOrEmpty()) {
                     voices.folder?.forEach {
-                        if(it != null) {
-                            if (!it.file.isNullOrBlank()){
-                                if (it.title == dataList[1]){
+                        if (it != null) {
+                            if (!it.file.isNullOrBlank()) {
+                                if (it.title == dataList[1]) {
                                     callback.invoke(
                                         ExtractorLink(
                                             it.file,
@@ -244,11 +239,10 @@ class HigoTVProvider : MainAPI() {
 
     private fun extractIntFromString(string: String): Int? {
         val value = Regex("(\\d+)").findAll(string).lastOrNull() ?: return null
-        if(value.value[0].toString() == "0"){
+        if (value.value[0].toString() == "0") {
             return value.value.drop(1).toIntOrNull()
         }
 
         return value.value.toIntOrNull()
-
     }
 }
