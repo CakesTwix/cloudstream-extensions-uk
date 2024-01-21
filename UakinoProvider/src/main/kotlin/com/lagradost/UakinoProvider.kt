@@ -60,6 +60,18 @@ class UakinoProvider : MainAPI() {
 
     }
 
+    private suspend fun Element.getSeasonInfo(): SearchResponse {
+        Log.d("CakesTwix-Debug", "getSeasonInfo: ${this.attr("href")}")
+        val document = app.get(this.attr("href")).document
+        val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
+        val poster = mainUrl + document.selectFirst("div.film-poster img")?.attr("src").toString()
+
+        return newMovieSearchResponse(title, this.attr("href"), TvType.Movie) {
+            this.posterUrl = poster
+        }
+
+    }
+
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
             url = mainUrl,
@@ -124,8 +136,13 @@ class UakinoProvider : MainAPI() {
         val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
         val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
 
+        // Add seasons to recommendations
+        val recommendations = document.select(".seasons li a").map{
+            it.getSeasonInfo()
+        }.toMutableList()
 
-        val recommendations = document.select(".related-item").map {
+        // Other recommendations
+        recommendations += document.select(".related-item").map {
             it.toSearchResponse()
         }
 
