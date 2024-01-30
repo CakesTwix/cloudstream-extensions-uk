@@ -71,7 +71,7 @@ class HigoTVProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): AnimeSearchResponse {
-        val title = this.select(titleSelector).text().replace("Назва: ", "")
+        val title = this.selectFirst(titleSelector)!!.text().replace("Назва: ", "")
         // val engTitle = this.selectFirst(engTitleSelector)?.text()?.trim().toString()
         val href = this.selectFirst(hrefSelector)?.attr("href").toString()
         val posterUrl = fixUrl(this.select(posterSelector).attr("src"))
