@@ -108,7 +108,7 @@ class AnitubeinuaProvider : MainAPI() {
 
         val ajax =
             fromPlaylistAjax(
-                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=d9bee853908a5776972e5d49f106d9df239d2ede"
             )
 
         if (!ajax.isNullOrEmpty()) { // Ajax list
@@ -117,7 +117,7 @@ class AnitubeinuaProvider : MainAPI() {
                 .forEach { episodes -> // Group by name
                     episodes.value.forEach lit@{
                         // UFDub player, drop
-                        if (it.name == "ПЛЕЙЛИСТ") return@lit
+                        if (it.urls.url.contains("video.ufdub")) return@lit
 
                         if (it.urls.isDub) {
                             dubEpisodes.add(
