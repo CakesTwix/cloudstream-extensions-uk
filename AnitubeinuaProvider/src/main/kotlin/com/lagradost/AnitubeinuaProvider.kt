@@ -105,10 +105,13 @@ class AnitubeinuaProvider : MainAPI() {
         val subEpisodes = mutableListOf<Episode>()
         val dubEpisodes = mutableListOf<Episode>()
         val id = url.split("/").last().split("-").first()
+        val dle_login_hash = document.body().selectFirst("script")!!.html()
+            .substringAfterLast("dle_login_hash = '")
+            .substringBefore("';")
 
         val ajax =
             fromPlaylistAjax(
-                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=d9bee853908a5776972e5d49f106d9df239d2ede"
+                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=$dle_login_hash"
             )
 
         if (!ajax.isNullOrEmpty()) { // Ajax list
