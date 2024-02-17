@@ -1,6 +1,6 @@
 package com.lagradost
 
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.AnimeSearchResponse
 import com.lagradost.cloudstream3.DubStatus
@@ -25,6 +25,7 @@ import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
+
 
 class HigoTVProvider : MainAPI() {
 
@@ -63,6 +64,10 @@ class HigoTVProvider : MainAPI() {
 
     private val TAG = "$name-Debug"
 
+    private val gson = GsonBuilder()
+        .setLenient()
+        .create()
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("$mainUrl/${request.data}").document
 
@@ -92,6 +97,7 @@ class HigoTVProvider : MainAPI() {
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
+
         // Parse info
         val title = document.select(".anime-op__txt").text()
         val engTitle = document.select(".anime-eng__txt").text()
@@ -128,35 +134,31 @@ class HigoTVProvider : MainAPI() {
         // Parse episodes
         val episodes = mutableListOf<Episode>()
 
-        val playerRawJson =
-            document
-                .select("div.player")
-                .select("script")
-                .html()
-                .substringAfterLast("file:")
-                .substringBeforeLast("},")
+        document.select("div.player")
+            .select("script").forEach {
+                if(!it.html().substringAfter("file:").substringBeforeLast("})").contains("folder:")) return@forEach
 
-        val parsedJSON = Gson().fromJson<List<PlayerJson>>(playerRawJson, listPlayer)
+                val parsedJSON = gson.fromJson<List<PlayerJson>>(
+                    it.html().substringAfter("file:").substringBeforeLast("})"), listPlayer
+                )
+                if (parsedJSON[0].title.isNullOrEmpty()) return@forEach
 
-        parsedJSON[1].folder?.forEach { voices ->
-            if (voices != null) {
-                if (!voices.title.isNullOrEmpty()) {
-                    voices.folder?.forEach {
-                        if (it != null) {
-                            if (!it.file.isNullOrBlank()) {
-                                episodes.add(
-                                    Episode(
-                                        "${url}, ${it.title}",
-                                        it.title,
-                                        episode = it.title!!.replace(" Серія", "").toIntOrNull(),
-                                    )
-                                )
-                            }
-                        }
+                parsedJSON[0].folder?.forEach { voices ->
+                    if (voices != null) {
+                        if (voices.file.isNullOrBlank()) return@forEach
+                        episodes.add(
+                            Episode(
+                                "${url}, ${voices.title}",
+                                voices.title,
+                                episode = voices.title!!.replace(" Серія", "").toIntOrNull(),
+                            )
+                        )
                     }
                 }
             }
-        }
+
+        // Log.d("CakesTwix-Debug", playerRawJson)
+
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
 
@@ -196,43 +198,32 @@ class HigoTVProvider : MainAPI() {
 
         val document = app.get(dataList[0]).document
 
-        val playerRawJson =
-            document
-                .select("div.player")
-                .select("script")
-                .html()
-                .substringAfterLast("file:")
-                .substringBeforeLast("},")
+        document.select("div.player")
+            .select("script").forEach {
+                if(!it.html().substringAfter("file:").substringBeforeLast("})").contains("folder:")) return@forEach
 
-        val parsedJSON = Gson().fromJson<List<PlayerJson>>(playerRawJson, listPlayer)
+                val parsedJSON = gson.fromJson<List<PlayerJson>>(
+                    it.html().substringAfter("file:").substringBeforeLast("})"), listPlayer
+                )
+                if (parsedJSON[0].title.isNullOrEmpty()) return@forEach
 
-        // Sorry for this...
-        // Here we check for the presence of letters in JSON voices and the presence of folder
-        // in them and the scheme is repeated, but further instead of folder, we check file
-        parsedJSON[1].folder?.forEach { voices ->
-            if (voices != null) {
-                if (!voices.title.isNullOrEmpty()) {
-                    voices.folder?.forEach {
-                        if (it != null) {
-                            if (!it.file.isNullOrBlank()) {
-                                if (it.title == dataList[1]) {
-                                    callback.invoke(
-                                        ExtractorLink(
-                                            it.file,
-                                            name = "${voices.title}",
-                                            it.file,
-                                            "",
-                                            0,
-                                            isM3u8 = false,
-                                        )
-                                    )
-                                }
-                            }
-                        }
+                parsedJSON[0].folder?.forEach { voices ->
+                    if (voices != null) {
+                        if (voices.file.isNullOrBlank() || voices.title != dataList[1]) return@forEach
+
+                        callback.invoke(
+                            ExtractorLink(
+                                voices.file,
+                                name = "${parsedJSON[0].title}",
+                                voices.file,
+                                "",
+                                0,
+                                isM3u8 = false,
+                            )
+                        )
                     }
                 }
             }
-        }
 
         return true
     }
