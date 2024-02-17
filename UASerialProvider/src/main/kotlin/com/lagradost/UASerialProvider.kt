@@ -118,7 +118,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                             "${season.url}, ${episode.episodeNumber}",
                             episodeName,
                             season.seasonNumber,
-                            episode.episodeNumber
+                            episode.episodeNumber.split("-")[0].toIntOrNull()
                         )
                     )
                 }

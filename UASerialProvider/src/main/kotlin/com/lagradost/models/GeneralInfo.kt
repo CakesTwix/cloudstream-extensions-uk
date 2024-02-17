@@ -52,7 +52,7 @@ data class ContainsSeason (
 data class Episode (
 
 	// val @type : String,
-	val episodeNumber : Int,
+	val episodeNumber : String,
 	val name : String
 )
 
