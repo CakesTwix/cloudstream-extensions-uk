@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.google.gson.Gson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -9,11 +10,11 @@ import com.lagradost.models.GeneralInfo
 import com.lagradost.models.GeneralInfoMovie
 import org.jsoup.nodes.Element
 
-class UASerialProvider : MainAPI() {
+open class UASerialProvider(url: String, name: String) : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://uaserial.tv"
-    override var name = "UASerial"
+    override var mainUrl = url
+    override var name = name
     override val hasMainPage = true
     override var lang = "uk"
     override val hasDownloadSupport = true
@@ -33,6 +34,7 @@ class UASerialProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
+        Log.d("CakesTwix-Debug", request.data)
         val document = app.get(request.data.format(page)).document
 
         val home = document.select(".row .col").map {
@@ -187,5 +189,4 @@ class UASerialProvider : MainAPI() {
         // selecto__dropdown-item
         return true
     }
-
 }
