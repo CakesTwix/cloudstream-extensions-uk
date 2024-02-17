@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -34,7 +33,6 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        Log.d("CakesTwix-Debug", request.data)
         val document = app.get(request.data.format(page)).document
 
         val home = document.select(".row .col").map {
@@ -169,15 +167,21 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
         }
 
         val document = app.get(mainUrl + app.get(dataList[0]).document.select("option[data-series-number=${dataList[1]}]").attr("value")).document
-        document.select(".player .voices__wrap").map{ player ->
+        document.select(".voices__wrap").map{ player ->
             // Log.d("load-debug", player.attr("data-player-id")) // Player name
             player.select("select.voices__select option").map{ dub ->
                 // Log.d("load-debug", dub.text()) // Name
                 // Log.d("load-debug", dub.attr("value"))// Url
 
-                val m3u8Url = app.get(dub.attr("value")).document.select("script").html()
+                var m3u8Url = app.get(dub.attr("value")).document.select("script").html()
                     .substringAfterLast("file:\"")
                     .substringBefore("\",")
+
+                if (player.attr("data-player-id") == "spilberg"){
+                    m3u8Url = app.get(dub.attr("value")).document.select("script").html()
+                        .substringAfterLast(" manifest: '")
+                        .substringBefore("',")
+                }
 
                 M3u8Helper.generateM3u8(
                     source = "${dub.text()} (${player.attr("data-player-id").replaceFirstChar { it.uppercase() }})",
