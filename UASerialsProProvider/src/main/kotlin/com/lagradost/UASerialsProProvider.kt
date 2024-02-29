@@ -23,6 +23,7 @@ import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
+import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AESPlayerDecodedModel
@@ -71,7 +72,7 @@ class UASerialsProProvider : MainAPI() {
     private val yearSelector = "a[href*=https://uaserials.pro/year/]"
     // private val playerSelector = "iframe"
     private val descriptionSelector = ".full-text"
-    // private val ratingSelector = ".pmovie__subrating img"
+    private val ratingSelector = ".short-rate-in"
 
     private val listAESModel = object : TypeToken<List<AESPlayerDecodedModel>>() { }.type
     private val listDecodedJSONModel = object : TypeToken<List<DecodedJSON>>() { }.type
@@ -128,6 +129,7 @@ class UASerialsProProvider : MainAPI() {
         val tags = mutableListOf<String>()
         val actors = mutableListOf<String>()
         val year = document.select(yearSelector).text().substringAfter(": ").substringBefore("-").toIntOrNull()
+        val rating = document.selectFirst(ratingSelector)!!.text().toRatingInt()
 
         document.select(".short-list li").forEach { menu ->
             with(menu){
@@ -188,6 +190,7 @@ class UASerialsProProvider : MainAPI() {
             newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.engName = engTitle
+                this.rating = rating
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -198,6 +201,7 @@ class UASerialsProProvider : MainAPI() {
             newMovieLoadResponse(title, url, TvType.Movie, "$title, ${movieJson[0].url}") {
                 this.posterUrl = poster
                 this.name = engTitle
+                this.rating = rating
                 this.year = year
                 this.plot = description
                 this.tags = tags
