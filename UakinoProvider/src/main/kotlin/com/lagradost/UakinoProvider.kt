@@ -93,6 +93,7 @@ class UakinoProvider : MainAPI() {
 
         // Parse info
         val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
+        val engTitle = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
         val poster = fixUrl(document.selectFirst("div.film-poster img")?.attr("src").toString())
 
         var tags = emptyList<String>()
@@ -106,12 +107,13 @@ class UakinoProvider : MainAPI() {
                     contains("Рік виходу:") -> year = metadata.select(".fi-desc").text().toInt()
                     contains("Жанр:") -> tags = metadata.select(".fi-desc").text().split(" , ")
                     contains("Актори:") -> actors = metadata.select(".fi-desc").text().split(", ")
-                    contains("") ->
-                        rating =
-                            metadata.select(".fi-desc").text().substringBefore("/").toRatingInt()
+                    contains("") -> {
+                        if (!metadata.select(".fi-label").select("img").isEmpty()){
+                            rating = metadata.select(".fi-desc").text().substringBefore("/").toRatingInt()
+                        }
+                    }
                 }
-                // Log.d("CakesTwix-Debug", this)
-                // Log.d("CakesTwix-Debug", metadata.select(".fi-desc").text())
+                // Log.d("CakesTwix-Debug", metadata.select(".fi-desc").text().substringBefore("/"))
             }
         }
 
@@ -173,13 +175,15 @@ class UakinoProvider : MainAPI() {
                             }
                         }
                     }
-            newTvSeriesLoadResponse(title, url, tvType, episodes.distinctBy { it.name }) {
+            newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
+                this.engName = engTitle
                 this.year = year
                 this.plot = description
                 this.tags = tags
                 this.rating = rating
                 addActors(actors)
+                addEpisodes(DubStatus.None, episodes.distinctBy { it.name })
                 this.recommendations = recommendations
                 addTrailer(trailer)
             }
