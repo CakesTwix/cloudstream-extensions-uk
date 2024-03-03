@@ -10,4 +10,5 @@ data class PlayerJson (
 	val title : String?,
 	val file : String?,
 	val folder: List<PlayerJson>?,
+	val poster: String?
 )

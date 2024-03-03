@@ -23,6 +23,7 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
 
@@ -134,28 +135,28 @@ class HigoTVProvider : MainAPI() {
         // Parse episodes
         val episodes = mutableListOf<Episode>()
 
-        document.select("div.player")
-            .select("script").forEach {
-                if(!it.html().substringAfter("file:").substringBeforeLast("})").contains("folder:")) return@forEach
-
+        document.select("iframe").forEach {
+            if(it.attr("src").isNotEmpty()){
+                val playerDocument = app.get(it.attr("src")).document
+                // Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"))
                 val parsedJSON = gson.fromJson<List<PlayerJson>>(
-                    it.html().substringAfter("file:").substringBeforeLast("})"), listPlayer
+                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"), listPlayer
                 )
-                if (parsedJSON[0].title.isNullOrEmpty()) return@forEach
 
-                parsedJSON[0].folder?.forEach { voices ->
-                    if (voices != null) {
-                        if (voices.file.isNullOrBlank()) return@forEach
+                parsedJSON[0].folder?.forEach { seasons ->
+                    seasons.folder?.forEach {
                         episodes.add(
                             Episode(
-                                "${url}, ${voices.title}",
-                                voices.title,
-                                episode = voices.title!!.replace(" Серія", "").toIntOrNull(),
+                                "${url}, ${it.title}",
+                                it.title,
+                                episode = it.title!!.replace("Серія ", "").toIntOrNull(),
+                                posterUrl = it.poster
                             )
                         )
                     }
                 }
             }
+        }
 
         // Log.d("CakesTwix-Debug", playerRawJson)
 
@@ -188,7 +189,7 @@ class HigoTVProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (Serial) [Voice name, Series name]
+        data: String, // (Serial) [url, episode name]
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
@@ -198,32 +199,26 @@ class HigoTVProvider : MainAPI() {
 
         val document = app.get(dataList[0]).document
 
-        document.select("div.player")
-            .select("script").forEach {
-                if(!it.html().substringAfter("file:").substringBeforeLast("})").contains("folder:")) return@forEach
-
+        document.select("iframe").forEach {
+            if(it.attr("src").isNotEmpty()){
+                val playerDocument = app.get(it.attr("src")).document
+                // Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"))
                 val parsedJSON = gson.fromJson<List<PlayerJson>>(
-                    it.html().substringAfter("file:").substringBeforeLast("})"), listPlayer
+                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"), listPlayer
                 )
-                if (parsedJSON[0].title.isNullOrEmpty()) return@forEach
 
-                parsedJSON[0].folder?.forEach { voices ->
-                    if (voices != null) {
-                        if (voices.file.isNullOrBlank() || voices.title != dataList[1]) return@forEach
-
-                        callback.invoke(
-                            ExtractorLink(
-                                voices.file,
-                                name = "${parsedJSON[0].title}",
-                                voices.file,
-                                "",
-                                0,
-                                isM3u8 = false,
-                            )
-                        )
+                parsedJSON[0].folder?.forEach { seasons ->
+                    seasons.folder?.forEach {
+                        if(it.title != dataList[1]) return@forEach
+                        M3u8Helper.generateM3u8(
+                            source = parsedJSON[0].title!!,
+                            streamUrl = it.file!!,
+                            referer = "https://moonanime.art"
+                        ).forEach(callback)
                     }
                 }
             }
+        }
 
         return true
     }
