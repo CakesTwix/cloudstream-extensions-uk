@@ -6,8 +6,7 @@
 <p align="center">
 <img src="https://img.shields.io/github/languages/code-size/CakesTwix/cloudstream-extensions-uk?style=for-the-badge"/>
 <img src="https://img.shields.io/github/actions/workflow/status/CakesTwix/cloudstream-extensions-uk/build.yml?style=for-the-badge"/>
-<img src="https://img.shields.io/badge/Made_with-Kotlin-8051ff?style=for-the-badge&logo=kotlin"/><br><br>
-<a href="https://www.buymeacoffee.com/cakestwix"><img width="150" src="https://img.buymeacoffee.com/button-api/?text=Buy me a tea&emoji=🍵&slug=cakestwix&button_colour=FF5F5F&font_colour=ffffff&font_family=Poppins&outline_colour=000000&coffee_colour=FFDD00" /></a>
+<img src="https://img.shields.io/badge/Made_with-Kotlin-8051ff?style=for-the-badge&logo=kotlin"/>
 </p>
 
 | <p align="center"><img src="assets/ss1.png"/></p> | <p align="center"><img src="assets/ss2.png"/></p> | <p align="center"><img src="assets/ss3.png"/></p> | <p align="center"><img src="assets/ss4.png"/></p> |
