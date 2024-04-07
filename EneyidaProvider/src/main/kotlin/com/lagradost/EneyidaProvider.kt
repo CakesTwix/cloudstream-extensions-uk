@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -7,7 +8,9 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.nodes.Element
+import java.net.URL
 
 class EneyidaProvider : MainAPI() {
 
@@ -154,7 +157,7 @@ class EneyidaProvider : MainAPI() {
                 .substringBefore("\",")
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = m3u8Url,
+                streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/"
             ).forEach(callback)
 
@@ -173,7 +176,7 @@ class EneyidaProvider : MainAPI() {
                             // Add as source
                             M3u8Helper.generateM3u8(
                                 source = dubs.title,
-                                streamUrl = episode.file,
+                                streamUrl = episode.file.replace("https://", "http://"),
                                 referer = "https://tortuga.wtf/"
                             ).forEach(callback)
                         }
