@@ -1,5 +1,7 @@
 package com.lagradost
 
+import android.util.Log
+import com.lagradost.cloudstream3.USER_AGENT
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
@@ -225,8 +227,8 @@ class UASerialsProProvider : MainAPI() {
                 .substringBefore("\",")
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = m3u8Url,
-                referer = "https://tortuga.wtf/"
+                streamUrl = m3u8Url.replace("https://", "http://"),
+                referer = "https://tortuga.wtf/",
             ).forEach(callback)
             return true
         }
@@ -249,7 +251,7 @@ class UASerialsProProvider : MainAPI() {
                     .substringBefore("\",")
                 M3u8Helper.generateM3u8(
                     source = episode.title,
-                    streamUrl = m3u8Url,
+                    streamUrl = m3u8Url.replace("https://", "http://"),
                     referer = "https://tortuga.wtf/"
                 ).forEach(callback)
             }
