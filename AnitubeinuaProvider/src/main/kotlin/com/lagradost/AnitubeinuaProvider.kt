@@ -37,6 +37,8 @@ class AnitubeinuaProvider : MainAPI() {
             "$mainUrl/f/sort=rating/order=desc/page/" to "Популярні",
         )
 
+    private var dle_login_hash = ""
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
 
@@ -105,7 +107,7 @@ class AnitubeinuaProvider : MainAPI() {
         val subEpisodes = mutableListOf<Episode>()
         val dubEpisodes = mutableListOf<Episode>()
         val id = url.split("/").last().split("-").first()
-        val dle_login_hash = document.body().selectFirst("script")!!.html()
+        dle_login_hash = document.body().selectFirst("script")!!.html()
             .substringAfterLast("dle_login_hash = '")
             .substringBefore("';")
 
@@ -188,10 +190,9 @@ class AnitubeinuaProvider : MainAPI() {
         val dataList = data.split(", ")
         // Log.d("CakesTwix-Debug", data)
         if (dataList[1].toIntOrNull() != null) { // Its ajax list
-
             val ajax =
                 fromPlaylistAjax(
-                    "$mainUrl/engine/ajax/playlists.php?news_id=${dataList[1]}&xfield=playlist&time=${Date().time}"
+                    "$mainUrl/engine/ajax/playlists.php?news_id=${dataList[1]}&xfield=playlist&user_hash=$dle_login_hash"
                 )
 
             // Filter by name and isDub
