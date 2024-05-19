@@ -72,7 +72,7 @@ class AnimeONProvider : MainAPI() {
             val homeList =
                     parsedJSON.results.map {
                         newAnimeSearchResponse(it.titleUa, "anime/${it.id}", TvType.Anime) {
-                            this.posterUrl = posterApi.format(it.poster)
+                            this.posterUrl = posterApi.format(it.image.preview)
                         }
                     }
             // Log.d("CakesTwix-Debug", "$cdnUrl${parsedJSON.data[1].posterId}")
@@ -82,7 +82,7 @@ class AnimeONProvider : MainAPI() {
             val homeList =
                     parsedJSON.map {
                         newAnimeSearchResponse(it.titleUa, "anime/${it.id}", TvType.Anime) {
-                            this.posterUrl = posterApi.format(it.poster)
+                            this.posterUrl = posterApi.format(it.image.preview)
                         }
                     }
             // Log.d("CakesTwix-Debug", "$cdnUrl${parsedJSON.data[1].posterId}")
@@ -136,7 +136,7 @@ class AnimeONProvider : MainAPI() {
 
         val episodes = mutableListOf<Episode>()
 
-        val playerRawJson = app.get(animeJSON.player.url).document.select("script").html()
+        val playerRawJson = app.get(animeJSON.player[0].url).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
 
@@ -145,7 +145,7 @@ class AnimeONProvider : MainAPI() {
                 for (episode in season.folder) {                       // Episodes
                     episodes.add(
                             Episode(
-                                    "${season.title}, ${episode.title}, ${animeJSON.player.url}",
+                                    "${season.title}, ${episode.title}, ${animeJSON.player[0].url}",
                                     episode.title,
                                     season.title.replace(" Сезон ", "").toIntOrNull(),
                                     episode.title.replace("Серія ", "").toIntOrNull(),
@@ -176,7 +176,7 @@ class AnimeONProvider : MainAPI() {
                 addMalId(animeJSON.malId)
             }
         } else {
-            newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/${animeJSON.id}", tvType, "${animeJSON.titleUa}, ${animeJSON.player.url}") {
+            newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/${animeJSON.id}", tvType, "${animeJSON.titleUa}, ${animeJSON.player[0].url}") {
                 this.posterUrl = posterApi.format(animeJSON.poster)
                 this.tags = animeJSON.genres.map { it.name }
                 this.plot = animeJSON.description

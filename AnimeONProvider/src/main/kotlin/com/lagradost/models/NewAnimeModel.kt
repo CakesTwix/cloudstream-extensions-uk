@@ -16,7 +16,7 @@ data class Results (
     @SerializedName("releaseDate") val releaseDate : Int,
     @SerializedName("views") val views : Int,
     @SerializedName("episodes") val episodes : Int,
-    @SerializedName("poster") val poster : String,
+    @SerializedName("image") val image : Image,
     @SerializedName("episodesAired") val episodesAired : Int,
     @SerializedName("createdAt") val createdAt : String,
     @SerializedName("malId") val malId : Int,

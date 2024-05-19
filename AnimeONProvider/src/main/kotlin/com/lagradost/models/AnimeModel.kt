@@ -5,16 +5,12 @@ import com.google.gson.annotations.SerializedName
 class AnimeModel (
     @SerializedName("id") val id : Int,
     @SerializedName("titleUa") val titleUa : String,
-    @SerializedName("description") val description : String,
-    @SerializedName("poster") val poster : String,
-    @SerializedName("backgroundImage") val backgroundImage : String,
-    @SerializedName("rating") val rating : Double,
-    @SerializedName("genres") val genres : List<Genres>
+    @SerializedName("image") val image : Image,
 )
 
-data class Genres (
+data class Image (
 
     @SerializedName("id") val id : Int,
-    @SerializedName("name") val name : String,
-    @SerializedName("malId") val malId : Int
+    @SerializedName("original") val original : String,
+    @SerializedName("preview") val preview : String
 )
