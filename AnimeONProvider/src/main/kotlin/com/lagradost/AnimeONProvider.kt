@@ -28,6 +28,9 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
 import com.lagradost.models.AnimeModel
+import com.lagradost.models.FundubEpisode
+import com.lagradost.models.FundubModel
+import com.lagradost.models.FundubVideoUrl
 import com.lagradost.models.NewAnimeModel
 import com.lagradost.models.SearchModel
 import com.lagradost.models.PlayerJson
@@ -60,6 +63,8 @@ class AnimeONProvider : MainAPI() {
         )
 
     private val listAnimeModel = object : TypeToken<List<AnimeModel>>() {}.type
+    private val listFundub = object : TypeToken<List<FundubModel>>() {}.type
+    private val listFundubEpisodes = object : TypeToken<List<FundubEpisode>>() {}.type
 
     // Done
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -136,24 +141,18 @@ class AnimeONProvider : MainAPI() {
 
         val episodes = mutableListOf<Episode>()
 
-        val playerRawJson = app.get(animeJSON.player[0].url).document.select("script").html()
-                .substringAfterLast("file:\'")
-                .substringBefore("\',")
+        // Get all fundub for title and parse only first fundub/player
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}player/fundubs/${animeJSON.id}").text, listFundub)
 
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
-            for (season in dubs.folder) {                              // Seasons
-                for (episode in season.folder) {                       // Episodes
-                    episodes.add(
-                            Episode(
-                                    "${season.title}, ${episode.title}, ${animeJSON.player[0].url}",
-                                    episode.title,
-                                    season.title.replace(" Сезон ", "").toIntOrNull(),
-                                    episode.title.replace("Серія ", "").toIntOrNull(),
-                                    episode.poster
-                            )
+        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}").text, listFundubEpisodes)?.map { epd -> // Episode
+            episodes.add(
+                    Episode(
+                            "${animeJSON.id}, ${epd.episode}",
+                            "Епізод ${epd.episode}",
+                            episode = epd.episode,
+                            posterUrl = epd.poster
                     )
-                }
-            }
+            )
         }
 
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
@@ -193,47 +192,25 @@ class AnimeONProvider : MainAPI() {
 
     // It works when I click to view the series
     override suspend fun loadLinks(
-            data: String, // (Serisl) [Season, Episode, Player Url] | (Film) [Title, Player Url]
+            data: String, // (Serisl) [id title, episode] | (Film) ?
             isCasting: Boolean,
             subtitleCallback: (SubtitleFile) -> Unit,
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
 
-        // Its film, parse one m3u8
-        if(dataList.size == 2){
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                    .substringAfterLast("file:\"")
-                    .substringBefore("\",")
-            M3u8Helper.generateM3u8(
-                    source = dataList[0],
-                    streamUrl = m3u8Url,
-                    referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}player/fundubs/${dataList[0]}").text, listFundub)
 
-            return true
-        }
-
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
-                .substringAfterLast("file:\'")
-                .substringBefore("\',")
-
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                    source = dubs.title,
-                                    streamUrl = episode.file,
-                                    referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
-                        }
-                    }
-                }
+        fundubs.map { dub ->
+            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}player/episodes/${dub.player.get(0)?.id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+                M3u8Helper.generateM3u8(
+                        source = "${dub.fundub.name} (${dub.player[0].name})",
+                        streamUrl = getM3U(app.get("${apiUrl}player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                        referer = "https://animeon.club"
+                ).forEach(callback)
             }
         }
+
         return true
     }
 
@@ -244,5 +221,24 @@ class AnimeONProvider : MainAPI() {
         }
 
         return value.value.toIntOrNull()
+    }
+
+    private suspend fun getM3U(url: String): String{
+        with(url){
+            when {
+                contains("https://moonanime.art") -> {
+                    val document = app.get(this).document
+                    return document.select("script[type*=text/javascript]").html().substringAfter("file:\"").substringBefore("\",")
+                }
+
+                contains("https://ashdi.vip/vod") -> {
+                    return app.get(this).document.select("script").html()
+                            .substringAfterLast("file:\"")
+                            .substringBefore("\",")
+                }
+
+                else -> return ""
+            }
+        }
     }
 }
