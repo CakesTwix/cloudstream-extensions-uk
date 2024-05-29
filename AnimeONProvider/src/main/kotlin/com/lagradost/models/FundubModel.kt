@@ -12,12 +12,12 @@ data class Fundub (
 
         @SerializedName("id") val id : Int,
         @SerializedName("name") val name : String,
-        @SerializedName("synonyms") val synonyms : List<String>,
-        @SerializedName("description") val description : String,
-        @SerializedName("team") val team : String,
-        @SerializedName("telegram") val telegram : String,
-        @SerializedName("youtube") val youtube : String,
-        @SerializedName("avatar") val avatar : String
+        // @SerializedName("synonyms") val synonyms : List<String>,
+        // @SerializedName("description") val description : String,
+        // @SerializedName("team") val team : String,
+        // @SerializedName("telegram") val telegram : String,
+        // @SerializedName("youtube") val youtube : String,
+        // @SerializedName("avatar") val avatar : String
 )
 
 data class FundubPlayer (
