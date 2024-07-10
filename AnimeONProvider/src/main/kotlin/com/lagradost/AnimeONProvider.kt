@@ -23,7 +23,6 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
@@ -33,7 +32,6 @@ import com.lagradost.models.FundubModel
 import com.lagradost.models.FundubVideoUrl
 import com.lagradost.models.NewAnimeModel
 import com.lagradost.models.SearchModel
-import com.lagradost.models.PlayerJson
 
 class AnimeONProvider : MainAPI() {
 
@@ -50,7 +48,7 @@ class AnimeONProvider : MainAPI() {
             TvType.OVA,
         )
 
-    private val apiUrl = "$mainUrl/api/anime/"
+    private val apiUrl = "$mainUrl/api/anime"
     private val posterApi = "$mainUrl/api/uploads/images/%s"
     private val searchApi = "$apiUrl/search/%s?full=true"
 
@@ -59,7 +57,7 @@ class AnimeONProvider : MainAPI() {
         mainPageOf(
             "$apiUrl/popular" to "Популярне",
             "$apiUrl/seasons" to "Аніме поточного сезону ",
-            "$apiUrl?pageSize=24&pageIndex=%s&sortType=DESC&sort=created" to "Нове",
+            "$apiUrl?pageSize=24&pageIndex=%d" to "Нове",
         )
 
     private val listAnimeModel = object : TypeToken<List<AnimeModel>>() {}.type
@@ -142,9 +140,9 @@ class AnimeONProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
 
         // Get all fundub for title and parse only first fundub/player
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}player/fundubs/${animeJSON.id}").text, listFundub)
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${animeJSON.id}").text, listFundub)
 
-        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}").text, listFundubEpisodes)?.map { epd -> // Episode
+        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}").text, listFundubEpisodes)?.map { epd -> // Episode
             episodes.add(
                     Episode(
                             "${animeJSON.id}, ${epd.episode}",
@@ -199,13 +197,13 @@ class AnimeONProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(", ")
 
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}player/fundubs/${dataList[0]}").text, listFundub)
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}").text, listFundub)
 
         fundubs.map { dub ->
-            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}player/episodes/${dub.player.get(0)?.id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player.get(0)?.id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
                 M3u8Helper.generateM3u8(
                         source = "${dub.fundub.name} (${dub.player[0].name})",
-                        streamUrl = getM3U(app.get("${apiUrl}player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                        streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
                         referer = "https://animeon.club"
                 ).forEach(callback)
             }
