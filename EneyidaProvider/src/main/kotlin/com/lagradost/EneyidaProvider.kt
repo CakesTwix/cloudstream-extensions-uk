@@ -99,7 +99,7 @@ class EneyidaProvider : MainAPI() {
         return if (tvType == TvType.TvSeries) {
             val episodes = mutableListOf<Episode>()
             val playerRawJson = app.get(playerUrl).document.select("script").html()
-                .substringAfterLast("file:\'")
+                .substringAfterLast("file: \'")
                 .substringBefore("\',")
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
@@ -153,7 +153,7 @@ class EneyidaProvider : MainAPI() {
         // Its film, parse one m3u8
         if(dataList.size == 2){
             val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file:\"")
+                .substringAfterLast("file: \"")
                 .substringBefore("\",")
             M3u8Helper.generateM3u8(
                 source = dataList[0],
@@ -165,7 +165,7 @@ class EneyidaProvider : MainAPI() {
         }
 
         val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file:\'")
+            .substringAfterLast("file: \'")
             .substringBefore("\',")
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs

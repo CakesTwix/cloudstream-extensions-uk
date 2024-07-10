@@ -228,7 +228,7 @@ class AnimeONProvider : MainAPI() {
             when {
                 contains("https://moonanime.art") -> {
                     val document = app.get(this).document
-                    return document.select("script[type*=text/javascript]").html().substringAfter("file:\"").substringBefore("\",")
+                    return document.select("script[type*=text/javascript]").html().substringAfter("file: \"").substringBefore("\",")
                 }
 
                 contains("https://ashdi.vip/vod") -> {

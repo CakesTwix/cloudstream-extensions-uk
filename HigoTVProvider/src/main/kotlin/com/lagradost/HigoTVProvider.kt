@@ -137,14 +137,19 @@ class HigoTVProvider : MainAPI() {
 
         document.select("iframe").forEach {
             if(it.attr("src").isNotEmpty()){
-                val playerDocument = app.get(it.attr("src")).document
-                // Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"))
+                val playerDocument = app.get(it.attr("src"),
+                        headers = mapOf(
+                                "Host" to "moonanime.art",
+                                "Accept" to "*/*",
+                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                                "accept-language" to "en-US,en;q=0.5"
+                        )).document
+                Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file: '").substringBefore("',"))
                 val parsedJSON = gson.fromJson<List<PlayerJson>>(
-                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"), listPlayer
+                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file: '").substringBefore("',"), listPlayer
                 )
 
-                parsedJSON[0].folder?.forEach { seasons ->
-                    seasons.folder?.forEach {
+                parsedJSON?.forEach {
                         episodes.add(
                             Episode(
                                 "${url}, ${it.title}",
@@ -155,7 +160,6 @@ class HigoTVProvider : MainAPI() {
                         )
                     }
                 }
-            }
         }
 
         // Log.d("CakesTwix-Debug", playerRawJson)
@@ -201,21 +205,25 @@ class HigoTVProvider : MainAPI() {
 
         document.select("iframe").forEach {
             if(it.attr("src").isNotEmpty()){
-                val playerDocument = app.get(it.attr("src")).document
+                val playerDocument = app.get(it.attr("src"),
+                        headers = mapOf(
+                                "Host" to "moonanime.art",
+                                "Accept" to "*/*",
+                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                                "accept-language" to "en-US,en;q=0.5"
+                        )).document
                 // Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"))
                 val parsedJSON = gson.fromJson<List<PlayerJson>>(
-                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file:'").substringBefore("',"), listPlayer
+                    playerDocument.select("script[type*=text/javascript]").html().substringAfter("file: '").substringBefore("',"), listPlayer
                 )
 
-                parsedJSON[0].folder?.forEach { seasons ->
-                    seasons.folder?.forEach {
-                        if(it.title != dataList[1]) return@forEach
-                        M3u8Helper.generateM3u8(
-                            source = parsedJSON[0].title!!,
-                            streamUrl = it.file!!,
-                            referer = "https://moonanime.art"
-                        ).forEach(callback)
-                    }
+                parsedJSON?.forEach {
+                    if(it.title != dataList[1]) return@forEach
+                    M3u8Helper.generateM3u8(
+                        source = it.title,
+                        streamUrl = it.file!!,
+                        referer = "https://moonanime.art"
+                    ).forEach(callback)
                 }
             }
         }

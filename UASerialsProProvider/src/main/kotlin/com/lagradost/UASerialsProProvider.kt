@@ -223,7 +223,7 @@ class UASerialsProProvider : MainAPI() {
         // Movie
         if(dataList.size == 2){
             val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file:\"")
+                .substringAfterLast("file: \"")
                 .substringBefore("\",")
             M3u8Helper.generateM3u8(
                 source = dataList[0],
@@ -247,7 +247,7 @@ class UASerialsProProvider : MainAPI() {
         Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)[0]
             .seasons[dataList[0].toInt()].episodes[dataList[1].toInt()].sounds.forEach { episode ->
                 val m3u8Url = app.get(episode.url).document.select("script").html()
-                    .substringAfterLast("file:\"")
+                    .substringAfterLast("file: \"")
                     .substringBefore("\",")
                 M3u8Helper.generateM3u8(
                     source = episode.title,
