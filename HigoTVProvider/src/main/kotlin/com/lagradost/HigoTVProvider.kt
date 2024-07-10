@@ -102,7 +102,7 @@ class HigoTVProvider : MainAPI() {
         // Parse info
         val title = document.select(".anime-op__txt").text()
         val engTitle = document.select(".anime-eng__txt").text()
-        val poster = fixUrl(document.select(".anime-op__img > img").attr("src"))
+        val poster = document.select(".main-poster").attr("src")
         val tags = document.select(".span-menu-ogg a").map { it.text() }
 
         val tvType =
@@ -144,7 +144,6 @@ class HigoTVProvider : MainAPI() {
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                                 "accept-language" to "en-US,en;q=0.5"
                         )).document
-                Log.d("CakesTwix-Debug", playerDocument.select("script[type*=text/javascript]").html().substringAfter("file: '").substringBefore("',"))
                 val parsedJSON = gson.fromJson<List<PlayerJson>>(
                     playerDocument.select("script[type*=text/javascript]").html().substringAfter("file: '").substringBefore("',"), listPlayer
                 )
