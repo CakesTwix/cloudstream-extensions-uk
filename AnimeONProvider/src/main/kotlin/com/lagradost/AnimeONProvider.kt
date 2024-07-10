@@ -200,7 +200,7 @@ class AnimeONProvider : MainAPI() {
         val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}").text, listFundub)
 
         fundubs.map { dub ->
-            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player.get(0)?.id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
                 M3u8Helper.generateM3u8(
                         source = "${dub.fundub.name} (${dub.player[0].name})",
                         streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
@@ -225,8 +225,16 @@ class AnimeONProvider : MainAPI() {
         with(url){
             when {
                 contains("https://moonanime.art") -> {
-                    val document = app.get(this).document
-                    return document.select("script[type*=text/javascript]").html().substringAfter("file: \"").substringBefore("\",")
+                    val document = app.get(this,
+                            headers = mapOf(
+                                    "Host" to "moonanime.art",
+                                    "Accept" to "*/*",
+                                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                                    "accept-language" to "en-US,en;q=0.5"
+                            )).document
+                    return document.select("script").html()
+                            .substringAfterLast("file: \"")
+                            .substringBefore("\",")
                 }
 
                 contains("https://ashdi.vip/vod") -> {
