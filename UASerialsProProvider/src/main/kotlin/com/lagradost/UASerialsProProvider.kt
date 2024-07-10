@@ -1,7 +1,5 @@
 package com.lagradost
 
-import android.util.Log
-import com.lagradost.cloudstream3.USER_AGENT
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
