@@ -12,7 +12,7 @@ import org.jsoup.nodes.Element
 class UakinoProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://uakino.club"
+    override var mainUrl = "https://uakino.me"
     override var name = "Uakino"
     override val hasMainPage = true
     override var lang = "uk"
