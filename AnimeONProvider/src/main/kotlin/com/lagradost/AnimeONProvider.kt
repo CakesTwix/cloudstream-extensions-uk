@@ -152,7 +152,6 @@ class AnimeONProvider : MainAPI() {
                     )
             )
         }
-
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
             newAnimeLoadResponse(
                     animeJSON.titleUa,
@@ -167,20 +166,25 @@ class AnimeONProvider : MainAPI() {
                 this.showStatus = showStatus
                 this.duration = extractIntFromString(animeJSON.episodeTime)
                 this.year = animeJSON.releaseDate
-                this.backgroundPosterUrl = posterApi.format(animeJSON.backgroundImage)
                 this.rating = animeJSON.rating.toString().toRatingInt()
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addMalId(animeJSON.malId)
             }
         } else {
-            newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/${animeJSON.id}", tvType, "${animeJSON.titleUa}, ${animeJSON.player[0].url}") {
+            var backgroundImage = animeJSON.backgroundImage
+            if(backgroundImage.isNullOrBlank()){
+                backgroundImage = posterApi.format(animeJSON.poster)
+            } else {
+                backgroundImage = posterApi.format(animeJSON.backgroundImage)
+            }
+            newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/${animeJSON.id}", tvType, "${animeJSON.id}") {
                 this.posterUrl = posterApi.format(animeJSON.poster)
                 this.tags = animeJSON.genres.map { it.name }
                 this.plot = animeJSON.description
                 addTrailer(animeJSON.trailer)
                 this.duration = extractIntFromString(animeJSON.episodeTime)
                 this.year = animeJSON.releaseDate
-                this.backgroundPosterUrl = posterApi.format(animeJSON.backgroundImage)
+                this.backgroundPosterUrl = backgroundImage
                 this.rating = animeJSON.rating.toString().toRatingInt()
                 addMalId(animeJSON.malId)
             }
@@ -196,17 +200,27 @@ class AnimeONProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-
         val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}").text, listFundub)
 
-        fundubs.map { dub ->
-            Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
-                M3u8Helper.generateM3u8(
-                        source = "${dub.fundub.name} (${dub.player[0].name})",
-                        streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
-                        referer = "https://animeon.club"
-                ).forEach(callback)
+        if(dataList.size == 2){
+            fundubs.map { dub ->
+                Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+                    M3u8Helper.generateM3u8(
+                            source = "${dub.fundub.name} (${dub.player[0].name})",
+                            streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                            referer = "https://animeon.club"
+                    ).forEach(callback)
+                }
             }
+            return true
+        }
+
+        fundubs.map { dub ->
+            M3u8Helper.generateM3u8(
+                    source = "${dub.fundub.name} (${dub.player[0].name})",
+                    streamUrl = getM3U(app.get("${apiUrl}/player/${dub.player[0].id}/${dub.fundub.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                    referer = "https://animeon.club"
+            ).forEach(callback)
         }
 
         return true
