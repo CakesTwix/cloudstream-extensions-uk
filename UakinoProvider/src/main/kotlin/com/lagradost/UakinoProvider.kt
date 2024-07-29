@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -155,7 +156,12 @@ class UakinoProvider : MainAPI() {
             val id = url.split("/").last().split("-").first()
             val episodes =
                 app.get(
-                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
+                        headers = mapOf(
+                            "Referer" to "https://uakino.me",
+                            "X-Requested-With" to "XMLHttpRequest",
+                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                )
                 )
                     .parsedSafe<Responses>()
                     ?.response
@@ -210,11 +216,17 @@ class UakinoProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(",")
         // TODO: OPTIMIZE code!!! Remove this shitty code as soon as possible!!!!!!
+        Log.d("CakesTwix-Debug", data)
         if (dataList.size == 1) {
             val id = data.split("/").last().split("-").first()
             val responseGet =
                 app.get(
-                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
+                        headers = mapOf(
+                                "Referer" to "https://uakino.me",
+                                "X-Requested-With" to "XMLHttpRequest",
+                                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                        )
                 )
                     .parsedSafe<Responses>()
             if (responseGet?.success == true) { // Its serial
@@ -279,7 +291,12 @@ class UakinoProvider : MainAPI() {
             return true
         }
 
-        val responseGet = app.get(dataList[0]).parsedSafe<Responses>() // ajax link
+        val responseGet = app.get(dataList[0],
+                headers = mapOf(
+                        "Referer" to "https://uakino.me",
+                        "X-Requested-With" to "XMLHttpRequest",
+                        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                )).parsedSafe<Responses>() // ajax link
         if (responseGet?.success == true) { // Its serial
             responseGet?.response?.let {
                 Jsoup.parse(it)
