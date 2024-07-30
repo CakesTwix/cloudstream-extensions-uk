@@ -81,10 +81,10 @@ class UAFlixProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): AnimeSearchResponse {
-        val title = this.selectFirst(titleSelector)?.attr("alt")?.trim().toString()
+        val title = this.selectFirst("$titleSelector,.sres-wrap")?.attr("alt")?.trim().toString()
         // val engTitle = this.selectFirst(engTitleSelector)?.text()?.trim().toString()
-        val href = this.selectFirst(hrefSelector)?.attr("href").toString()
-        val posterUrl = fixUrl(this.select(posterSelector).attr("src"))
+        val href = this.selectFirst("$hrefSelector,.sres-wrap")?.attr("href").toString()
+        val posterUrl = fixUrl(this.select("$posterSelector,.sres-img img").attr("src"))
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
             // this.otherName = engTitle
@@ -95,16 +95,11 @@ class UAFlixProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(
-            url = mainUrl,
-            data = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "story" to query.replace(" ", "+")
-            )
+        val document = app.get(
+            url = "$mainUrl/index.php?do=search&subaction=search&search_start=1&story=$query",
         ).document
 
-        return document.select(animeSelector).map {
+        return document.select(".sres-wrap").map {
             it.toSearchResponse()
         }
     }
