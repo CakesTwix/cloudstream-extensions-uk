@@ -158,6 +158,17 @@ class EneyidaProvider : MainAPI() {
                 referer = "https://tortuga.wtf/"
             ).forEach(callback)
 
+            val subtitleUrl = app.get(dataList[1]).document.select("script").html()
+                    .substringAfterLast("subtitle: \"")
+                    .substringBefore("\",")
+
+            if(subtitleUrl.isNullOrBlank()) return true
+            subtitleCallback.invoke(
+                SubtitleFile(
+                    subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                    subtitleUrl.substringAfter("]")
+                )
+            )
             return true
         }
 
@@ -176,6 +187,15 @@ class EneyidaProvider : MainAPI() {
                                 streamUrl = episode.file.replace("https://", "http://"),
                                 referer = "https://tortuga.wtf/"
                             ).forEach(callback)
+
+                            if(episode.subtitle.isBlank()) return true
+                            subtitleCallback.invoke(
+                                SubtitleFile(
+                                        episode.subtitle.substringAfterLast("[").substringBefore("]"),
+                                        episode.subtitle.substringAfter("]")
+                                )
+                            )
+                            return true
                         }
                     }
                 }
