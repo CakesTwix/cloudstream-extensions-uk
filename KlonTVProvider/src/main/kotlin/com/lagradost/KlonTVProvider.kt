@@ -97,7 +97,7 @@ class KlonTVProvider : MainAPI() {
         // JSON
         val title = titleJson.name
         val poster = titleJson.image
-        val rating = titleJson.aggregateRating.ratingValue.toString().toRatingInt()
+        val rating = titleJson.aggregateRating?.ratingValue.toString().toRatingInt()
         val actors = titleJson.actor.map { it.name }
 
         // HTML

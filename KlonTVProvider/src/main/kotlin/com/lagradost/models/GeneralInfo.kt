@@ -13,7 +13,7 @@ data class GeneralInfo (
 	val director : List<Director>,
 	val actor : List<Actor>,
 	val countryOfOrigin : List<CountryOfOrigin>,
-	val aggregateRating : AggregateRating
+	val aggregateRating : AggregateRating?,
 )
 
 data class Director (
