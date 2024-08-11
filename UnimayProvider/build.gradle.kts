@@ -1,5 +1,9 @@
 // use an integer for version numbers
-version = 6
+version = 7
+
+dependencies{
+    implementation("com.google.code.gson:gson:2.9.0")
+}
 
 cloudstream {
     language = "uk"

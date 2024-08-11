@@ -2,53 +2,52 @@ package com.lagradost.models
 
 data class SearchModel (
 
-    val code : String,
-    val year : Int,
-    val description : String,
-    val type : String,
-    val engName : String,
-    // val translators : List<Translators>,
-    val playlist : List<Playlist>,
-    val genres : List<String>,
-    val aniListId : Int,
-    val imageId : Int,
-    val name : String,
-    val posterId : Int,
-    val statusCode : Int,
-    val episodeLength : Int,
-)
-
-data class Playlist (
-
-    val preview : Int,
-    val title : String,
-    val number : Int,
-    val previewId : Int,
-    val playlist : String,
-)
-
-data class SearchGet (
     val content : List<Content>,
+    val pageable : Pageable,
+    val totalElements : Int,
+    val last : Boolean,
+    val totalPages : Int,
+    val size : Int,
+    val number : Int,
+    val sort : Sort,
+    val numberOfElements : Int,
+    val first : Boolean,
+    val empty : Boolean
 )
 
 data class Content (
 
     val id : Int,
+    val aniListId : Int,
+    // val lastUpdate : Int,
+    val episodes : Int,
     val playlistSize : Int,
+    val statusCode : Int,
+    val year : Int,
+    val adult : Boolean,
+    val restricted : Boolean,
     val code : String,
+    val type : String,
+    val season : String,
+    val description : String,
     val names : Names,
     val images : Images,
+    val genres : List<String>
 )
 
-data class Images (
+data class Pageable (
 
-    val banner : Int?,
-    val poster : Int
+    val sort : Sort,
+    val pageNumber : Int,
+    val pageSize : Int,
+    val offset : Int,
+    val paged : Boolean,
+    val unpaged : Boolean
 )
 
-data class Names (
+data class Sort (
 
-    val romaji : String,
-    val ukr : String,
-    val eng : String
+    val sorted : Boolean,
+    val empty : Boolean,
+    val unsorted : Boolean
 )

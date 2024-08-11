@@ -1,5 +1,8 @@
 package com.lagradost
 
+import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
@@ -21,8 +24,8 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.Releases
-import com.lagradost.models.SearchGet
 import com.lagradost.models.SearchModel
+import com.lagradost.models.Updates
 
 class UnimayProvider : MainAPI() {
 
@@ -39,13 +42,15 @@ class UnimayProvider : MainAPI() {
 
     private val apiUrl = "https://api.unimay.media"
     private val findUrl = "$apiUrl/v1/release/search?title="
-    private val imagesUrl = "$apiUrl/storage/images/"
+    private val imagesUrl = "https://img.unimay.media/"
 
     private val TAG = name
+    private val listUpdatesModel = object : TypeToken<List<Updates>>() { }.type
 
     // Sections
     override val mainPage = mainPageOf(
-        "$apiUrl/api/release/all?page=" to "Останні релізи",
+        "$apiUrl/v1/list/series/updates?size=15" to "Останні релізи",
+        "$apiUrl/v1/release/search?page_size=10&page=" to "Наши проєкти",
     )
 
     // Done
@@ -53,19 +58,29 @@ class UnimayProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val homeList = app.get("${request.data}$page").parsedSafe<Releases>()!!.releases.map{
-            newAnimeSearchResponse(it.name, "$apiUrl/api/release/${it.code}", TvType.Anime) {
-                this.posterUrl = "$imagesUrl${it.imageId}"
-                addDubStatus("${it.playlistSize}/${it.episodes}", it.playlistSize)
+        if (page != 1 && request.data.contains("updates")) return HomePageResponse(emptyList())
+        if (request.data.contains("updates")){
+            val homeList = Gson().fromJson<List<Updates>>(app.get("${request.data}").text, listUpdatesModel).map{
+                newAnimeSearchResponse(it.release.name, "$apiUrl/v1/release?code=${it.release.code}", TvType.Anime) {
+                    this.posterUrl = "$imagesUrl${it.release.posterUuid}"
+                    addDubStatus(DubStatus.Dubbed, it.series.number)
+                }
             }
+            return newHomePageResponse(request.name, homeList)
         }
 
+        val homeList = Gson().fromJson(app.get("${request.data}${page}").text, SearchModel::class.java).content.map{
+            newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release?code=${it.code}", TvType.Anime) {
+                this.posterUrl = "$imagesUrl${it.images.poster}"
+                addDubStatus(DubStatus.Dubbed, it.playlistSize)
+            }
+        }
         return newHomePageResponse(request.name, homeList)
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        return app.get("$findUrl$query&page=0").parsedSafe<SearchGet>()!!.content.map{
-            newAnimeSearchResponse(it.names.ukr, "$apiUrl/api/release/${it.code}", TvType.Anime) {
+        return Gson().fromJson(app.get("$findUrl$query&page=0").text, SearchModel::class.java).content.map{
+            newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release?code=${it.code}", TvType.Anime) {
                 this.posterUrl = "$imagesUrl${it.images.poster}"
                 addDubStatus("${it.playlistSize}/${it.playlistSize}", it.playlistSize)
             }
@@ -75,7 +90,7 @@ class UnimayProvider : MainAPI() {
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         // Log.d("CakesTwix-Debug", url)
-        val anime = app.get(url).parsedSafe<SearchModel>()!!
+        val anime = Gson().fromJson(app.get(url).text, Releases::class.java)
         // val anime = Gson().fromJson(app.get("$apiUrl/api/release/${url.substringAfterLast("/")}").text, SearchModel::class.java)
 
         val showStatus = when(anime.statusCode){
@@ -96,17 +111,17 @@ class UnimayProvider : MainAPI() {
                 "${anime.code}, ${it.number}",
                 it.title,
                 episode = it.number,
-                posterUrl = if(it.previewId != null) { "$imagesUrl${it.previewId}" } else null,
+                posterUrl = if(it.imageUuid != null) { "$imagesUrl${it.imageUuid}" } else null,
             )
         }
 
         return newAnimeLoadResponse(
-            anime.name,
+            anime.names.ukr,
             "$mainUrl/projects/${anime.code}",
             tvType,
         ) {
-            this.engName = anime.engName
-            this.posterUrl = "$imagesUrl${anime.posterId}"
+            this.engName = anime.names.eng
+            this.posterUrl = "$imagesUrl${anime.images.banner}"
             this.tags = anime.genres
             this.plot = anime.description
             this.showStatus = showStatus
@@ -126,16 +141,13 @@ class UnimayProvider : MainAPI() {
     ): Boolean {
         // anime_id, episode number
         val dataList = data.split(", ")
-        // Log.d("CakesTwix-Debug", dataList.toString())
-
-        val anime = app.get("$apiUrl/api/release/${dataList[0]}").parsedSafe<SearchModel>()!!
-        // val anime = Gson().fromJson(app.get("$apiUrl/api/release/${dataList[0]}").text, SearchModel::class.java)
+        val anime = Gson().fromJson(app.get("$apiUrl/v1/release?code=${dataList[0]}").text, Releases::class.java)
         val episode = anime.playlist.first { it.number == dataList[1].toInt() }
 
-        if (episode.playlist != null) {
+        if (episode.hls != null) {
             M3u8Helper.generateM3u8(
                 source = "Unimay",
-                streamUrl = episode.playlist,
+                streamUrl = episode.hls.master,
                 referer = "https://www.unimay.media"
             ).forEach(callback)
             return true
