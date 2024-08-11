@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
@@ -50,7 +49,7 @@ class UnimayProvider : MainAPI() {
     // Sections
     override val mainPage = mainPageOf(
         "$apiUrl/v1/list/series/updates?size=15" to "Останні релізи",
-        "$apiUrl/v1/release/search?page_size=10&page=" to "Наши проєкти",
+        "$apiUrl/v1/release/search?page_size=10&page=" to "Наші проєкти",
     )
 
     // Done
@@ -62,7 +61,7 @@ class UnimayProvider : MainAPI() {
         if (request.data.contains("updates")){
             val homeList = Gson().fromJson<List<Updates>>(app.get("${request.data}").text, listUpdatesModel).map{
                 newAnimeSearchResponse(it.release.name, "$apiUrl/v1/release?code=${it.release.code}", TvType.Anime) {
-                    this.posterUrl = "$imagesUrl${it.release.posterUuid}"
+                    this.posterUrl = "$imagesUrl${it.release.posterUuid}?width=640&format=webp"
                     addDubStatus(DubStatus.Dubbed, it.series.number)
                 }
             }
@@ -71,7 +70,7 @@ class UnimayProvider : MainAPI() {
 
         val homeList = Gson().fromJson(app.get("${request.data}${page}").text, SearchModel::class.java).content.map{
             newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release?code=${it.code}", TvType.Anime) {
-                this.posterUrl = "$imagesUrl${it.images.poster}"
+                this.posterUrl = "$imagesUrl${it.images.poster}?width=640&format=webp"
                 addDubStatus(DubStatus.Dubbed, it.playlistSize)
             }
         }
@@ -81,7 +80,7 @@ class UnimayProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         return Gson().fromJson(app.get("$findUrl$query&page=0").text, SearchModel::class.java).content.map{
             newAnimeSearchResponse(it.names.ukr, "$apiUrl/v1/release?code=${it.code}", TvType.Anime) {
-                this.posterUrl = "$imagesUrl${it.images.poster}"
+                this.posterUrl = "$imagesUrl${it.images.poster}?width=640&format=webp"
                 addDubStatus("${it.playlistSize}/${it.playlistSize}", it.playlistSize)
             }
         }
@@ -89,8 +88,11 @@ class UnimayProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        // Log.d("CakesTwix-Debug", url)
-        val anime = Gson().fromJson(app.get(url).text, Releases::class.java)
+        var ApiUrl = url
+        if (url.contains("/projects/")) {
+            ApiUrl = "$apiUrl/v1/release?code=${url.substringAfterLast("/")}"
+        }
+        val anime = Gson().fromJson(app.get(ApiUrl).text, Releases::class.java)
         // val anime = Gson().fromJson(app.get("$apiUrl/api/release/${url.substringAfterLast("/")}").text, SearchModel::class.java)
 
         val showStatus = when(anime.statusCode){
@@ -105,13 +107,18 @@ class UnimayProvider : MainAPI() {
             else -> TvType.Anime
         }
 
+        val episodes = mutableListOf<Episode>()
 
-        val episodes = anime.playlist.map{
-            Episode(
-                "${anime.code}, ${it.number}",
-                it.title,
-                episode = it.number,
-                posterUrl = if(it.imageUuid != null) { "$imagesUrl${it.imageUuid}" } else null,
+        anime.playlist.forEach{
+            if (it.premium) return@forEach
+            episodes.add(
+                Episode
+                    (
+                    "${anime.code}, ${it.number}",
+                    it.title,
+                    episode = it.number,
+                    posterUrl = if(it.imageUuid != null) { "$imagesUrl${it.imageUuid}" } else null,
+                )
             )
         }
 
@@ -121,7 +128,7 @@ class UnimayProvider : MainAPI() {
             tvType,
         ) {
             this.engName = anime.names.eng
-            this.posterUrl = "$imagesUrl${anime.images.banner}"
+            this.posterUrl = "$imagesUrl${anime.images.banner}?width=1440&format=webp"
             this.tags = anime.genres
             this.plot = anime.description
             this.showStatus = showStatus
