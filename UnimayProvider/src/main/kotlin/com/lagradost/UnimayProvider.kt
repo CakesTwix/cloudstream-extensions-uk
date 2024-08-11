@@ -128,7 +128,7 @@ class UnimayProvider : MainAPI() {
             tvType,
         ) {
             this.engName = anime.names.eng
-            this.posterUrl = "$imagesUrl${anime.images.banner}?width=1440&format=webp"
+            this.posterUrl = "$imagesUrl${anime.images.banner}?width=2560&format=webp"
             this.tags = anime.genres
             this.plot = anime.description
             this.showStatus = showStatus
