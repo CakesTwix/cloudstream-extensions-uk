@@ -209,7 +209,7 @@ class AnimeONProvider : MainAPI() {
                             source = "${dub.fundub.name} (${dub.player[0].name})",
                             streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
                             referer = "https://animeon.club"
-                    ).forEach(callback)
+                    ).last().let(callback)
                 }
             }
             return true
@@ -220,7 +220,7 @@ class AnimeONProvider : MainAPI() {
                     source = "${dub.fundub.name} (${dub.player[0].name})",
                     streamUrl = getM3U(app.get("${apiUrl}/player/${dub.player[0].id}/${dub.fundub.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
                     referer = "https://animeon.club"
-            ).forEach(callback)
+            ).last().let(callback)
         }
 
         return true

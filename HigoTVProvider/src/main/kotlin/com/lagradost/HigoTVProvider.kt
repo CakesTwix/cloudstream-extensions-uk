@@ -222,7 +222,7 @@ class HigoTVProvider : MainAPI() {
                         source = it.title,
                         streamUrl = it.file!!,
                         referer = "https://moonanime.art"
-                    ).forEach(callback)
+                    ).last().let(callback)
                 }
             }
         }

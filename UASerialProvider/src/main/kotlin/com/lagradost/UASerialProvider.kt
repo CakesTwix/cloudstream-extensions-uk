@@ -161,7 +161,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                 source = "Movie",
                 streamUrl = m3u8Url,
                 referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+            ).last().let(callback)
 
             return true
         }
@@ -187,7 +187,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                     source = "${dub.text()} (${player.attr("data-player-id").replaceFirstChar { it.uppercase() }})",
                     streamUrl = m3u8Url,
                     referer = "https://tortuga.wtf/"
-                ).forEach(callback)
+                ).last().let(callback)
             }
         }
         // selecto__dropdown-item

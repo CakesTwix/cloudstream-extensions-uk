@@ -181,7 +181,7 @@ class AnimeUAProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url,
                 referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+            ).last().let(callback)
 
             return true
         }
@@ -200,7 +200,7 @@ class AnimeUAProvider : MainAPI() {
                                 source = dubs.title,
                                 streamUrl = episode.file,
                                 referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
+                            ).last().let(callback)
                         }
                     }
                 }

@@ -163,7 +163,7 @@ class SerialnoProvider : MainAPI() {
                                 source = dubs.title,
                                 streamUrl = episode.file,
                                 referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
+                            ).last().let(callback)
                         }
                     }
                 }

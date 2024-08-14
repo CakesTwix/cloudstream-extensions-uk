@@ -227,7 +227,7 @@ class UASerialsProProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/",
-            ).forEach(callback)
+            ).last().let(callback)
             return true
         }
 
@@ -251,7 +251,7 @@ class UASerialsProProvider : MainAPI() {
                     source = episode.title,
                     streamUrl = m3u8Url.replace("https://", "http://"),
                     referer = "https://tortuga.wtf/"
-                ).forEach(callback)
+                ).last().let(callback)
             }
         return true
     }

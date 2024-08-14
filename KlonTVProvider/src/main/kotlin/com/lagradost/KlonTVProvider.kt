@@ -188,7 +188,7 @@ class KlonTVProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url,
                 referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+            ).last().let(callback)
 
             val subtitleUrl = app.get(dataList[1]).document.select("script").html()
                     .substringAfterLast("subtitle: \"")
@@ -218,7 +218,7 @@ class KlonTVProvider : MainAPI() {
                                 source = dubs.title,
                                 streamUrl = episode.file,
                                 referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
+                            ).last().let(callback)
 
                             if(episode.subtitle.isBlank()) return true
                             subtitleCallback.invoke(

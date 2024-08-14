@@ -156,7 +156,7 @@ class UnimayProvider : MainAPI() {
                 source = "Unimay",
                 streamUrl = episode.hls.master,
                 referer = "https://www.unimay.media"
-            ).forEach(callback)
+            ).last().let(callback)
             return true
         }
 

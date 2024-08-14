@@ -156,7 +156,7 @@ class EneyidaProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/"
-            ).forEach(callback)
+            ).last().let(callback)
 
             val subtitleUrl = app.get(dataList[1]).document.select("script").html()
                     .substringAfterLast("subtitle: \"")
@@ -186,7 +186,7 @@ class EneyidaProvider : MainAPI() {
                                 source = dubs.title,
                                 streamUrl = episode.file.replace("https://", "http://"),
                                 referer = "https://tortuga.wtf/"
-                            ).forEach(callback)
+                            ).last().let(callback)
 
                             if(episode.subtitle.isBlank()) return true
                             subtitleCallback.invoke(

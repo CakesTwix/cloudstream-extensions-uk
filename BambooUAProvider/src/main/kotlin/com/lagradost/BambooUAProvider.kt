@@ -205,7 +205,7 @@ class BambooUAProvider : MainAPI() {
                     source = it.attr("data-title"),
                     streamUrl = it.attr("data-file"),
                     referer = ""
-                ).forEach(callback)
+                ).last().let(callback)
             }
             return true
         }
@@ -215,7 +215,7 @@ class BambooUAProvider : MainAPI() {
             source = "Bambooua",
             streamUrl = data,
             referer = ""
-        ).forEach(callback)
+        ).last().let(callback)
 
         return true
     }

@@ -197,14 +197,14 @@ class AnitubeinuaProvider : MainAPI() {
                                             source = "${it.urls.playerName} (${it.urls.name})",
                                             streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
                                             referer = "https://tortuga.wtf/")
-                                            .forEach(callback)
+                                            .last().let(callback)
                                 }
                                 it.urls.url.contains("https://ashdi.vip/vod") -> {
                                     M3u8Helper.generateM3u8(
                                             source = "${it.urls.playerName} (${it.urls.name})",
                                             streamUrl = AshdiExtractor().ParseM3U8(this.urls.url),
                                             referer = "https://qeruya.cyou")
-                                            .forEach(callback)
+                                            .last().let(callback)
                                 }
                                 it.urls.url.contains("https://www.udrop.com") -> {
                                     callback.invoke(
@@ -274,14 +274,14 @@ class AnitubeinuaProvider : MainAPI() {
                                             source = dub.playerName,
                                             streamUrl = AshdiExtractor().ParseM3U8(this),
                                             referer = "https://tortuga.wtf/")
-                                            .forEach(callback)
+                                            .last().let(callback)
                                 }
                                 contains("https://ashdi.vip/vod") -> {
                                     M3u8Helper.generateM3u8(
                                             source = dub.playerName,
                                             streamUrl = AshdiExtractor().ParseM3U8(this),
                                             referer = "https://qeruya.cyou")
-                                            .forEach(callback)
+                                            .last().let(callback)
                                 }
                                 contains("https://www.udrop.com") -> {
                                     callback.invoke(
