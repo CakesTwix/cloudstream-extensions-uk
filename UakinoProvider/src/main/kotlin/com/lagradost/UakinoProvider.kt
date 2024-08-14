@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -216,7 +215,6 @@ class UakinoProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(",")
         // TODO: OPTIMIZE code!!! Remove this shitty code as soon as possible!!!!!!
-        Log.d("CakesTwix-Debug", data)
         if (dataList.size == 1) {
             val id = data.split("/").last().split("-").first()
             val responseGet =
@@ -302,6 +300,7 @@ class UakinoProvider : MainAPI() {
                 Jsoup.parse(it)
                     .select("div.playlists-videos li:contains(${dataList[1]})")
                     .mapNotNull { eps ->
+                        if (eps.text() != dataList[1]) return@mapNotNull
                         var href = eps.attr("data-file") // ashdi
                         // Can be without https:
                         if (!href.contains("https://")) {
