@@ -24,7 +24,7 @@ import org.jsoup.nodes.Element
 class KinoTronProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://kinotron.top"
+    override var mainUrl = "https://kinotron.tv"
     override var name = "KinoTron"
     override val hasMainPage = true
     override var lang = "uk"
