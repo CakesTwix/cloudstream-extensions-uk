@@ -25,6 +25,7 @@ import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
+import com.lagradost.models.Search
 import org.jsoup.nodes.Element
 
 
@@ -38,7 +39,7 @@ class HigoTVProvider : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Anime)
 
-    private val searchUrl = "https://higotv.fun/search/doSearch"
+    private val searchUrl = "$mainUrl/search?query="
 
     // Sections
     override val mainPage =
@@ -62,6 +63,7 @@ class HigoTVProvider : MainAPI() {
     private val ratingSelector = ".rt-tb"
 
     private val listPlayer = object : TypeToken<List<PlayerJson>>() {}.type
+    private val listSearch = object : TypeToken<List<Search>>() {}.type
 
     private val TAG = "$name-Debug"
 
@@ -90,9 +92,14 @@ class HigoTVProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(url = searchUrl, data = mapOf("keyword" to query)).document
-
-        return document.select(animeSelector).map { it.toSearchResponse() }
+        val document = app.get(searchUrl + query).text
+        return gson.fromJson<List<Search>>(document, listSearch).map {
+            newAnimeSearchResponse(it.name, "$mainUrl/movies/view/${it.slug}", TvType.Anime) {
+                // this.otherName = engTitle
+                this.posterUrl = it.poster
+                addDubStatus(isDub = true)
+            }
+        }
     }
 
     // Detailed information
