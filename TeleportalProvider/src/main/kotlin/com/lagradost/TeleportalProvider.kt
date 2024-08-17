@@ -1,6 +1,7 @@
 package com.lagradost
 
 import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
@@ -21,6 +22,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.Media
 import com.lagradost.models.MediaShows
+import com.lagradost.models.Search
 import com.lagradost.models.SeasonModel
 import com.lagradost.models.TitleShows
 import com.lagradost.models.VideoPlayer
@@ -41,6 +43,8 @@ class TeleportalProvider : MainAPI() {
     private val apiUrl = "https://tp-back.starlight.digital"
     private val findUrl = "$apiUrl/ua/live-search?q="
     private val playerUrl = "https://vcms-api2.starlight.digital/player-api/"
+
+    private val listSearch = object : TypeToken<List<Search>>() {}.type
 
     // Sections
     override val mainPage = mainPageOf(
@@ -76,10 +80,11 @@ class TeleportalProvider : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        return app.get("$findUrl$query&page=1").parsedSafe<Media>()!!.items.map{
-            newAnimeSearchResponse(it.title, "$apiUrl${it.videoSlug}", TvType.TvSeries) {
-                this.posterUrl = "$mainUrl${it.image}"
+        return Gson().fromJson<List<Search>>(app.get("$findUrl$query").text, listSearch).map{
+            newAnimeSearchResponse(it.title, "$apiUrl/ua/${it.typeSlug}/${it.channelSlug}/${it.projectSlug}", TvType.TvSeries) {
+                this.posterUrl = "$mainUrl/${it.image}"
             }
+
         }
     }
 
