@@ -77,6 +77,7 @@ class EneyidaProvider : MainAPI() {
         val fullInfo = document.select(".full_info li")
         val title = document.selectFirst("div.full_header-title h1")?.text()?.trim().toString()
         val poster = mainUrl + document.selectFirst(".full_content-poster img")?.attr("src")
+        val banner = document.select(".full_header__bg-img").attr("style").substringAfterLast("url(").substringBefore(");")
         val tags = fullInfo[1].select("a").map { it.text() }
         val year = fullInfo[0].select("a").text().toIntOrNull()
         val playerUrl = document.select(".tabs_b.visible iframe").attr("src")
@@ -116,6 +117,7 @@ class EneyidaProvider : MainAPI() {
             }
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = banner
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -127,6 +129,7 @@ class EneyidaProvider : MainAPI() {
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$title, $playerUrl") {
                 this.posterUrl = poster
+                this.backgroundPosterUrl = banner
                 this.year = year
                 this.plot = description
                 this.tags = tags
