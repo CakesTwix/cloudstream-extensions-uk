@@ -68,7 +68,7 @@ class SerialnoProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = "$mainUrl/index.php?do=search",
+            url = "$mainUrl/",
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
