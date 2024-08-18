@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -191,14 +192,15 @@ class EneyidaProvider : MainAPI() {
                                 referer = "https://tortuga.wtf/"
                             ).last().let(callback)
 
-                            if(episode.subtitle.isBlank()) return true
-                            subtitleCallback.invoke(
-                                SubtitleFile(
-                                        episode.subtitle.substringAfterLast("[").substringBefore("]"),
-                                        episode.subtitle.substringAfter("]")
+                            if(episode.subtitle.isBlank()) return@map
+                            episode.subtitle.split(",").forEach{
+                                subtitleCallback.invoke(
+                                    SubtitleFile(
+                                        it.substringAfterLast("[").substringBefore("]"),
+                                        it.substringAfter("]")
+                                    )
                                 )
-                            )
-                            return true
+                            }
                         }
                     }
                 }
