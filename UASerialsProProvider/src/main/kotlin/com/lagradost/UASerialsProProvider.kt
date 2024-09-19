@@ -38,7 +38,7 @@ import javax.crypto.spec.SecretKeySpec
 class UASerialsProProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://uaserials.pro"
+    override var mainUrl = "https://uaserials.com"
     override var name = "UASerialsPro"
     override val hasMainPage = true
     override var lang = "uk"
