@@ -1,5 +1,6 @@
 package com.lagradost
 
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -112,7 +113,7 @@ class SerialnoProvider : MainAPI() {
         // Return to app
         // Parse Episodes as Series
         val playerRawJson = app.get(playerUrl).document.select("script").html()
-            .substringAfterLast("file:\'")
+            .substringAfterLast("file: \'")
             .substringBefore("\',")
 
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
@@ -148,9 +149,9 @@ class SerialnoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-
+        Log.d("CakesTwix-Debug", data)
         val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file:\'")
+            .substringAfterLast("file: \'")
             .substringBefore("\',")
 
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
@@ -164,6 +165,14 @@ class SerialnoProvider : MainAPI() {
                                 streamUrl = episode.file,
                                 referer = "https://tortuga.wtf/"
                             ).last().let(callback)
+
+                            if(episode.subtitle.isNullOrBlank()) return true
+                            subtitleCallback.invoke(
+                                SubtitleFile(
+                                    episode.subtitle.substringAfterLast("[").substringBefore("]"),
+                                    episode.subtitle.substringAfter("]")
+                                )
+                            )
                         }
                     }
                 }
