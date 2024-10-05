@@ -244,9 +244,12 @@ class UASerialsProProvider : MainAPI() {
 
         Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)[0]
             .seasons[dataList[0].toInt()].episodes[dataList[1].toInt()].sounds.forEach { episode ->
-                val m3u8Url = app.get(episode.url).document.select("script").html()
-                    .substringAfterLast("file: \"")
-                    .substringBefore("\",")
+            val m3u8Url = app.get(episode.url).document.select("script").html()
+                .let {
+                    val regex = """file:\s*"(.*?)"""".toRegex()
+                    val matchResult = regex.find(it)
+                    matchResult?.groups?.get(1)?.value.toString()
+                }
                 M3u8Helper.generateM3u8(
                     source = episode.title,
                     streamUrl = m3u8Url.replace("https://", "http://"),
