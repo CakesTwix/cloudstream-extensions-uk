@@ -67,7 +67,10 @@ class AnimeONProvider : MainAPI() {
     // Done
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         if(!request.data.contains("pageIndex") && page !=1) return HomePageResponse(emptyList())
-        val document = app.get(request.data.format(page)).text
+        val document = app.get(request.data.format(page),
+            headers = mapOf(
+                "Referer" to "https://animeon.club/",
+            )).text
 
         // Нове
         if(request.data.contains("pageIndex")) {
@@ -111,7 +114,10 @@ class AnimeONProvider : MainAPI() {
         val animeJSON =
                 Gson()
                         .fromJson(
-                                app.get(url.replace("/anime/", "/api/anime/")).text,
+                                app.get(url.replace("/anime/", "/api/anime/"),
+                                    headers = mapOf(
+                                        "Referer" to "https://animeon.club/",
+                                    )).text,
                                 AnimeInfoModel::class.java
                         )
 
@@ -140,9 +146,15 @@ class AnimeONProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
 
         // Get all fundub for title and parse only first fundub/player
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${animeJSON.id}").text, listFundub)
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${animeJSON.id}",
+            headers = mapOf(
+                "Referer" to "https://animeon.club/",
+            )).text, listFundub)
 
-        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}").text, listFundubEpisodes)?.map { epd -> // Episode
+        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}",
+            headers = mapOf(
+                "Referer" to "https://animeon.club/",
+            )).text, listFundubEpisodes)?.map { epd -> // Episode
             episodes.add(
                     Episode(
                             "${animeJSON.id}, ${epd.episode}",
@@ -200,14 +212,23 @@ class AnimeONProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}").text, listFundub)
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}",
+            headers = mapOf(
+                "Referer" to "https://animeon.club/",
+            )).text, listFundub)
 
         if(dataList.size == 2){
             fundubs.map { dub ->
-                Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}").text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+                Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}",
+                    headers = mapOf(
+                        "Referer" to "https://animeon.club/",
+                    )).text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
                     M3u8Helper.generateM3u8(
                             source = "${dub.fundub.name} (${dub.player[0].name})",
-                            streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                            streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}",
+                                headers = mapOf(
+                                    "Referer" to "https://animeon.club/",
+                                )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
                             referer = "https://animeon.club"
                     ).last().let(callback)
                 }
@@ -218,7 +239,10 @@ class AnimeONProvider : MainAPI() {
         fundubs.map { dub ->
             M3u8Helper.generateM3u8(
                     source = "${dub.fundub.name} (${dub.player[0].name})",
-                    streamUrl = getM3U(app.get("${apiUrl}/player/${dub.player[0].id}/${dub.fundub.id}").parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                    streamUrl = getM3U(app.get("${apiUrl}/player/${dub.player[0].id}/${dub.fundub.id}",
+                        headers = mapOf(
+                            "Referer" to "https://animeon.club/",
+                        )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
                     referer = "https://animeon.club"
             ).last().let(callback)
         }
