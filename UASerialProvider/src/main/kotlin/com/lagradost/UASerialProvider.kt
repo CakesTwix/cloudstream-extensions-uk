@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.GeneralInfo
 import com.lagradost.models.GeneralInfoMovie
+import com.lagradost.models.SearchModel
 import org.jsoup.nodes.Element
 
 open class UASerialProvider(url: String, name: String) : MainAPI() {
@@ -53,17 +54,16 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(
-            url = mainUrl,
-            data = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "story" to query.replace(" ", "+")
-            )
-        ).document
+        val searchResult = app.get(
+            url = "$mainUrl/search-ajax?query=$query",
+        ).text
 
-        return document.select("article.short").map {
-            it.toSearchResponse()
+        val searchJson = Gson().fromJson(searchResult, SearchModel::class.java)
+
+        return searchJson.movies.map {
+           newMovieSearchResponse(it.name, it.link, TvType.Movie) {
+                this.posterUrl = "$mainUrl${it.poster}"
+            }
         }
     }
 
