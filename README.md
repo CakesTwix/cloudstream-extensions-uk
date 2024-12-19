@@ -25,7 +25,7 @@ https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/master/rep
 
 <!-- Support -->
 ## ✅ Підтримка
-  - [Mastodon](https://pl.m0e.space/mangane/@CakesTwix) aka @CakesTwix@pl.m0e.space
+  - [Fediverse](https://pl.m0e.space/mangane/@CakesTwix) aka @CakesTwix@shkey.cakestwix.com
   - [Matrix-чат](https://matrix.to/#/#cakestwix:matrix.org)
 
 <!-- Contributing -->
