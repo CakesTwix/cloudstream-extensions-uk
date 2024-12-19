@@ -167,7 +167,7 @@ class UAFlixProvider : MainAPI() {
             }
 
         } else { // Player in site
-            val playerRawJson = app.get(playerUrl).document.select("script").html()
+            val playerRawJson = app.get(playerUrl, referer = "https://uafix.net").document.select("script").html()
                     .substringAfterLast("file:\'")
                     .substringBefore("\',")
 
@@ -245,7 +245,7 @@ class UAFlixProvider : MainAPI() {
                 ).last().let(callback)
                 return true
             }
-            val playerRawJson = app.get(playerUrl).document.select("script").html()
+            val playerRawJson = app.get(playerUrl, referer = "https://uafix.net").document.select("script").html()
                     .substringAfterLast("file:\'")
                     .substringBefore("\',")
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
@@ -263,7 +263,7 @@ class UAFlixProvider : MainAPI() {
         }
 
 
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
+        val playerRawJson = app.get(dataList[2], referer = "https://uafix.net").document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
         tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
