@@ -122,9 +122,9 @@ class UAFlixProvider : MainAPI() {
         document.select(".fcols4 .finfo li").forEach { menu ->
             with(menu){
                 when{
-                    this.selectFirst("span").text() == "Жанр:" -> menu.select("span[itemprop=genre]").map { tags.add(it.text()) }
-                    this.selectFirst("span").text() == "В ролях:" -> menu.select("span[itemprop=actor]").map { actors.add(it.text()) }
-                    this.selectFirst("span").text() == "Рік виходу:" -> year = menu.select(".year").text().toIntOrNull()
+                    this.select("span")[0].text() == "Жанр:" -> menu.select("span[itemprop=genre]").map { tags.add(it.text()) }
+                    this.select("span")[0].text() == "В ролях:" -> menu.select("span[itemprop=actor]").map { actors.add(it.text()) }
+                    this.select("span")[0].text() == "Рік виходу:" -> year = menu.select(".year").text().toIntOrNull()
                 }
             }
         }

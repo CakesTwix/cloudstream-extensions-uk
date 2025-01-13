@@ -1,8 +1,8 @@
 // use an integer for version numbers
-version = 4
+version = 5
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 cloudstream {
