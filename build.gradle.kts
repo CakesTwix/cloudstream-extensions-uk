@@ -1,4 +1,4 @@
-import com.lagradost.cloudstream3.gradle.CloudstreamExtension 
+import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import com.android.build.gradle.BaseExtension
 
 buildscript {
@@ -24,9 +24,11 @@ allprojects {
     }
 }
 
-fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) = extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
+fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) =
+    extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
 
-fun Project.android(configuration: BaseExtension.() -> Unit) = extensions.getByName<BaseExtension>("android").configuration()
+fun Project.android(configuration: BaseExtension.() -> Unit) =
+    extensions.getByName<BaseExtension>("android").configuration()
 
 subprojects {
     apply(plugin = "com.android.library")
@@ -36,7 +38,10 @@ subprojects {
     cloudstream {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
         // you can modify it to use other git hosting services, like gitlab
-        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/CakesTwix/cloudstream-extensions-uk")
+        setRepo(
+            System.getenv("GITHUB_REPOSITORY")
+                ?: "https://github.com/CakesTwix/cloudstream-extensions-uk"
+        )
         authors = listOf("CakesTwix")
     }
 
@@ -68,8 +73,28 @@ subprojects {
     }
 
     dependencies {
-        val cloudstream by configurations
+        ///////////////////for testing
+        val apkTasks = listOf("deployWithAdb", "build")
+        val useApk = gradle.startParameter.taskNames.any { taskName ->
+            apkTasks.any { apkTask ->
+                taskName.contains(apkTask, ignoreCase = true)
+            }
+        }
+
         val implementation by configurations
+        val apk by configurations
+
+        // If the task is specifically to compile the app then use the stubs, otherwise us the library.
+        if (useApk) {
+            // Stubs for all Cloudstream classes
+            apk("com.lagradost:cloudstream3:pre-release")
+        } else {
+            // For running locally
+            implementation("com.github.Blatzar:CloudstreamApi:0.1.6")
+        }
+        ////////////////////////////////////
+        val cloudstream by configurations
+//        val implementation by configurations
         cloudstream("com.lagradost:cloudstream3:pre-release")
 
         // these dependencies can include any of those which are added by the app,
@@ -78,6 +103,7 @@ subprojects {
         implementation(kotlin("stdlib")) // adds standard kotlin features, like listOf, mapOf etc
         implementation("com.github.Blatzar:NiceHttp:0.4.11") // http library
         implementation("org.jsoup:jsoup:1.18.3") // html parser
+        implementation("com.fasterxml.jackson.core:jackson-databind:2.15.0") // Use the latest version available
     }
 }
 
