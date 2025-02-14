@@ -1,4 +1,4 @@
-package com.lagradost
+﻿package com.lagradost
 
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.MainAPI
@@ -7,16 +7,17 @@ import com.lagradost.cloudstream3.MovieSearchResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
-import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import org.jsoup.nodes.Element
 
 class UATuTFunProvider : MainAPI() {
 
-    private val movieSelector = "section.sect.flex-grow-1"
-
-    private val interceptor = CloudflareKiller()
+    private val movieSelector = "#dle-content"
+    private val titleSelector = "div.poster__desc > h3 > a > span"
+    private val videoUrlSelector = "data-url"
+    private val posterUrlSelector =
+        "div.poster__img.img-responsive.img-responsive--portrait.img-fit-cover.anim > img"
 
     // Basic Info
     override var mainUrl = "https://uk.uatut.fun"
@@ -33,7 +34,7 @@ class UATuTFunProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/serie/" to "Серіали",
+        "$mainUrl/serie/page/" to "Серіали",
         "$mainUrl/serials/cartoon/series/" to "Мультсеріали",
         "$mainUrl/cartoon/" to "Мультфільми",
         "$mainUrl/anime/" to "Аніме",
@@ -41,18 +42,21 @@ class UATuTFunProvider : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        println("page:$page, request:$request")
         val document = app.get(request.data + page).document
-        val mainPage = document.select(movieSelector).map {
-            it.toSearchResponse()
+        val mainPage = document.select(movieSelector).first()!!.children().map {
+            it.getVideoData()
         }
         return newHomePageResponse(request.name, mainPage)
     }
 
 
-    private fun Element.toSearchResponse(): MovieSearchResponse {
-        val title = ""
-        val url = ""
-        val posterUrl = ""
+    private fun Element.getVideoData(): MovieSearchResponse {
+        val title = this.select(titleSelector).text()
+        val url = this.attr(videoUrlSelector)
+        val posterUrl =
+            this.select(posterUrlSelector)
+                .attr("data-src")
         return newMovieSearchResponse(title, url, TvType.Movie) {
             this.posterUrl = posterUrl
         }
