@@ -18,12 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@dev-builds
+        uses: actions/checkout@master
         with:
           path: "src"
 
       - name: Checkout builds
-        uses: actions/checkout@dev-builds
+        uses: actions/checkout@master
         with:
           ref: "builds"
           path: "builds"
