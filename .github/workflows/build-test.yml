@@ -1,4 +1,4 @@
-name: Build
+name: Build-Test
 
 # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
 concurrency: 
@@ -23,7 +23,7 @@ jobs:
           path: "src"
 
       - name: Checkout builds
-        uses: actions/checkout@master
+        uses: actions/checkout@1-add-ukuatutfun
         with:
           ref: "builds"
           path: "builds"
