@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
@@ -23,6 +24,7 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
+import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
@@ -120,38 +122,36 @@ class AnimeONProvider : MainAPI() {
                                     )).text,
                                 AnimeInfoModel::class.java
                         )
-
         val showStatus =
-                with(animeJSON.status.name) {
+                with(animeJSON.status!!) {
                     when {
-                        contains("Онґоїнґ") -> ShowStatus.Ongoing
-                        contains("Завершений") -> ShowStatus.Completed
-                        else -> null
+                        contains("ongoing") -> ShowStatus.Ongoing
+                        contains("released") -> ShowStatus.Completed
+                        else -> ShowStatus.Completed
                     }
                 }
 
         val tvType =
-                with(animeJSON.type.name) {
+                with(animeJSON.type!!) {
                     when {
-                        contains("ТБ-Серіал") -> TvType.Anime
+                        contains("tv") -> TvType.Anime
                         contains("OVA") -> TvType.OVA
                         contains("Спеціальний випуск") -> TvType.OVA
                         contains("ONA") -> TvType.OVA
-                        contains("Фільм") -> TvType.AnimeMovie
+                        contains("movie") -> TvType.AnimeMovie
                         else -> TvType.Anime
                     }
                 }
 
-
         val episodes = mutableListOf<Episode>()
 
         // Get all fundub for title and parse only first fundub/player
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${animeJSON.id}",
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("$mainUrl/api/player/fundubs/${animeJSON.id}",
             headers = mapOf(
                 "Referer" to "https://animeon.club/",
             )).text, listFundub)
 
-        Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}",
+        Gson().fromJson<List<FundubEpisode>>(app.get("$mainUrl/api/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}",
             headers = mapOf(
                 "Referer" to "https://animeon.club/",
             )).text, listFundubEpisodes)?.map { epd -> // Episode
@@ -172,7 +172,7 @@ class AnimeONProvider : MainAPI() {
             ) {
                 this.posterUrl = posterApi.format(animeJSON.poster)
                 this.engName = animeJSON.titleEn
-                this.tags = animeJSON.genres.map { it.name }
+                // this.tags = animeJSON.genres.map { it.name }
                 this.plot = animeJSON.description
                 addTrailer(animeJSON.trailer)
                 this.showStatus = showStatus
@@ -212,20 +212,20 @@ class AnimeONProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("${apiUrl}/player/fundubs/${dataList[0]}",
+        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("$mainUrl/api/player/fundubs/${dataList[0]}",
             headers = mapOf(
                 "Referer" to "https://animeon.club/",
             )).text, listFundub)
 
         if(dataList.size == 2){
             fundubs.map { dub ->
-                Gson().fromJson<List<FundubEpisode>>(app.get("${apiUrl}/player/episodes/${dub.player[0].id}/${dub.fundub.id}",
+                Gson().fromJson<List<FundubEpisode>>(app.get("$mainUrl/api/player/episodes/${dub.player[0].id}/${dub.fundub.id}",
                     headers = mapOf(
                         "Referer" to "https://animeon.club/",
                     )).text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
                     M3u8Helper.generateM3u8(
                             source = "${dub.fundub.name} (${dub.player[0].name})",
-                            streamUrl = getM3U(app.get("${apiUrl}/player/episode/${epd.id}",
+                            streamUrl = getM3U(app.get("$mainUrl/api/player/episode/${epd.id}",
                                 headers = mapOf(
                                     "Referer" to "https://animeon.club/",
                                 )).parsedSafe<FundubVideoUrl>()!!.videoUrl),

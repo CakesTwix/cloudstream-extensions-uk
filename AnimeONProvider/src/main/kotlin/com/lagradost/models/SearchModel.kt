@@ -28,6 +28,6 @@ data class Result (
     @SerializedName("malId") val malId : Int,
     @SerializedName("season") val season : Int,
     @SerializedName("rating") val rating : Double,
-    @SerializedName("type") val type : Type,
-    @SerializedName("status") val status : Status
+    @SerializedName("type") val type : String?,
+    @SerializedName("status") val status : String?
 )
