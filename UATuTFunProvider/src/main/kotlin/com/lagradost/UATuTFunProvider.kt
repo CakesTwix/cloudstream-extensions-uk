@@ -1,5 +1,6 @@
 ﻿package com.lagradost
 
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
@@ -44,7 +45,7 @@ class UATuTFunProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         println("page:$page, request:$request")
         val document = app.get(request.data + page).document
-        System.err.println(document)
+        Log.d("UATuT", "document:$document")
         val mainPage = document.select(movieSelector).first()!!.children().map {
             it.getVideoData()
         }
