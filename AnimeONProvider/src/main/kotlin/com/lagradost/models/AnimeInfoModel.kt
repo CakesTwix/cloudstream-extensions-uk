@@ -16,8 +16,8 @@ class AnimeInfoModel (
     @SerializedName("malId") val malId : Int,
     @SerializedName("rating") val rating : Double,
     @SerializedName("genres") val genres : List<Genres>,
-    @SerializedName("status") val status : Status,
-    @SerializedName("type") val type : Type,
+    @SerializedName("status") val status : String?,
+    @SerializedName("type") val type : String?,
     @SerializedName("player") val player : List<Player>,
 )
 

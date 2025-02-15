@@ -2,10 +2,10 @@ package com.lagradost
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.extractors.Mp4Upload
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.getExtractorApiFromName
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.extractors.csstExtractor
 import com.lagradost.models.Ajax
@@ -233,7 +233,7 @@ class AnitubeinuaProvider : MainAPI() {
                                     }
                                 }
                                 it.urls.url.contains("https://www.mp4upload.com/") -> {
-                                    Mp4Upload().getUrl(it.urls.url)?.forEach { extlink ->
+                                    getExtractorApiFromName("Mp4Upload").getUrl(it.urls.url)?.forEach { extlink ->
                                         callback.invoke(
                                                 ExtractorLink(
                                                         extlink.source,
@@ -309,7 +309,7 @@ class AnitubeinuaProvider : MainAPI() {
                                     }
                                 }
                                 contains("https://www.mp4upload.com/") -> {
-                                    Mp4Upload().getUrl(this)?.forEach { extlink ->
+                                    getExtractorApiFromName("Mp4Upload").getUrl(this)?.forEach { extlink ->
                                         callback.invoke(
                                                 ExtractorLink(
                                                         extlink.source,

@@ -2,7 +2,10 @@
 version = 5
 
 dependencies {
-    implementation("com.google.code.gson:gson:2.9.0")
+    implementation(libs.gson)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 cloudstream {

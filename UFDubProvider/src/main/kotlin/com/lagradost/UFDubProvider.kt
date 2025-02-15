@@ -130,14 +130,15 @@ class UFDubProvider : MainAPI() {
         val matchResult = regexUFDubEpisodes.findAll(player)
 
         // Drop trailers from episodes
-        matchResult.filter { !(Uri.parse(it.value).getQueryParameter("Seriya")!!.contains("Трейлер")) }
+        matchResult.filter { !(it.value.contains("Seriya=") && it.value.contains("Трейлер")) }
             .forEach { item ->
 
-                val parsedUrl = Uri.parse(item.value)
+                val url = item.value.dropLast(1)
+                val seriya = url.substringAfter("Seriya=", "").substringBefore("&")
                 episodes.add(
                     Episode(
-                        item.value.dropLast(1), // Drop '
-                        parsedUrl.getQueryParameter("Seriya")!!,
+                        url,
+                        seriya
                     )
                 )
         }

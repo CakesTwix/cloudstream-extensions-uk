@@ -1,8 +1,11 @@
 // use an integer for version numbers
 version = 10
 
-dependencies{
-    implementation("com.google.code.gson:gson:2.9.0")
+dependencies {
+    implementation(libs.gson)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 cloudstream {

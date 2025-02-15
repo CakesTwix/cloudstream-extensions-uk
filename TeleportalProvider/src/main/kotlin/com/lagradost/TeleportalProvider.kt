@@ -60,7 +60,7 @@ class TeleportalProvider : MainAPI() {
         // Movies
         if(request.data.substringAfterLast("/") == "documentaries"){
             val homeList = Gson().fromJson(app.get(request.data).text, Media::class.java).items.map{
-                newAnimeSearchResponse(it.title, "$apiUrl/ua${it.videoSlug}", TvType.TvSeries) {
+                newAnimeSearchResponse(it.title, "$apiUrl/ua/${it.videoSlug}", TvType.TvSeries) {
                     this.posterUrl = "$mainUrl${it.image}"
                 }
             }
@@ -120,7 +120,7 @@ class TeleportalProvider : MainAPI() {
             }
             return newAnimeLoadResponse(
                 title.title,
-                "$mainUrl${title.projectSlug}",
+                "$apiUrl/ua/${title.typeSlug}/${title.channelSlug}/${title.projectSlug}",
                 tvType,
             ) {
                 this.posterUrl = "$mainUrl${title.image}"

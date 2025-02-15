@@ -1,6 +1,5 @@
 package com.lagradost
 
-import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -149,7 +148,7 @@ class SerialnoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        Log.d("CakesTwix-Debug", data)
+
         val playerRawJson = app.get(dataList[2]).document.select("script").html()
             .substringAfterLast("file: \'")
             .substringBefore("\',")
