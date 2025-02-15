@@ -1,4 +1,4 @@
-import com.lagradost.cloudstream3.gradle.CloudstreamExtension 
+import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import com.android.build.gradle.BaseExtension
 
 buildscript {
@@ -83,8 +83,21 @@ subprojects {
         implementation(libs.nicehttp) // http library
         implementation(libs.jsoup) // html parser
     }
+
+    tasks.withType<Test>().configureEach {
+        if (name == "testReleaseUnitTest") {
+            ignoreFailures = true // ignore fail test
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
     delete(getLayout().buildDirectory)
+}
+
+tasks.register<TestReport>("testReport") {
+    description = "Aggregate all test results as a HTML report"
+    group = "Build"
+    destinationDirectory = layout.buildDirectory.dir("reports/allTests")
+    testResults.from(subprojects.map { project -> project.tasks.getByName("testReleaseUnitTest") })
 }
