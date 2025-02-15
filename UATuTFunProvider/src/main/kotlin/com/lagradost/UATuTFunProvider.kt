@@ -57,7 +57,7 @@ class UATuTFunProvider : MainAPI() {
         val posterUrl =
             this.select(posterUrlSelector)
                 .attr("data-src")
-        return newMovieSearchResponse(title, url, TvType.Movie) {
+        return newMovieSearchResponse(title, url, TvType.TvSeries) {
             this.posterUrl = posterUrl
         }
     }
