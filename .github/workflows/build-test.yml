@@ -1,7 +1,7 @@
 name: Build-Test
 
 # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
-concurrency: 
+concurrency:
   group: "build"
   cancel-in-progress: true
 
@@ -25,9 +25,9 @@ jobs:
       - name: Checkout builds
         uses: actions/checkout@master
         with:
-          ref: "dev-builds"
-          path: "dev-builds"
-      
+          ref: "builds"
+          path: "builds"
+
       - name: Clean old builds
         run: rm $GITHUB_WORKSPACE/builds/*.cs3 || true
 
