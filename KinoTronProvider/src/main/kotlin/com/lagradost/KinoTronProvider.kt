@@ -96,11 +96,11 @@ class KinoTronProvider : MainAPI() {
 
         val year = document.select(".flist li")[0].select("a").text().toIntOrNull()
 
-        var tvType = with(document.select(".fsubtitle").text()) {
+        var tvType = with(document.select("div.fsubtitle").text()) {
             when {
-                contains("аніме") -> TvType.Anime
-                contains("серіал") -> TvType.TvSeries
-                contains("мультсеріал") -> TvType.Cartoon
+                contains("Аніме") -> TvType.Anime
+                contains("Серіал") -> TvType.TvSeries
+                contains("Мультсеріал") -> TvType.Cartoon
                 else -> {
                     TvType.Movie
                 }
@@ -168,8 +168,8 @@ class KinoTronProvider : MainAPI() {
         // Its film, parse one m3u8
         if(dataList.size == 2){
             val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file:\"")
-                .substringBefore("\",")
+                .substringAfterLast("file:\'")
+                .substringBefore("\',")
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url,
