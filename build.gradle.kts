@@ -60,7 +60,7 @@ subprojects {
         val apk by configurations
         val implementation by configurations
         val libs = rootProject.libs
-        val apkTasks = listOf("deployWithAdb", "build")
+        val apkTasks = listOf("deployWithAdb", "build", "makePluginsJson")
         val useApk = gradle.startParameter.taskNames.any { taskName ->
             apkTasks.any { apkTask ->
                 taskName.contains(apkTask, ignoreCase = true)
