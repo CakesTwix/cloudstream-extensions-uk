@@ -41,13 +41,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
+        
       - name: Build Plugins
         run: |
           cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
           ./gradlew make makePluginsJson
           cp **/build/*.cs3 $GITHUB_WORKSPACE/builds
           cp build/plugins.json $GITHUB_WORKSPACE/builds
