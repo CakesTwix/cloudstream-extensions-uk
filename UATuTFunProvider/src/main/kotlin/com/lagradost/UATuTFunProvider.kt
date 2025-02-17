@@ -27,10 +27,10 @@ class UATuTFunProvider : MainAPI() {
     override var lang = "uk"
     override val hasDownloadSupport = false
     override val supportedTypes = setOf(
-        TvType.TvSeries,
-        TvType.Cartoon,
+//        TvType.TvSeries,
+//        TvType.Cartoon,
         TvType.Movie,
-        TvType.Anime
+//        TvType.Anime
     )
 
     // Sections
