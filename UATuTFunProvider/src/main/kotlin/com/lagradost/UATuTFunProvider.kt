@@ -43,9 +43,8 @@ class UATuTFunProvider : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        Log.d("UATuT","page:$page, request:$request")
         val document = app.get(request.data + page).document
-        Log.d("UATuT", "document:$document")
+        Log.d("DEBUG getMainPage","page:$page, request:$request \n document:$document")
         val mainPage = document.select(movieSelector).first()!!.children().map {
             it.getVideoData()
         }
