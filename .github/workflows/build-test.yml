@@ -21,11 +21,10 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
+          java-version: 17
 
-      # Set up Android SDK
-      - name: Set up Android SDK
-        uses: reactivecircus/android-sdk@v2
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
 
       # Make gradlew executable
       - name: Make gradlew executable
