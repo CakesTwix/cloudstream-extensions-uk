@@ -17,6 +17,12 @@ jobs:
           ref: dev-builds
           path: src  # Check out the branch into the 'src' directory
 
+      - name: Checkout builds
+        uses: actions/checkout@master
+        with:
+          ref: "builds"
+          path: "builds"
+
       # Set up JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v1
