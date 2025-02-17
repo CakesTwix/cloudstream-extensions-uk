@@ -27,28 +27,24 @@ class UATuTFunProvider : MainAPI() {
     override var lang = "uk"
     override val hasDownloadSupport = false
     override val supportedTypes = setOf(
-//        TvType.TvSeries,
-//        TvType.Cartoon,
+        TvType.TvSeries,
+        TvType.Cartoon,
         TvType.Movie,
-//        TvType.Anime
+        TvType.Anime
     )
 
     // Sections
     override val mainPage = mainPageOf(
-//        "$mainUrl/serie/page/" to "Серіали",
-//        "$mainUrl/serials/cartoon/series/" to "Мультсеріали",
-//        "$mainUrl/cartoon/" to "Мультфільми",
-//        "$mainUrl/anime/" to "Аніме",
-        "$mainUrl/film/" to "Фільми"
+        "$mainUrl/serie/page/" to "Серіали",
+        "$mainUrl/cartoon/series/page/" to "Мультсеріали",
+        "$mainUrl/cartoon/page/" to "Мультфільми",
+        "$mainUrl/anime/page/" to "Аніме",
+        "$mainUrl/film/page/" to "Фільми"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = try {
-            app.get(request.data + page).document
-        } catch (e: Exception) {
-            Log.d("DEBUG getMainPage", "page:$page, request:$request \n exception:$e")
-            throw Error("Failed to get main page")
-        }
+        Log.d("DEBUG getMainPage", "page:$page, request:$request \n document:")
+        val document = app.get(request.data + page).document
         Log.d("DEBUG getMainPage", "page:$page, request:$request \n document:$document")
         val mainPage = document.select(movieSelector).first()!!.children().map {
             it.getVideoData()
