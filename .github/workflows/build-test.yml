@@ -22,14 +22,10 @@ jobs:
         uses: actions/setup-java@v3
         with:
           java-version: '17'
-          distribution: 'adoptopenjdk'
 
       # Set up Android SDK
       - name: Set up Android SDK
-        uses: reactivecircus/android-sdk@v3
-        with:
-          api-level: 30
-          build-tools: 30.0.3
+        uses: reactivecircus/android-sdk@v2
 
       # Make gradlew executable
       - name: Make gradlew executable
