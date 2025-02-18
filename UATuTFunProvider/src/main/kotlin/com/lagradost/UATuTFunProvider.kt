@@ -56,7 +56,7 @@ class UATuTFunProvider : MainAPI() {
     private fun Element.getVideoData(): MovieSearchResponse {
         val title = this.select(titleSelector).text()
         val url = this.attr(videoUrlSelector)
-        val posterUrl =
+        val posterUrl = mainUrl +
             this.select(posterUrlSelector)
                 .attr("data-src")
         return newMovieSearchResponse(title, url, TvType.TvSeries) {
