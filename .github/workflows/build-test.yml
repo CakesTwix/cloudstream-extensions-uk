@@ -10,11 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Remove all files in the 'src' directory before checking out the branch
-      - name: Clean src directory
-        run: rm -rf src/*
-
-      # Checkout the dev-builds branch into the 'src' directory
+   # Checkout the dev-builds branch into the 'src' directory
       - name: Checkout dev-builds branch
         uses: actions/checkout@v3
         with:
@@ -45,11 +41,6 @@ jobs:
         run: |
           cd src
           ./gradlew make makePluginsJson
-
-
-      # Clear out the builds directory before copying new files
-      - name: Clear the builds directory
-        run: rm -rf $GITHUB_WORKSPACE/builds/*
 
       # Copy build files
       - name: Copy build files to workspace
