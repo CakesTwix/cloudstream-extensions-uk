@@ -76,11 +76,9 @@ class UATuTFunProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val response =
             app.post("$mainUrl/index.php?do=search&subaction=search&story=$query").document
-        val select = response.select(searchMovieSelector)
-        val map = select.map {
+        return response.select(searchMovieSelector).map {
             it.toSearchResponse()
         }
-        return map
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -127,9 +125,9 @@ class UATuTFunProvider : MainAPI() {
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
 
-       return when (tvType) {
+        return when (tvType) {
             TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
-                newMovieLoadResponse(title,url,tvType,url){
+                newMovieLoadResponse(title, url, tvType, url) {
                     this.posterUrl = posterUrl
                     this.plot = description
                     this.tags = tags
