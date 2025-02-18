@@ -127,7 +127,7 @@ class UATuTFunProvider : MainAPI() {
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
 
         return when (tvType) {
-            TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
+            TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
                 newMovieLoadResponse(title, url, tvType, url) {
                     this.posterUrl = posterUrl
                     this.plot = description
