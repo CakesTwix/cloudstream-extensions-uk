@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.MovieSearchResponse
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.fixUrl
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
@@ -59,9 +60,9 @@ class UATuTFunProvider : MainAPI() {
     private fun Element.toSearchResponse(): MovieSearchResponse {
         val title = this.select(titleSelector).text()
         val url = this.attr(videoUrlSelector)
-        val posterUrl = mainUrl +
-                this.select(posterUrlSelector)
-                    .attr("data-src")
+        val posterUrl = fixUrl(this.select(posterUrlSelector)
+            .attr("data-src"))
+
         return newMovieSearchResponse(title, url, TvType.Movie) {
             this.posterUrl = posterUrl
         }
