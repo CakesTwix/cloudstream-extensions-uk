@@ -1,6 +1,7 @@
 ﻿package com.lagradost
 
 import com.lagradost.api.Log
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
@@ -43,10 +44,11 @@ class UATuTFunProvider : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        Log.d("UATuT","page:$page, request:$request")
         val document = app.get(request.data + page).document
-        Log.d("UATuT", "document:$document")
-        val mainPage = document.select(movieSelector).first()!!.children().map {
+        val first = document.select(movieSelector)
+            .first() ?: throw ErrorLoadingException("Can't find main page")
+
+        val mainPage = first.children().map {
             it.getVideoData()
         }
         return newHomePageResponse(request.name, mainPage)
@@ -57,9 +59,9 @@ class UATuTFunProvider : MainAPI() {
         val title = this.select(titleSelector).text()
         val url = this.attr(videoUrlSelector)
         val posterUrl = mainUrl +
-            this.select(posterUrlSelector)
-                .attr("data-src")
-        return newMovieSearchResponse(title, url, TvType.TvSeries) {
+                this.select(posterUrlSelector)
+                    .attr("data-src")
+        return newMovieSearchResponse(title, url, TvType.Movie) {
             this.posterUrl = posterUrl
         }
     }
