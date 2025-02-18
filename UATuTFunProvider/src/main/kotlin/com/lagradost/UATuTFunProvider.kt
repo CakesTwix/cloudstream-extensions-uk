@@ -36,10 +36,10 @@ class UATuTFunProvider : MainAPI() {
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/serie/page/" to "Серіали",
-        "$mainUrl/serials/cartoon/series/" to "Мультсеріали",
-        "$mainUrl/cartoon/" to "Мультфільми",
-        "$mainUrl/anime/" to "Аніме",
-        "$mainUrl/film/" to "Фільми"
+        "$mainUrl/cartoon/series/page/" to "Мультсеріали",
+        "$mainUrl/cartoon/page/" to "Мультфільми",
+        "$mainUrl/anime/page/" to "Аніме",
+        "$mainUrl/film/page/" to "Фільми"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
