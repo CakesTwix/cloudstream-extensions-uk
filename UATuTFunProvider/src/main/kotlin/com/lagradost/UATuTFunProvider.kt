@@ -15,6 +15,7 @@ import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.toRatingInt
 import org.jsoup.nodes.Element
 
 class UATuTFunProvider : MainAPI() {
@@ -114,7 +115,7 @@ class UATuTFunProvider : MainAPI() {
         }
 
         val description = document.select("div.page__text").text()
-        val rating = document.select("div.pmovie__rating-content > a")[0].text().toInt()
+        val rating = document.select("div.pmovie__rating-content > a")[0].text().toRatingInt()
 
 //        val episodes = mutableListOf<Episode>()
 
