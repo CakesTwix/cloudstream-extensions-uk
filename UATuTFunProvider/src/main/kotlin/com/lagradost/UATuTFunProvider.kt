@@ -2,6 +2,8 @@
 
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
@@ -11,6 +13,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrl
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newHomePageResponse
+import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import org.jsoup.nodes.Element
 
@@ -60,8 +63,10 @@ class UATuTFunProvider : MainAPI() {
     private fun Element.toSearchResponse(): MovieSearchResponse {
         val title = this.select(titleSelector).text()
         val url = this.attr(videoUrlSelector)
-        val posterUrl = fixUrl(this.select(posterUrlSelector)
-            .attr("data-src"))
+        val posterUrl = fixUrl(
+            this.select(posterUrlSelector)
+                .attr("data-src")
+        )
 
         return newMovieSearchResponse(title, url, TvType.Movie) {
             this.posterUrl = posterUrl
@@ -78,4 +83,67 @@ class UATuTFunProvider : MainAPI() {
         return map
     }
 
+    override suspend fun load(url: String): LoadResponse {
+        val document = app.get(url).document
+
+        val title = document.select("h1.bslide__title").text()
+        val engTitle = document.select("div.bslide__subtitle").text()
+        val posterUrl = fixUrl(document.select("div.bslide__poster > a > img").attr("src"))
+
+        val tags = mutableListOf<String>()
+        val actors = mutableListOf<String>()
+        val yearIndexTag = "Рік виходу:"
+        val otherData = document.select("div.bslide__desc > ul.bslide__text")
+        var year = otherData.select("li").first { it.select("span").text() == yearIndexTag }.text()
+            .replace(yearIndexTag, "").trim().toInt()
+
+        otherData.select("li").first { element -> element.text().contains("Жанр:") }.select("a")
+            .map { tags.add(it.text()) }
+
+
+        val actorsBlock = document.select("ul.pmovie__list")
+        actorsBlock.select("li").first { it.text().contains("Актори:") }.select("a")
+            .map { actors.add(it.text()) }
+
+        val tvType = with(url) {
+            when {
+                contains("serie") -> TvType.TvSeries
+                contains("cartoon/series") -> TvType.TvSeries
+                contains("cartoon") -> TvType.Cartoon
+                contains("anime") -> TvType.Anime
+                else -> TvType.Movie
+            }
+        }
+
+        val description = document.select("div.page__text").text()
+        val rating = document.select("div.pmovie__rating-content > a")[0].text().toInt()
+
+//        val episodes = mutableListOf<Episode>()
+
+//        val playerRawUrl =
+//            document.select("div.tabs-block__content").first()
+//                ?: throw ErrorLoadingException("Can't find player url")
+//        val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
+
+//        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
+
+       return when (tvType) {
+            TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
+                newMovieLoadResponse(title,url,tvType,url){
+                    this.posterUrl = posterUrl
+                    this.plot = description
+                    this.tags = tags
+                    this.year = year
+                    this.rating = rating
+                    this.name = engTitle
+                    addActors(actors)
+                }
+            }
+
+            else -> { //videos with multiple episodes
+                TODO("Not yet implemented")
+            }
+        }
+
+    }
 }
