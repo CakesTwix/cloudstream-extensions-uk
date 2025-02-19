@@ -1,12 +1,10 @@
 ﻿package com.lagradost
 
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
-import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
@@ -86,6 +84,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        Log.d("DEBUG UATUT LOAD", "executing load")
         val document = app.get(url).document
 
         val title = document.select("h1.bslide__title").text()
@@ -96,7 +95,7 @@ class UATuTFunProvider : MainAPI() {
         val actors = mutableListOf<String>()
         val yearIndexTag = "Рік виходу:"
         val otherData = document.select("div.bslide__desc > ul.bslide__text")
-        var year = otherData.select("li").first { it.select("span").text() == yearIndexTag }.text()
+        val year = otherData.select("li").first { it.select("span").text() == yearIndexTag }.text()
             .replace(yearIndexTag, "").trim().toInt()
 
         otherData.select("li").first { element -> element.text().contains("Жанр:") }.select("a")
@@ -128,7 +127,7 @@ class UATuTFunProvider : MainAPI() {
         val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
-
+        Log.d("DEBUG UATUT LOAD", "playerUrl: $playerUrl")
         return when (tvType) {
             TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
                 newMovieLoadResponse(title, url, tvType, playerUrl) {
