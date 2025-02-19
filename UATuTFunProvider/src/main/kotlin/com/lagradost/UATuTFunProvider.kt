@@ -1,6 +1,7 @@
 ﻿package com.lagradost
 
 import com.lagradost.api.Log
+import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -16,6 +17,7 @@ import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import org.jsoup.nodes.Element
 
@@ -127,10 +129,10 @@ class UATuTFunProvider : MainAPI() {
         val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
-        Log.d("DEBUG UATUT LOAD", "playerUrl: $playerUrl")
+        Log.d("DEBUG UATUT LOAD", "playerUrl: $title, $playerUrl")
         return when (tvType) {
             TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
-                newMovieLoadResponse(title, url, tvType, playerUrl) {
+                newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
                     this.posterUrl = posterUrl
                     this.plot = description
                     this.tags = tags
@@ -144,7 +146,8 @@ class UATuTFunProvider : MainAPI() {
             }
 
             else -> { //videos with multiple episodes
-                newMovieLoadResponse(title, url, tvType, playerUrl) {
+                //todo: finish implementing this
+                newTvSeriesLoadResponse(title, url, tvType, listOf<Episode>()) {
                     this.posterUrl = posterUrl
                     this.plot = description
                     this.tags = tags
