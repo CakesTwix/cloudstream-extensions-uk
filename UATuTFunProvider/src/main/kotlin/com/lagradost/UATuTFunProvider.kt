@@ -144,7 +144,17 @@ class UATuTFunProvider : MainAPI() {
             }
 
             else -> { //videos with multiple episodes
-                TODO("Not yet implemented")
+                newMovieLoadResponse(title, url, tvType, playerUrl) {
+                    this.posterUrl = posterUrl
+                    this.plot = description
+                    this.tags = tags
+                    this.year = year
+                    this.rating = rating
+                    this.name = engTitle
+                    addActors(actors)
+//                    addTrailer()
+//                    addDuration()
+                }
             }
         }
 
