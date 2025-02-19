@@ -21,7 +21,7 @@ import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.nodes.Element
 
 class UATuTFunProvider : MainAPI() {
@@ -165,9 +165,15 @@ class UATuTFunProvider : MainAPI() {
 
         return when (tvType) {
             TvType.Movie, TvType.Cartoon -> {//movie
-                println(document)
                 val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
-                loadExtractor(sourceUrl, subtitleCallback, callback)
+                val m3uUrl = app.get(sourceUrl).document.select("iframe").attr("src")
+                Log.d("DEBUG UATUT loadLinks", m3uUrl)
+
+                M3u8Helper.generateM3u8(
+                    source = "UAFlix",
+                    streamUrl = m3uUrl,
+                    referer = "https://uk.uatut.fun/"
+                ).last().let(callback)
                 true
             }
 
