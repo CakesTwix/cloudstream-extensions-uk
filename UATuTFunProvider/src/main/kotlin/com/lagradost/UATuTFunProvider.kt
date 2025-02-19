@@ -4,6 +4,9 @@ import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
+import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
@@ -119,16 +122,16 @@ class UATuTFunProvider : MainAPI() {
 
 //        val episodes = mutableListOf<Episode>()
 
-//        val playerRawUrl =
-//            document.select("div.tabs-block__content").first()
-//                ?: throw ErrorLoadingException("Can't find player url")
-//        val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
+        val playerRawUrl =
+            document.select("div.tabs-block__content").first()
+                ?: throw ErrorLoadingException("Can't find player url")
+        val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
 
         return when (tvType) {
-            TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
-                newMovieLoadResponse(title, url, tvType, url) {
+            TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
+                newMovieLoadResponse(title, url, tvType, playerUrl) {
                     this.posterUrl = posterUrl
                     this.plot = description
                     this.tags = tags
@@ -136,6 +139,8 @@ class UATuTFunProvider : MainAPI() {
                     this.rating = rating
                     this.name = engTitle
                     addActors(actors)
+//                    addTrailer()
+//                    addDuration()
                 }
             }
 
