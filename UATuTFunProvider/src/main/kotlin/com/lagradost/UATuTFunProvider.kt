@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrl
@@ -19,6 +20,8 @@ import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 class UATuTFunProvider : MainAPI() {
@@ -108,31 +111,18 @@ class UATuTFunProvider : MainAPI() {
         actorsBlock.select("li").first { it.text().contains("Актори:") }.select("a")
             .map { actors.add(it.text()) }
 
-        val tvType = with(url) {
-            when {
-                contains("serie") -> TvType.TvSeries
-                contains("cartoon/series") -> TvType.TvSeries
-                contains("cartoon") -> TvType.Cartoon
-                contains("anime") -> TvType.Anime
-                else -> TvType.Movie
-            }
-        }
+        val tvType = getTvType(url)
 
         val description = document.select("div.page__text").text()
         val rating = document.select("div.pmovie__rating-content > a")[0].text().toRatingInt()
 
 //        val episodes = mutableListOf<Episode>()
 
-        val playerRawUrl =
-            document.select("div.tabs-block__content").first()
-                ?: throw ErrorLoadingException("Can't find player url")
-        val playerUrl = fixUrl(playerRawUrl.select("iframe").attr("data-src"))
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
-        Log.d("DEBUG UATUT LOAD", "playerUrl: $title, $playerUrl")
         return when (tvType) {
             TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
-                newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
+                newMovieLoadResponse(title, url, tvType, url) {
                     this.posterUrl = posterUrl
                     this.plot = description
                     this.tags = tags
@@ -161,5 +151,40 @@ class UATuTFunProvider : MainAPI() {
             }
         }
 
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val document = app.get(data).document
+
+        val tvType = getTvType(data)
+
+        return when (tvType) {
+            TvType.Movie, TvType.Cartoon -> {//movie
+                println(document)
+                val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
+                loadExtractor(sourceUrl, subtitleCallback, callback)
+                true
+            }
+
+            else -> {//series
+
+                false
+            }
+        }
+    }
+
+    private fun getTvType(url: String): TvType {
+        return when {
+            url.contains("serie") -> TvType.TvSeries
+            url.contains("cartoon/series") -> TvType.TvSeries
+            url.contains("cartoon") -> TvType.Cartoon
+            url.contains("anime") -> TvType.Anime
+            else -> TvType.Movie
+        }
     }
 }
