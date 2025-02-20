@@ -184,13 +184,14 @@ class UATuTFunProvider : MainAPI() {
                     val jsonArray = Gson().fromJson(m3u8.text, JsonArray::class.java)
                     val m3uFileUrl = jsonArray.firstOrNull()?.asJsonObject?.get("file")
 
-                    m3uUrl = m3uFileUrl.toString().replace("\"", "")
+                    val m3u8DirectFileUrl = m3uFileUrl.toString().replace("\"", "")
+                    M3u8Helper.generateM3u8(
+                        source = "uatut",
+                        streamUrl = m3u8DirectFileUrl,
+                        referer = "https://uk.uatut.fun/"
+                    ).last().let(callback)
                 }
-                M3u8Helper.generateM3u8(
-                    source = "UAFlix",
-                    streamUrl = m3uUrl,
-                    referer = "https://uk.uatut.fun/"
-                ).last().let(callback)
+
                 true
             }
 
