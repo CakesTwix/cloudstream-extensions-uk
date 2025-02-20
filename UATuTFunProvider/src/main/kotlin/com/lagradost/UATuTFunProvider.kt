@@ -139,8 +139,7 @@ class UATuTFunProvider : MainAPI() {
                     this.rating = rating
                     this.name = engTitle
                     addActors(actors)
-//                    addTrailer(getTrailerUrL(document))
-                    addTrailer("https://www.youtube.com/watch?v=Gj4cdX01Gb4")
+                    addTrailer(getTrailerUrL(document))
                     this.duration = durationInMinutes
                 }
             }
@@ -238,7 +237,12 @@ class UATuTFunProvider : MainAPI() {
         return if (trailerIndex != -1) {
             val rawUrl = playersUrl[trailerIndex]
             val delimiter = "https://www.youtube.com/"
+//            https://www.youtube.com/embed/Gj4cdX01Gb4
+//            https://www.youtube.com/watch?v=Gj4cdX01Gb4
             val substringAfter = delimiter + rawUrl.substringAfter(delimiter)
+            if (substringAfter.contains("embed")) {
+                substringAfter.replace("embed/", "watch?v=")
+            }
             substringAfter
         } else {
             ""
