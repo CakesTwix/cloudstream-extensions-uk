@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
@@ -26,6 +27,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLDecoder
 
@@ -94,7 +96,6 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        Log.d("DEBUG UATUT LOAD", "executing load")
         val document = app.get(url).document
 
         val title = document.select("h1.bslide__title").text()
@@ -120,6 +121,9 @@ class UATuTFunProvider : MainAPI() {
 
         val description = document.select("div.page__text").text()
         val rating = document.select("div.pmovie__rating-content > a")[0].text().toRatingInt()
+        val duration = otherData.select("li").first { it.text().contains("Тривалість:") }
+        val durationInMinutes = getDurationInMinutes(duration.text())
+
 
 //        val episodes = mutableListOf<Episode>()
 
@@ -135,8 +139,8 @@ class UATuTFunProvider : MainAPI() {
                     this.rating = rating
                     this.name = engTitle
                     addActors(actors)
-//                    addTrailer()
-//                    addDuration()
+                    addTrailer(getTrailerUrL(document))
+                    this.duration = durationInMinutes
                 }
             }
 
@@ -184,13 +188,14 @@ class UATuTFunProvider : MainAPI() {
                     val jsonArray = Gson().fromJson(m3u8.text, JsonArray::class.java)
                     val m3uFileUrl = jsonArray.firstOrNull()?.asJsonObject?.get("file")
 
-                    m3uUrl = m3uFileUrl.toString().replace("\"", "")
+                    val m3u8DirectFileUrl = m3uFileUrl.toString().replace("\"", "")
+                    M3u8Helper.generateM3u8(
+                        source = "uatut",
+                        streamUrl = m3u8DirectFileUrl,
+                        referer = "https://uk.uatut.fun/"
+                    ).last().let(callback)
                 }
-                M3u8Helper.generateM3u8(
-                    source = "UAFlix",
-                    streamUrl = m3uUrl,
-                    referer = "https://uk.uatut.fun/"
-                ).last().let(callback)
+
                 true
             }
 
@@ -208,6 +213,34 @@ class UATuTFunProvider : MainAPI() {
             url.contains("cartoon") -> TvType.Cartoon
             url.contains("anime") -> TvType.Anime
             else -> TvType.Movie
+        }
+    }
+
+    private fun getDurationInMinutes(text: String): Int {
+        val regex = Regex("""(\d+) год (\d+) хв""")
+        val match = regex.find(text)
+        if (match != null) {
+            val (hours, minutes) = match.destructured
+            return (hours.toInt() * 60 + minutes.toInt())
+        }
+        return 0
+    }
+
+    private fun getTrailerUrL(document: Document): String {
+        val listOfPlayers = document.select("div.tabs-block__select span").map { it.text() }
+        val playersUrl = document.select("div.tabs-block__content.video-inside").map {
+            val ifrmame = it.select("iframe")
+            ifrmame.attr("src").ifEmpty { ifrmame.attr("data-src") }
+        }
+
+        val trailerIndex = listOfPlayers.indexOf("Трейлер")
+        return if (trailerIndex != -1) {
+            val rawUrl = playersUrl[trailerIndex]
+            val delimiter = "https://www.youtube.com/"
+            val substringAfter = delimiter + rawUrl.substringAfter(delimiter)
+            substringAfter
+        } else {
+            ""
         }
     }
 }
