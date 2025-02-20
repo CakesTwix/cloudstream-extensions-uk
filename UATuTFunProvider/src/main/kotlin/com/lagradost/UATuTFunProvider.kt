@@ -1,5 +1,7 @@
 ﻿package com.lagradost
 
+import com.google.gson.Gson
+import com.google.gson.JsonArray
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
@@ -22,7 +24,10 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Element
+import java.net.URLDecoder
 
 class UATuTFunProvider : MainAPI() {
 
@@ -166,9 +171,21 @@ class UATuTFunProvider : MainAPI() {
         return when (tvType) {
             TvType.Movie, TvType.Cartoon -> {//movie
                 val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
-                val m3uUrl = app.get(sourceUrl).document.select("iframe").attr("src")
+                var m3uUrl = app.get(sourceUrl).document.select("iframe").attr("src")
                 Log.d("DEBUG UATUT loadLinks", m3uUrl)
 
+                if (m3uUrl.substringAfterLast('.') == "txt") {
+                    val url = withContext(Dispatchers.IO) {
+                        val substringAfterLast = m3uUrl.substringAfterLast("file=")
+                        URLDecoder.decode(substringAfterLast, "UTF-8")
+                    }
+
+                    val m3u8 = app.get(url)
+                    val jsonArray = Gson().fromJson(m3u8.text, JsonArray::class.java)
+                    val m3uFileUrl = jsonArray.firstOrNull()?.asJsonObject?.get("file")
+
+                    m3uUrl = m3uFileUrl.toString().replace("\"", "")
+                }
                 M3u8Helper.generateM3u8(
                     source = "UAFlix",
                     streamUrl = m3uUrl,
