@@ -139,7 +139,8 @@ class UATuTFunProvider : MainAPI() {
                     this.rating = rating
                     this.name = engTitle
                     addActors(actors)
-                    addTrailer(getTrailerUrL(document))
+//                    addTrailer(getTrailerUrL(document))
+                    addTrailer("https://www.youtube.com/watch?v=Gj4cdX01Gb4")
                     this.duration = durationInMinutes
                 }
             }
