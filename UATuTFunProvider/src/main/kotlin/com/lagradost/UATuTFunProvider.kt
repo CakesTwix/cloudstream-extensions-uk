@@ -242,8 +242,9 @@ class UATuTFunProvider : MainAPI() {
             val substringAfter = delimiter + rawUrl.substringAfter(delimiter)
             if (substringAfter.contains("embed")) {
                 substringAfter.replace("embed/", "watch?v=")
+            }else{
+                substringAfter
             }
-            substringAfter
         } else {
             ""
         }
