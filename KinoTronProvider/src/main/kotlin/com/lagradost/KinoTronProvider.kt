@@ -117,7 +117,7 @@ class KinoTronProvider : MainAPI() {
         // Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
-        return if (tvType == TvType.TvSeries || tvType == TvType.Anime) {
+        return if (tvType != TvType.Movie) {
             val playerRawJson = app.get(playerUrl).document.select("script").html()
                 .substringAfterLast("file:\'")
                 .substringBefore("\',")
