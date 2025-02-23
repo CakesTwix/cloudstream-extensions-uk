@@ -40,7 +40,7 @@ jobs:
       - name: Run Gradle build
         run: |
           cd src
-          ./gradlew make makePluginsJson
+          ./gradlew make UATuTFunProvider
 
       # Copy build files
       - name: Copy build files to workspace
