@@ -136,17 +136,21 @@ class UATuTFunProvider : MainAPI() {
             else -> { //videos with multiple episodes
                 val episodes = getEpisodes(document)
 
-                newTvSeriesLoadResponse(title, url, tvType, episodes) {
-                    this.posterUrl = posterUrl
-                    this.plot = description
-                    this.tags = tags
-                    this.year = year
-                    this.rating = rating
-                    this.name = engTitle
-                    addActors(actors)
-                    addTrailer(trailerUrl)
-                    this.duration = duration
-                }
+                val newTvSeriesLoadResponse =
+                    newTvSeriesLoadResponse(title, url, tvType, episodes) {
+                        this.posterUrl = posterUrl
+                        this.plot = description
+                        this.tags = tags
+                        this.year = year
+                        this.rating = rating
+                        this.name = engTitle
+                        addActors(actors)
+                        addTrailer(trailerUrl)
+                        this.duration = duration
+                    }
+                Log.d("UATuTFunProvider DEBUG", "newTvSeriesLoadResponse: $newTvSeriesLoadResponse")
+                newTvSeriesLoadResponse
+
             }
         }
 
@@ -158,6 +162,7 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        Log.d("UATuTFunProvider DEBUG", "data: $data")
         val tvType = if (data.startsWith("http")) {
             TvType.Movie
         } else {
