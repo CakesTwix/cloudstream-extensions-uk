@@ -198,8 +198,8 @@ class UATuTFunProvider : MainAPI() {
             }
 
             else -> {//series
-                Log.d("UATuTFunProvider DEBUG", "data: $data")
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split("/")
+                Log.d("UATuTFunProvider DEBUG", "episodeName: $episodeName episodeSeasonName: $episodeSeasonName seriesUrl: $seriesUrl")
 //
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -305,7 +305,7 @@ class UATuTFunProvider : MainAPI() {
         episodeSeasonName: String,
         seriesUrl: String
     ): List<SeriesJsonDataModel> {
-        Log.d("UATuTFunProvider DEBUG |getSeriesJsonDataModelByEpisodeName", "seriesUrl: $seriesUrl")
+        Log.d("UATuTFunProvider DEBUG | getSeriesJsonDataModelByEpisodeName", "seriesUrl: $seriesUrl")
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
 
         val season =
