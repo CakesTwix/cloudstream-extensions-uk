@@ -203,7 +203,7 @@ class UATuTFunProvider : MainAPI() {
             }
 
             else -> {//series
-                val (episodeName, episodeSeasonName, seriesUrl) = data.split("/")
+                val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
                 Log.d("UATuTFunProvider DEBUG", "episodeName: $episodeName episodeSeasonName: $episodeSeasonName seriesUrl: $seriesUrl")
 //
                 val jsonDataModel =
@@ -282,7 +282,7 @@ class UATuTFunProvider : MainAPI() {
                 val episodePosterUrl = getEpisodePosterUrl(url, seasonName, episodeName)
                 val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
-                val episodeSeasonTag = "$episodeName/$seasonName/$url"
+                val episodeSeasonTag = "$episodeName;$seasonName;$url"
                 Episode(
                     data = episodeSeasonTag,
                     name = episodeName,
