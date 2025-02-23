@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
-import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
@@ -136,21 +135,17 @@ class UATuTFunProvider : MainAPI() {
             else -> { //videos with multiple episodes
                 val episodes = getEpisodes(document)
 
-                val newTvSeriesLoadResponse =
-                    newTvSeriesLoadResponse(title, url, tvType, episodes) {
-                        this.posterUrl = posterUrl
-                        this.plot = description
-                        this.tags = tags
-                        this.year = year
-                        this.rating = rating
-                        this.name = engTitle
-                        addActors(actors)
-                        addTrailer(trailerUrl)
-                        this.duration = duration
-                    }
-                Log.d("UATuTFunProvider DEBUG", "newTvSeriesLoadResponse: $newTvSeriesLoadResponse")
-                newTvSeriesLoadResponse
-
+                newTvSeriesLoadResponse(title, url, tvType, episodes) {
+                    this.posterUrl = posterUrl
+                    this.plot = description
+                    this.tags = tags
+                    this.year = year
+                    this.rating = rating
+                    this.name = engTitle
+                    addActors(actors)
+                    addTrailer(trailerUrl)
+                    this.duration = duration
+                }
             }
         }
 
@@ -162,7 +157,6 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("UATuTFunProvider DEBUG", "data: $data")
         val tvType = if (data.startsWith("http")) {
             TvType.Movie
         } else {
@@ -204,11 +198,9 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
-                Log.d("UATuTFunProvider DEBUG", "episodeName: $episodeName episodeSeasonName: $episodeSeasonName seriesUrl: $seriesUrl")
-//
+
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
-                Log.d("UATuTFunProvider DEBUG", "jsonDataModel: $data")
                 val sourceDubName = jsonDataModel.first().seriesDubName
                 val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
                 M3u8Helper.generateM3u8(
@@ -225,7 +217,6 @@ class UATuTFunProvider : MainAPI() {
     private suspend fun getSeriesJsonDataModel(
         seriesUrl: String,
     ): List<SeriesJsonDataModel> {
-        Log.d("UATuTFunProvider DEBUG", "seriesUrl: $seriesUrl")
         val document = app.get(seriesUrl).document
 
         val m3uUrl = getM3uUrl(document)
@@ -278,7 +269,6 @@ class UATuTFunProvider : MainAPI() {
 
                 val episodeName = episode.select("td.td-1").text()
                 val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
-                Log.d("UATuTFunProvider DEBUG |getEpisodes", "url: $url seasonName: $seasonName episodeName: $episodeName")
                 val episodePosterUrl = getEpisodePosterUrl(url, seasonName, episodeName)
                 val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
@@ -310,7 +300,6 @@ class UATuTFunProvider : MainAPI() {
         episodeSeasonName: String,
         seriesUrl: String
     ): List<SeriesJsonDataModel> {
-        Log.d("UATuTFunProvider DEBUG | getSeriesJsonDataModelByEpisodeName", "seriesUrl: $seriesUrl")
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
 
         val season =
