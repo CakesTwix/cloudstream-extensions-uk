@@ -3,6 +3,7 @@
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
@@ -26,6 +27,8 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.model.Season
+import com.lagradost.model.SeriesJsonDataModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
@@ -59,12 +62,12 @@ class UATuTFunProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-//        "$mainUrl/page/" to "Новинки",todo fix
+        "$mainUrl/page/" to "Новинки",
         "$mainUrl/film/page/" to "Фільми",
         "$mainUrl/serie/page/" to "Серіали",
-//        "$mainUrl/cartoon/series/page/" to "Мультсеріали",todo fix
+        "$mainUrl/cartoon/series/page/" to "Мультсеріали",
         "$mainUrl/cartoon/page/" to "Мультфільми",
-//        "$mainUrl/anime/page/" to "Аніме" todo fix
+        "$mainUrl/anime/page/" to "Аніме"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -196,30 +199,50 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 Log.d("UATuTFunProvider DEBUG", "data: $data")
-//                val episodeName = ""
-//                val episodeSeason = ""
-//                episodeGetM3uUrl(episodeName, episodeSeason)
-////parse data from json
-//                val itemType = object : TypeToken<Episode>() {}.type
-//                val episode: List<SeriesJsonDataModel> = Gson().fromJson(data, itemType)
-//                println(episode)
-                false
+                val (episodeName, episodeSeasonName, seriesUrl) = data.split("/")
+//
+                val jsonDataModel =
+                    getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
+                val sourceDubName = jsonDataModel.first().seriesDubName
+                val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
+                M3u8Helper.generateM3u8(
+                    source = sourceDubName,
+                    streamUrl = m3u8DirectFileUrl,
+                    referer = "https://uk.uatut.fun/"
+                ).forEach(callback)
+                true
             }
         }
     }
 
-    private fun episodeGetM3uUrl(episodeName: String, episodeSeason: String) {
-        /*
-         val m3uUrl = getM3uUrl(document)
+
+    private suspend fun getSeriesJsonDataModel(
+        seriesUrl: String,
+    ): List<SeriesJsonDataModel> {
+        val document = app.get(seriesUrl).document
+
+        val m3uUrl = getM3uUrl(document)
         val itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
-        val text = app.get(m3uUrl).text
+
+        val text = if (m3uUrl.startsWith("http")) {
+            app.get(m3uUrl).text
+        } else {
+            m3uUrl
+        }
         val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
-        val items: List<SeriesJsonDataModel> = Gson().fromJson(m3uData, itemType)*/
-        TODO("Not yet implemented")
+        val items: List<SeriesJsonDataModel> =
+            Gson().fromJson(m3uData, itemType) //find all episodes and seasons
+      return items
     }
 
     private suspend fun getM3uUrl(document: Document): String {
-        val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
+        var sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
+
+        if (sourceUrl.contains("youtube")) {
+              sourceUrl = document.select("div.video-inside")
+                  .first{ !it.select("div[data-iframe]").isEmpty() }
+                  .select("div[data-iframe]").attr("data-iframe")
+        }
         val documentM3u = app.get(sourceUrl).document
         var m3uUrl = documentM3u.select("iframe").attr("src")
         if (m3uUrl.substringAfterLast('.') == "txt") {
@@ -239,17 +262,17 @@ class UATuTFunProvider : MainAPI() {
         return m3uUrl
     }
 
-    private fun getEpisodes(document: Document): List<Episode> {
+    private suspend fun getEpisodes(document: Document): List<Episode> {
         val url = document.select("link[rel=canonical]").attr("href")
         return document.select("div.b-post__schedule_block").map { season ->
 
             val seasonName = season.select("div.title").text()
             return season.select("tbody > tr.current-episode").map { episode ->
 
-                var episodeName = episode.select("td.td-1").text()
+                val episodeName = episode.select("td.td-1").text()
                 val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
-                var episodePosterUrl = "https://uk.uatut.fun/uploads/posts/2023-10/yelloustoun.webp"
-                var episodeDate: Long = getEpisodeDate(episode)
+                val episodePosterUrl = getEpisodePosterUrl(url, seasonName, episodeName)
+                val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
                 val episodeSeasonTag = "$episodeName/$seasonName/$url"
                 Episode(
@@ -262,6 +285,41 @@ class UATuTFunProvider : MainAPI() {
                 )
             }
         }
+    }
+
+    private suspend fun getEpisodePosterUrl(
+        seriesUrl: String,
+        seasonName: String,
+        episodeName: String
+    ): String {
+        val seriesJsonDataModel =
+            getSeriesJsonDataModelByEpisodeName(episodeName, seasonName, seriesUrl)
+        return seriesJsonDataModel.first().seasons.first().episodes.first().poster
+    }
+
+    private suspend fun getSeriesJsonDataModelByEpisodeName(
+        episodeName: String,
+        episodeSeasonName: String,
+        seriesUrl: String
+    ): List<SeriesJsonDataModel> {
+        val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
+
+        val season =
+            seriesJsonDataModel.firstNotNullOf {
+                it.seasons.firstOrNull { season ->
+                    season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName.filter { episodeSeasonName -> episodeSeasonName.isDigit() }
+                }
+            }
+
+        val foundEpisode =
+            season.episodes.firstOrNull { episode -> episode.name.filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
+                ?: throw ErrorLoadingException("Can't find episode")
+        return listOf(
+            SeriesJsonDataModel(
+                "",
+                listOf(Season("", listOf(foundEpisode)))
+            )
+        )
     }
 
     private fun getEpisodeDate(episode: Element): Long {
@@ -283,10 +341,8 @@ class UATuTFunProvider : MainAPI() {
         return 0
     }
 
-
     private fun getRating(document: Document) =
         document.select("div.pmovie__rating-content > a")[0].text().toRatingInt()
-
 
     private fun getDescription(document: Document) =
         document.select("div.page__text").text()
@@ -326,7 +382,6 @@ class UATuTFunProvider : MainAPI() {
             else -> TvType.Movie
         }
     }
-
 
     private fun getTrailerUrL(document: Document): String {
         val listOfPlayers = document.select("div.tabs-block__select span").map { it.text() }
