@@ -220,6 +220,7 @@ class UATuTFunProvider : MainAPI() {
     private suspend fun getSeriesJsonDataModel(
         seriesUrl: String,
     ): List<SeriesJsonDataModel> {
+        Log.d("UATuTFunProvider DEBUG", "seriesUrl: $seriesUrl")
         val document = app.get(seriesUrl).document
 
         val m3uUrl = getM3uUrl(document)
