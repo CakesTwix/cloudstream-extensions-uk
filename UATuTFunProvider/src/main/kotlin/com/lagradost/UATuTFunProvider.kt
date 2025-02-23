@@ -2,6 +2,8 @@
 
 import com.google.gson.Gson
 import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
@@ -29,6 +31,7 @@ import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLDecoder
+import java.text.SimpleDateFormat
 
 class UATuTFunProvider : MainAPI() {
 
@@ -56,11 +59,12 @@ class UATuTFunProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
+//        "$mainUrl/page/" to "Новинки",todo fix
+        "$mainUrl/film/page/" to "Фільми",
         "$mainUrl/serie/page/" to "Серіали",
-        "$mainUrl/cartoon/series/page/" to "Мультсеріали",
+//        "$mainUrl/cartoon/series/page/" to "Мультсеріали",todo fix
         "$mainUrl/cartoon/page/" to "Мультфільми",
-        "$mainUrl/anime/page/" to "Аніме",
-        "$mainUrl/film/page/" to "Фільми"
+//        "$mainUrl/anime/page/" to "Аніме" todo fix
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -112,7 +116,7 @@ class UATuTFunProvider : MainAPI() {
 
 //        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
         return when (val tvType = getTvType(url)) {
-            TvType.Movie, TvType.Cartoon, TvType.AnimeMovie -> {//videos with 1 episode
+            TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
                 newMovieLoadResponse(title, url, tvType, url) {
                     this.posterUrl = posterUrl
                     this.plot = description
@@ -151,46 +155,118 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
-
-        val tvType = getTvType(data)
+        val tvType = if (data.startsWith("http")) {
+            TvType.Movie
+        } else {
+            TvType.TvSeries
+        }
 
         return when (tvType) {
-            TvType.Movie, TvType.Cartoon -> {//movie
-                val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
-                val m3uUrl = app.get(sourceUrl).document.select("iframe").attr("src")
+            TvType.Movie -> {//movie cartoon anime
+                val document = app.get(data).document
+                val m3uUrl = getM3uUrl(document)
 
-                if (m3uUrl.substringAfterLast('.') == "txt") {
-                    val url = withContext(Dispatchers.IO) {
-                        val substringAfterLast = m3uUrl.substringAfterLast("file=")
-                        URLDecoder.decode(substringAfterLast, "UTF-8")
-                    }
 
-                    val m3u8 = app.get(url)
-                    val jsonArray = Gson().fromJson(m3u8.text, JsonArray::class.java)
+                if (m3uUrl.endsWith(".m3u8")) {
+                    //todo add quality
+                    M3u8Helper.generateM3u8(
+                        source = "uatut",
+                        streamUrl = m3uUrl,
+                        referer = "https://uk.uatut.fun/"
+                    ).last().let(callback)
+                } else {
+                    val m3u8 = app.get(m3uUrl)
+                    val jsonArray = Gson().fromJson(
+                        m3u8.text,
+                        JsonArray::class.java
+                    )
                     val m3uFileUrl = jsonArray.firstOrNull()?.asJsonObject?.get("file")
 
                     val m3u8DirectFileUrl = m3uFileUrl.toString().replace("\"", "")
+                    //todo add quality
                     M3u8Helper.generateM3u8(
                         source = "uatut",
                         streamUrl = m3u8DirectFileUrl,
                         referer = "https://uk.uatut.fun/"
-                    ).last().let(callback)
+                    ).forEach(callback)
                 }
 
                 true
             }
 
             else -> {//series
-
+                Log.d("UATuTFunProvider DEBUG", "data: $data")
+//                val episodeName = ""
+//                val episodeSeason = ""
+//                episodeGetM3uUrl(episodeName, episodeSeason)
+////parse data from json
+//                val itemType = object : TypeToken<Episode>() {}.type
+//                val episode: List<SeriesJsonDataModel> = Gson().fromJson(data, itemType)
+//                println(episode)
                 false
             }
         }
     }
 
-    private fun getEpisodes(document: Document): List<Episode> {
+    private fun episodeGetM3uUrl(episodeName: String, episodeSeason: String) {
+        /*
+         val m3uUrl = getM3uUrl(document)
+        val itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
+        val text = app.get(m3uUrl).text
+        val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
+        val items: List<SeriesJsonDataModel> = Gson().fromJson(m3uData, itemType)*/
         TODO("Not yet implemented")
-//        return listOf<Episode>()
+    }
+
+    private suspend fun getM3uUrl(document: Document): String {
+        val sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
+        val documentM3u = app.get(sourceUrl).document
+        var m3uUrl = documentM3u.select("iframe").attr("src")
+        if (m3uUrl.substringAfterLast('.') == "txt") {
+            val url = withContext(Dispatchers.IO) {
+                val substringAfterLast = m3uUrl.substringAfterLast("file=")
+                URLDecoder.decode(substringAfterLast, "UTF-8")
+            }
+            return url
+        }
+
+
+        val getJsonData =
+            "{" + documentM3u.toString().substringAfterLast("var player = new Playerjs({")
+                .substringBefore(");")
+        m3uUrl = Gson().fromJson(getJsonData, JsonObject::class.java).get("file").toString()
+            .replace("\"", "")
+        return m3uUrl
+    }
+
+    private fun getEpisodes(document: Document): List<Episode> {
+        val url = document.select("link[rel=canonical]").attr("href")
+        return document.select("div.b-post__schedule_block").map { season ->
+
+            val seasonName = season.select("div.title").text()
+            return season.select("tbody > tr.current-episode").map { episode ->
+
+                var episodeName = episode.select("td.td-1").text()
+                val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
+                var episodePosterUrl = "https://uk.uatut.fun/uploads/posts/2023-10/yelloustoun.webp"
+                var episodeDate: Long = getEpisodeDate(episode)
+                val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
+                val episodeSeasonTag = "$episodeName/$seasonName/$url"
+                Episode(
+                    data = episodeSeasonTag,
+                    name = episodeName,
+                    season = episodeSeason,
+                    episode = episodeNumber,
+                    posterUrl = episodePosterUrl,
+                    date = episodeDate
+                )
+            }
+        }
+    }
+
+    private fun getEpisodeDate(episode: Element): Long {
+        val episodeDateText = episode.select("td.td-4").text()
+        return SimpleDateFormat("yyyy-MM-dd").parse(episodeDateText)?.time ?: 0
     }
 
     private fun getDuration(document: Document): Int {
@@ -246,7 +322,7 @@ class UATuTFunProvider : MainAPI() {
             url.contains("serie") -> TvType.TvSeries
             url.contains("cartoon/series") -> TvType.TvSeries
             url.contains("cartoon") -> TvType.Cartoon
-            url.contains("anime") -> TvType.Anime
+            url.contains("anime") -> TvType.Movie//fix when animeseries
             else -> TvType.Movie
         }
     }
@@ -263,8 +339,6 @@ class UATuTFunProvider : MainAPI() {
         return if (trailerIndex != -1) {
             val rawUrl = playersUrl[trailerIndex]
             val delimiter = "https://www.youtube.com/"
-//            https://www.youtube.com/embed/Gj4cdX01Gb4
-//            https://www.youtube.com/watch?v=Gj4cdX01Gb4
             val substringAfter = delimiter + rawUrl.substringAfter(delimiter)
             if (substringAfter.contains("embed")) {
                 substringAfter.replace("embed/", "watch?v=")
