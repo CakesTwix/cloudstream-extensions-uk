@@ -203,6 +203,7 @@ class UATuTFunProvider : MainAPI() {
 //
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
+                Log.d("UATuTFunProvider DEBUG", "jsonDataModel: $data")
                 val sourceDubName = jsonDataModel.first().seriesDubName
                 val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
                 M3u8Helper.generateM3u8(
