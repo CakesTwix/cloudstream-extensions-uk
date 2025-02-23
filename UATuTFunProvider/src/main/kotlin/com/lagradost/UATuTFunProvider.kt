@@ -273,6 +273,7 @@ class UATuTFunProvider : MainAPI() {
 
                 val episodeName = episode.select("td.td-1").text()
                 val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
+                Log.d("UATuTFunProvider DEBUG |getEpisodes", "url: $url seasonName: $seasonName episodeName: $episodeName")
                 val episodePosterUrl = getEpisodePosterUrl(url, seasonName, episodeName)
                 val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
@@ -304,6 +305,7 @@ class UATuTFunProvider : MainAPI() {
         episodeSeasonName: String,
         seriesUrl: String
     ): List<SeriesJsonDataModel> {
+        Log.d("UATuTFunProvider DEBUG |getSeriesJsonDataModelByEpisodeName", "seriesUrl: $seriesUrl")
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
 
         val season =
