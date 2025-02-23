@@ -4,7 +4,6 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
-import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
@@ -198,9 +197,8 @@ class UATuTFunProvider : MainAPI() {
             }
 
             else -> {//series
-                Log.d("UATuTFunProvider DEBUG", "data: $data")
-                val (episodeName, episodeSeasonName, seriesUrl) = data.split("/")
-//
+                val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
+
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
                 val sourceDubName = jsonDataModel.first().seriesDubName
@@ -274,7 +272,7 @@ class UATuTFunProvider : MainAPI() {
                 val episodePosterUrl = getEpisodePosterUrl(url, seasonName, episodeName)
                 val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
-                val episodeSeasonTag = "$episodeName/$seasonName/$url"
+                val episodeSeasonTag = "$episodeName;$seasonName;$url"
                 Episode(
                     data = episodeSeasonTag,
                     name = episodeName,
