@@ -265,7 +265,7 @@ class UATuTFunProvider : MainAPI() {
 
     private suspend fun getEpisodes(document: Document): List<Episode> {
         val url = document.select("link[rel=canonical]").attr("href")
-        return document.select("div.b-post__schedule_block").map { season ->
+        val episodes = document.select("div.b-post__schedule_block").map { season ->
 
             val seasonName = season.select("div.title").text()
             return season.select("tbody > tr.current-episode").map { episode ->
@@ -284,6 +284,41 @@ class UATuTFunProvider : MainAPI() {
                     posterUrl = episodePosterUrl,
                     date = episodeDate
                 )
+            }
+        }
+
+
+        if (episodes.isEmpty()) {//fix series without episodes description
+            val seriesJsonDataModel = getSeriesJsonDataModel(url)
+            if (seriesJsonDataModel.isNotEmpty()) {
+                return seriesJsonDataModelToEpisodes(seriesJsonDataModel, url)
+            }
+        }
+
+        return episodes
+    }
+
+    private fun seriesJsonDataModelToEpisodes(
+        seriesJsonDataModel: List<SeriesJsonDataModel>,
+        url: String
+    ): List<Episode> {
+        return seriesJsonDataModel.flatMap { model ->
+            model.seasons.flatMap { season ->
+                val seasonName = season.name
+                val episodeSeasonNumber = seasonName.filter { it.isDigit() }.toInt()
+                season.episodes.map { episode ->
+                    val episodePosterUrl = episode.poster
+                    val episodeName = episode.name
+                    val episodeNumber = episode.name.filter { it.isDigit() }.toInt()
+                    val episodeSeasonTag = "$episodeName;$seasonName;$url"
+                    Episode(
+                        data = episodeSeasonTag,
+                        name = episodeName,
+                        season = episodeSeasonNumber,
+                        episode = episodeNumber,
+                        posterUrl = episodePosterUrl,
+                    )
+                }
             }
         }
     }
