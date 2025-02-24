@@ -257,7 +257,10 @@ class UATuTFunProvider : MainAPI() {
             "{" + documentM3u.toString().substringAfterLast("var player = new Playerjs({")
                 .substringBefore(");")
         m3uUrl = Gson().fromJson(getJsonData, JsonObject::class.java).get("file").toString()
-            .replace("\"", "")
+
+        if (m3uUrl.first() == '"') {
+            m3uUrl = m3uUrl.replace("\"", "")
+        }
         return m3uUrl
     }
 
