@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
@@ -102,6 +103,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
         val title = getPageTitle(document)
@@ -157,6 +159,7 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        Log.d("DEBUG loadLinks", "Data: $data")
         val tvType = if (data.startsWith("http")) {
             TvType.Movie
         } else {
@@ -198,6 +201,7 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
+                Log.d("DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl")
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -287,7 +291,7 @@ class UATuTFunProvider : MainAPI() {
             }
         }
 
-
+        Log.d("DEBUG getEpisodes", "Episodes: $episodes")
         if (episodes.isEmpty()) {//fix series without episodes description
             val seriesJsonDataModel = getSeriesJsonDataModel(url)
             if (seriesJsonDataModel.isNotEmpty()) {
