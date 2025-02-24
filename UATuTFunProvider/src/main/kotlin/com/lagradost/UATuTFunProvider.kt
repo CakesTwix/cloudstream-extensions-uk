@@ -1,5 +1,6 @@
 ﻿package com.lagradost
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -178,6 +179,7 @@ class UATuTFunProvider : MainAPI() {
                     ).last().let(callback)
                 } else {
                     val m3u8 = app.get(m3uUrl)
+                    Log.d("UATuTFunProvider DEBUG","m3u8: ${m3u8.text}")
                     val jsonArray = Gson().fromJson(
                         m3u8.text,
                         JsonArray::class.java
@@ -228,6 +230,7 @@ class UATuTFunProvider : MainAPI() {
             m3uUrl
         }
         val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
+        Log.d("UATuTFunProvider DEBUG","m3uData: $m3uData")
         val items: List<SeriesJsonDataModel> =
             Gson().fromJson(m3uData, itemType) //find all episodes and seasons
       return items
@@ -255,6 +258,7 @@ class UATuTFunProvider : MainAPI() {
         val getJsonData =
             "{" + documentM3u.toString().substringAfterLast("var player = new Playerjs({")
                 .substringBefore(");")
+        Log.d("UATuTFunProvider DEBUG","getJsonData: $getJsonData")
         m3uUrl = Gson().fromJson(getJsonData, JsonObject::class.java).get("file").toString()
             .replace("\"", "")
         return m3uUrl
