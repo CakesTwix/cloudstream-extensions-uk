@@ -230,16 +230,16 @@ class UATuTFunProvider : MainAPI() {
         val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
         val items: List<SeriesJsonDataModel> =
             Gson().fromJson(m3uData, itemType) //find all episodes and seasons
-      return items
+        return items
     }
 
     private suspend fun getM3uUrl(document: Document): String {
         var sourceUrl = fixUrl(document.select("iframe").attr("data-src"))
 
         if (sourceUrl.contains("youtube")) {
-              sourceUrl = document.select("div.video-inside")
-                  .first{ !it.select("div[data-iframe]").isEmpty() }
-                  .select("div[data-iframe]").attr("data-iframe")
+            sourceUrl = document.select("div.video-inside")
+                .first { !it.select("div[data-iframe]").isEmpty() }
+                .select("div[data-iframe]").attr("data-iframe")
         }
         val documentM3u = app.get(sourceUrl).document
         var m3uUrl = documentM3u.select("iframe").attr("src")
@@ -295,6 +295,9 @@ class UATuTFunProvider : MainAPI() {
     ): String {
         val seriesJsonDataModel =
             getSeriesJsonDataModelByEpisodeName(episodeName, seasonName, seriesUrl)
+        if (seriesJsonDataModel.isEmpty()) {
+            return ""
+        }
         return seriesJsonDataModel.first().seasons.first().episodes.first().poster
     }
 
@@ -314,7 +317,10 @@ class UATuTFunProvider : MainAPI() {
 
         val foundEpisode =
             season.episodes.firstOrNull { episode -> episode.name.filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
-                ?: throw ErrorLoadingException("Can't find episode")
+
+        if (foundEpisode == null) {
+            return emptyList()
+        }
         return listOf(
             SeriesJsonDataModel(
                 "",
