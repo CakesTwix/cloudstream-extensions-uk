@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 3
+version = 4
 
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
@@ -19,7 +19,7 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
      * */
-    status = 1 // will be 3 if unspecified
+    status = 3 // will be 3 if unspecified
 
     iconUrl = "https://www.google.com/s2/favicons?domain=uatut.fun&sz=%size%"
 }

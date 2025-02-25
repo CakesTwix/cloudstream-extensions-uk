@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
@@ -102,6 +103,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
+        Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
         val title = getPageTitle(document)
@@ -157,6 +159,7 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        Log.d("DEBUG loadLinks", "Data: $data")
         val tvType = if (data.startsWith("http")) {
             TvType.Movie
         } else {
@@ -198,6 +201,10 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
+                Log.d(
+                    "DEBUG loadLinks",
+                    "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl"
+                )
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -287,7 +294,7 @@ class UATuTFunProvider : MainAPI() {
             }
         }
 
-
+        Log.d("DEBUG getEpisodes", "Episodes: $episodes")
         if (episodes.isEmpty()) {//fix series without episodes description
             val seriesJsonDataModel = getSeriesJsonDataModel(url)
             if (seriesJsonDataModel.isNotEmpty()) {
@@ -366,13 +373,16 @@ class UATuTFunProvider : MainAPI() {
 
     private fun getEpisodeDate(episode: Element): Long {
         val episodeDateText = episode.select("td.td-4").text()
-        return SimpleDateFormat("yyyy-MM-dd").parse(episodeDateText)?.time ?: 0
+        return if (episodeDateText.isNotEmpty()) SimpleDateFormat("yyyy-MM-dd").parse(
+            episodeDateText
+        )?.time ?: 0 else 0
     }
 
     private fun getDuration(document: Document): Int {
-        val text = document.select(otherDataSelector).select("li").first {
+        val firstOrNull = document.select(otherDataSelector).select("li").firstOrNull {
             it.text().contains("Тривалість:")
-        }.text()
+        }
+        val text = firstOrNull?.text() ?: return 0
 
         val regex = Regex("""(\d+) год (\d+) хв""")
         val match = regex.find(text)
