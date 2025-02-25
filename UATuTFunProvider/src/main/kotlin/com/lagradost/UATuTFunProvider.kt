@@ -370,13 +370,16 @@ class UATuTFunProvider : MainAPI() {
 
     private fun getEpisodeDate(episode: Element): Long {
         val episodeDateText = episode.select("td.td-4").text()
-        return SimpleDateFormat("yyyy-MM-dd").parse(episodeDateText)?.time ?: 0
+        return if (episodeDateText.isNotEmpty()) SimpleDateFormat("yyyy-MM-dd").parse(
+            episodeDateText
+        )?.time ?: 0 else 0
     }
 
     private fun getDuration(document: Document): Int {
-        val text = document.select(otherDataSelector).select("li").first {
+        val firstOrNull = document.select(otherDataSelector).select("li").firstOrNull {
             it.text().contains("Тривалість:")
-        }.text()
+        }
+        val text = firstOrNull?.text() ?: return 0
 
         val regex = Regex("""(\d+) год (\d+) хв""")
         val match = regex.find(text)
