@@ -369,7 +369,9 @@ class UATuTFunProvider : MainAPI() {
     }
 
     private fun getEpisodeDate(episode: Element): Long {
+        Log.d("DEBUG getEpisodeDate", "Episode: $episode")
         val episodeDateText = episode.select("td.td-4").text()
+        Log.d("DEBUG getEpisodeDate", "EpisodeDateText: $episodeDateText")
         return if (episodeDateText.isNotEmpty()) SimpleDateFormat("yyyy-MM-dd").parse(
             episodeDateText
         )?.time ?: 0 else 0
