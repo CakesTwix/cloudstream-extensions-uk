@@ -45,6 +45,7 @@ class UATuTFunProvider : MainAPI() {
         "div.poster__img.img-responsive.img-responsive--portrait.img-fit-cover.anim > img"
     private val searchMovieSelector = "div.poster.grid-item"
     private val otherDataSelector = "div.bslide__desc > ul.bslide__text"
+    private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
 
     // Basic Info
     override var mainUrl = "https://uk.uatut.fun"
@@ -170,8 +171,10 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
-                Log.d("DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
-                        " $episodeSeasonName, SeriesUrl: $seriesUrl")
+                Log.d(
+                    "DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
+                            " $episodeSeasonName, SeriesUrl: $seriesUrl"
+                )
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -405,8 +408,10 @@ class UATuTFunProvider : MainAPI() {
 
 
         val foundEpisode =
-            season?.episodes?.firstOrNull { episode -> episode.name
-                .filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
+            season?.episodes?.firstOrNull { episode ->
+                episode.name
+                    .filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() }
+            }
 
         if (foundEpisode == null) {
             return emptyList()
@@ -423,9 +428,11 @@ class UATuTFunProvider : MainAPI() {
         Log.d("DEBUG getEpisodeDate", "Episode: $episode")
         val episodeDateText = episode.select("td.td-4").text()
         Log.d("DEBUG getEpisodeDate", "EpisodeDateText: $episodeDateText")
-        return if (episodeDateText.isNotEmpty()) SimpleDateFormat("yyyy-MM-dd").parse(
-            episodeDateText
-        )?.time ?: 0 else 0
+        return if (episodeDateText.isNotEmpty()) {
+            simpleDateFormat.parse(
+                episodeDateText
+            )?.time ?: 0
+        } else 0
     }
 
     private fun getDuration(document: Document): Int {
