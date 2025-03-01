@@ -269,7 +269,7 @@ class UATuTFunProvider : MainAPI() {
         seriesUrl: String,
     ): List<SeriesJsonDataModel> {
         val document = app.get(seriesUrl).document
-
+        Log.d("DEBUG getSeriesJsonDataModel", "Document: $document")
         val m3uUrl = getM3uUrl(document)
         val itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
 
@@ -278,6 +278,7 @@ class UATuTFunProvider : MainAPI() {
         } else {
             m3uUrl
         }
+        Log.d("DEBUG getSeriesJsonDataModel", "Text: $text")
         val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
         val items: List<SeriesJsonDataModel> =
             Gson().fromJson(m3uData, itemType) //find all episodes and seasons
@@ -396,16 +397,24 @@ class UATuTFunProvider : MainAPI() {
         episodeSeasonName: String,
         seriesUrl: String
     ): List<SeriesJsonDataModel> {
+        Log.d(
+            "DEBUG getSeriesJsonDataModelByEpisodeName",
+            "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl"
+        )
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
-
+        Log.d(
+            "DEBUG getSeriesJsonDataModelByEpisodeName",
+            "SeriesJsonDataModel: $seriesJsonDataModel"
+        )
         val seasonsList = seriesJsonDataModel.firstOrNull()?.seasons ?: return emptyList()
 
+        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "SeasonsList: $seasonsList")
 
         val season = seasonsList.firstOrNull { season ->
             season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName
                 .filter { episodeSeasonName -> episodeSeasonName.isDigit() }
         }
-
+        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "Season: $season")
 
         val foundEpisode =
             season?.episodes?.firstOrNull { episode ->
