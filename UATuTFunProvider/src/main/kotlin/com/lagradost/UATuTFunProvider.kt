@@ -170,7 +170,8 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
-                Log.d("DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl")
+                Log.d("DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
+                        " $episodeSeasonName, SeriesUrl: $seriesUrl")
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -394,15 +395,18 @@ class UATuTFunProvider : MainAPI() {
     ): List<SeriesJsonDataModel> {
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
 
-        val season =
-            seriesJsonDataModel.firstNotNullOf {
-                it.seasons.firstOrNull { season ->
-                    season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName.filter { episodeSeasonName -> episodeSeasonName.isDigit() }
-                }
-            }
+        val seasonsList = seriesJsonDataModel.firstOrNull()?.seasons ?: return emptyList()
+
+
+        val season = seasonsList.firstOrNull { season ->
+            season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName
+                .filter { episodeSeasonName -> episodeSeasonName.isDigit() }
+        }
+
 
         val foundEpisode =
-            season.episodes.firstOrNull { episode -> episode.name.filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
+            season?.episodes?.firstOrNull { episode -> episode.name
+                .filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
 
         if (foundEpisode == null) {
             return emptyList()
