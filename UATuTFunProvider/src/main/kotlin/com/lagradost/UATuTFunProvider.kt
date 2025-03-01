@@ -6,7 +6,6 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
-import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -16,6 +15,7 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TvSeriesLoadResponse
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrl
@@ -73,24 +73,16 @@ class UATuTFunProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
         val first = document.select(movieSelector)
-            .first() ?: throw ErrorLoadingException("Can't find main page")
+            .firstOrNull()
 
-        val mainPage = first.children().map {
-            it.toSearchResponse()
-        }
-        return newHomePageResponse(request.name, mainPage)
-    }
 
-    private fun Element.toSearchResponse(): MovieSearchResponse {
-        val title = this.select(titleSelector).text()
-        val url = this.attr(videoUrlSelector)
-        val posterUrl = fixUrl(
-            this.select(posterUrlSelector)
-                .attr("data-src")
-        )
-
-        return newMovieSearchResponse(title, url, TvType.Movie) {
-            this.posterUrl = posterUrl
+        return if (first == null) {
+            newHomePageResponse(request.name, emptyList())
+        } else {
+            val mainPage = first.children().map {
+                it.toSearchResponse()
+            }
+            newHomePageResponse(request.name, mainPage)
         }
     }
 
@@ -106,48 +98,25 @@ class UATuTFunProvider : MainAPI() {
         Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
-        val title = getPageTitle(document)
-        val engTitle = getPageEngTitle(document)
-        val posterUrl = getPagePosterUrl(document)
-        val year = getYear(document)
-        val description = getDescription(document)
-        val rating = getRating(document)
-        val duration = getDuration(document)
-        val trailerUrl = getTrailerUrL(document)
-        val tags = getTags(document)
-        val actors = getActors(document)
-
-
-//        val playerRawJson = app.get(playerUrl, referer = mainUrl).document
         return when (val tvType = getTvType(url)) {
             TvType.Movie, TvType.Cartoon -> {//videos with 1 episode
-                newMovieLoadResponse(title, url, tvType, url) {
-                    this.posterUrl = posterUrl
-                    this.plot = description
-                    this.tags = tags
-                    this.year = year
-                    this.rating = rating
-                    this.name = engTitle
-                    addActors(actors)
-                    addTrailer(trailerUrl)
-                    this.duration = duration
+                getNewMovieLoadResponse(document, tvType, url)
+            }
+
+            TvType.Anime -> {
+                val episodes = getEpisodes(document)
+
+                if (episodes.isNotEmpty()) {
+                    getNewTvSeriesLoadResponse(document, tvType, url, episodes)
+                } else {
+                    getNewMovieLoadResponse(document, tvType, url)
                 }
             }
 
-            else -> { //videos with multiple episodes
+            else -> { //TvSeries
                 val episodes = getEpisodes(document)
 
-                newTvSeriesLoadResponse(title, url, tvType, episodes) {
-                    this.posterUrl = posterUrl
-                    this.plot = description
-                    this.tags = tags
-                    this.year = year
-                    this.rating = rating
-                    this.name = engTitle
-                    addActors(actors)
-                    addTrailer(trailerUrl)
-                    this.duration = duration
-                }
+                getNewTvSeriesLoadResponse(document, tvType, url, episodes)
             }
         }
 
@@ -167,7 +136,7 @@ class UATuTFunProvider : MainAPI() {
         }
 
         return when (tvType) {
-            TvType.Movie -> {//movie cartoon anime
+            TvType.Movie -> {//movie cartoon
                 val document = app.get(data).document
                 val m3uUrl = getM3uUrl(document)
 
@@ -217,6 +186,80 @@ class UATuTFunProvider : MainAPI() {
                 ).forEach(callback)
                 true
             }
+        }
+    }
+
+    private fun Element.toSearchResponse(): MovieSearchResponse {
+        val title = this.select(titleSelector).text()
+        val url = this.attr(videoUrlSelector)
+        val posterUrl = fixUrl(
+            this.select(posterUrlSelector)
+                .attr("data-src")
+        )
+
+        return newMovieSearchResponse(title, url, TvType.Movie) {
+            this.posterUrl = posterUrl
+        }
+    }
+
+    private suspend fun getNewTvSeriesLoadResponse(
+        document: Document,
+        tvType: TvType,
+        url: String,
+        episodes: List<Episode>
+    ): TvSeriesLoadResponse {
+        val title = getPageTitle(document)
+        val engTitle = getPageEngTitle(document)
+        val posterUrl = getPagePosterUrl(document)
+        val year = getYear(document)
+        val description = getDescription(document)
+        val rating = getRating(document)
+        val duration = getDuration(document)
+        val trailerUrl = getTrailerUrL(document)
+        val tags = getTags(document)
+        val actors = getActors(document)
+
+        return newTvSeriesLoadResponse(title, url, tvType, episodes) {
+            this.posterUrl = posterUrl
+            this.plot = description
+            this.tags = tags
+            this.year = year
+            this.rating = rating
+            this.name = engTitle
+            addActors(actors)
+            addTrailer(trailerUrl)
+            this.duration = duration
+        }
+
+    }
+
+    private suspend fun getNewMovieLoadResponse(
+        document: Document,
+        tvType: TvType,
+        url: String
+    ): LoadResponse {
+
+        val title = getPageTitle(document)
+        val engTitle = getPageEngTitle(document)
+        val posterUrl = getPagePosterUrl(document)
+        val year = getYear(document)
+        val description = getDescription(document)
+        val rating = getRating(document)
+        val duration = getDuration(document)
+        val trailerUrl = getTrailerUrL(document)
+        val tags = getTags(document)
+        val actors = getActors(document)
+
+        return newMovieLoadResponse(title, url, tvType, url) {
+            this.posterUrl = posterUrl
+            this.plot = description
+            this.tags = tags
+            this.year = year
+            this.rating = rating
+            this.name = engTitle
+            addActors(actors)
+            addTrailer(trailerUrl)
+            this.duration = duration
         }
     }
 
@@ -297,7 +340,11 @@ class UATuTFunProvider : MainAPI() {
         Log.d("DEBUG getEpisodes", "Episodes: $episodes")
         if (episodes.isEmpty()) {//fix series without episodes description
             val seriesJsonDataModel = getSeriesJsonDataModel(url)
-            if (seriesJsonDataModel.isNotEmpty()) {
+            val collectionOrObjectNotNull =
+                seriesJsonDataModel.isNotEmpty() && seriesJsonDataModel.firstOrNull() != null
+
+            val objectFieldsNotNull = seriesJsonDataModel.first()?.seasons
+            if (collectionOrObjectNotNull && objectFieldsNotNull != null) {
                 return seriesJsonDataModelToEpisodes(seriesJsonDataModel, url)
             }
         }
@@ -430,7 +477,7 @@ class UATuTFunProvider : MainAPI() {
             url.contains("serie") -> TvType.TvSeries
             url.contains("cartoon/series") -> TvType.TvSeries
             url.contains("cartoon") -> TvType.Cartoon
-            url.contains("anime") -> TvType.Movie//fix when animeseries
+            url.contains("anime") -> TvType.Anime
             else -> TvType.Movie
         }
     }
