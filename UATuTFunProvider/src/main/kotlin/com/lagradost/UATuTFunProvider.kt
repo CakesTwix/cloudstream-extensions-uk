@@ -170,10 +170,8 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
-                Log.d(
-                    "DEBUG loadLinks",
-                    "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl"
-                )
+                Log.d("DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
+                        " $episodeSeasonName, SeriesUrl: $seriesUrl")
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -397,15 +395,18 @@ class UATuTFunProvider : MainAPI() {
     ): List<SeriesJsonDataModel> {
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
 
-        val season =
-            seriesJsonDataModel.firstNotNullOf {
-                it.seasons.firstOrNull { season ->
-                    season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName.filter { episodeSeasonName -> episodeSeasonName.isDigit() }
-                }
-            }
+        val seasonsList = seriesJsonDataModel.firstOrNull()?.seasons ?: return emptyList()
+
+
+        val season = seasonsList.firstOrNull { season ->
+            season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName
+                .filter { episodeSeasonName -> episodeSeasonName.isDigit() }
+        }
+
 
         val foundEpisode =
-            season.episodes.firstOrNull { episode -> episode.name.filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
+            season?.episodes?.firstOrNull { episode -> episode.name
+                .filter { c -> c.isDigit() } == episodeName.filter { c -> c.isDigit() } }
 
         if (foundEpisode == null) {
             return emptyList()
@@ -419,7 +420,9 @@ class UATuTFunProvider : MainAPI() {
     }
 
     private fun getEpisodeDate(episode: Element): Long {
+        Log.d("DEBUG getEpisodeDate", "Episode: $episode")
         val episodeDateText = episode.select("td.td-4").text()
+        Log.d("DEBUG getEpisodeDate", "EpisodeDateText: $episodeDateText")
         return if (episodeDateText.isNotEmpty()) SimpleDateFormat("yyyy-MM-dd").parse(
             episodeDateText
         )?.time ?: 0 else 0
