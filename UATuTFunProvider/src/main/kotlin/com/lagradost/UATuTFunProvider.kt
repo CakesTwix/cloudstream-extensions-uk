@@ -176,14 +176,18 @@ class UATuTFunProvider : MainAPI() {
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
-                val sourceDubName = jsonDataModel.first().seriesDubName
-                val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
-                M3u8Helper.generateM3u8(
-                    source = sourceDubName,
-                    streamUrl = m3u8DirectFileUrl,
-                    referer = "https://uk.uatut.fun/"
-                ).forEach(callback)
-                true
+                if (jsonDataModel.isEmpty()) {
+                    false
+                } else {
+                    val sourceDubName = jsonDataModel.first().seriesDubName
+                    val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
+                    M3u8Helper.generateM3u8(
+                        source = sourceDubName,
+                        streamUrl = m3u8DirectFileUrl,
+                        referer = "https://uk.uatut.fun/"
+                    ).forEach(callback)
+                    true
+                }
             }
         }
     }
