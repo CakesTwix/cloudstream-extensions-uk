@@ -275,9 +275,9 @@ class UATuTFunProvider : MainAPI() {
         } else {
             m3uUrl
         }
-        val removeSuffix = if (text.startsWith("\"")){
+        val removeSuffix = if (text.startsWith("\"")) {
             text.replaceFirst("\"", "").removeSuffix("\"")
-        }else{
+        } else {
             text
         }
         val m3uData = removeSuffix.replace("\\", "")
@@ -295,13 +295,15 @@ class UATuTFunProvider : MainAPI() {
         if (seriesDubCheck.isEmpty()) {
             itemType = object : TypeToken<List<com.lagradost.model.Episode>>() {}.type
             val episodesList: List<com.lagradost.model.Episode> = Gson().fromJson(m3uData, itemType)
-            episodesList.forEach {episode ->
+            episodesList.forEach { episode ->
                 val episodeName = episode?.name ?: ""
                 if (episodeName.isEmpty()) {
                     episode.name = "1"
                 }
             }
             result.add(SeriesJsonDataModel("1", listOf(Season("1", episodesList))))
+        } else {
+            result.addAll(items)
         }
 
         return result
