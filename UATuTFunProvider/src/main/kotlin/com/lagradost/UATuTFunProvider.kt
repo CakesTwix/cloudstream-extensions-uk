@@ -29,8 +29,6 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.model.Season
 import com.lagradost.model.SeriesJsonDataModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLDecoder
@@ -271,17 +269,42 @@ class UATuTFunProvider : MainAPI() {
         val document = app.get(seriesUrl).document
 
         val m3uUrl = getM3uUrl(document)
-        val itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
 
         val text = if (m3uUrl.startsWith("http")) {
             app.get(m3uUrl).text
         } else {
             m3uUrl
         }
-        val m3uData = text.replaceFirst("\"", "").removeSuffix("\"").replace("\\", "")
+        val removeSuffix = if (text.startsWith("\"")){
+            text.replaceFirst("\"", "").removeSuffix("\"")
+        }else{
+            text
+        }
+        val m3uData = removeSuffix.replace("\\", "")
+        //find all episodes and seasons
+        return getObjectFromJson(m3uData)
+    }
+
+    private fun getObjectFromJson(m3uData: String): List<SeriesJsonDataModel> {
+        val result = mutableListOf<SeriesJsonDataModel>()
+        var itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
         val items: List<SeriesJsonDataModel> =
-            Gson().fromJson(m3uData, itemType) //find all episodes and seasons
-        return items
+            Gson().fromJson(m3uData, itemType)
+
+        val seriesDubCheck = items.first()?.seriesDubName ?: ""
+        if (seriesDubCheck.isEmpty()) {
+            itemType = object : TypeToken<List<com.lagradost.model.Episode>>() {}.type
+            val episodesList: List<com.lagradost.model.Episode> = Gson().fromJson(m3uData, itemType)
+            episodesList.forEach {episode ->
+                val episodeName = episode?.name ?: ""
+                if (episodeName.isEmpty()) {
+                    episode.name = "1"
+                }
+            }
+            result.add(SeriesJsonDataModel("1", listOf(Season("1", episodesList))))
+        }
+
+        return result
     }
 
     private suspend fun getM3uUrl(document: Document): String {
@@ -294,8 +317,8 @@ class UATuTFunProvider : MainAPI() {
         }
         val documentM3u = app.get(sourceUrl).document
         var m3uUrl = documentM3u.select("iframe").attr("src")
-        if (m3uUrl.substringAfterLast('.') == "txt") {
-            val url = withContext(Dispatchers.IO) {
+        if (m3uUrl.endsWith(".txt")) {
+            val url = with(m3uUrl) {
                 val substringAfterLast = m3uUrl.substringAfterLast("file=")
                 URLDecoder.decode(substringAfterLast, "UTF-8")
             }
@@ -402,7 +425,7 @@ class UATuTFunProvider : MainAPI() {
 
 
         val season = seasonsList.firstOrNull { season ->
-            season.name.filter { seasonNameChat -> seasonNameChat.isDigit() } == episodeSeasonName
+            season.name.filter { seasonName -> seasonName.isDigit() } == episodeSeasonName
                 .filter { episodeSeasonName -> episodeSeasonName.isDigit() }
         }
 
