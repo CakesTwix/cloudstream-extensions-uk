@@ -267,7 +267,7 @@ class UATuTFunProvider : MainAPI() {
         seriesUrl: String,
     ): List<SeriesJsonDataModel> {
         val document = app.get(seriesUrl).document
-        Log.d("DEBUG getSeriesJsonDataModel", "Document: $document")
+        Log.d("DEBUG getSeriesJsonDataModel", "seriesUrl: $seriesUrl document: ${document.childrenSize()}")
         val m3uUrl = getM3uUrl(document)
 
         val text = if (m3uUrl.startsWith("http")) {
