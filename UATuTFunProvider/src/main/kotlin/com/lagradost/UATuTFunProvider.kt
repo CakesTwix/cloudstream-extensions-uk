@@ -44,12 +44,14 @@ class UATuTFunProvider : MainAPI() {
     private val searchMovieSelector = "div.poster.grid-item"
     private val otherDataSelector = "div.bslide__desc > ul.bslide__text"
     private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+    private val gson = Gson()
 
     // Basic Info
     override var mainUrl = "https://uk.uatut.fun"
     override var name = "UATuT"
     override val hasMainPage = true
     override var lang = "uk"
+
     override val hasDownloadSupport = false
 
     override val supportedTypes = setOf(
@@ -149,7 +151,7 @@ class UATuTFunProvider : MainAPI() {
                     ).last().let(callback)
                 } else {
                     val m3u8 = app.get(m3uUrl)
-                    val jsonArray = Gson().fromJson(
+                    val jsonArray = gson.fromJson(
                         m3u8.text,
                         JsonArray::class.java
                     )
@@ -274,10 +276,10 @@ class UATuTFunProvider : MainAPI() {
 
         val m3uUrl = getM3uUrl(document)
 
-        val text = if (m3uUrl.startsWith("http")) {
+        val text = if (m3uUrl.startsWith("http") && m3uUrl.endsWith(".txt")) {
             app.get(m3uUrl).text
         } else {
-            m3uUrl
+            return emptyList()
         }
         val removeSuffix = if (text.startsWith("\"")) {
             text.replaceFirst("\"", "").removeSuffix("\"")
@@ -293,12 +295,12 @@ class UATuTFunProvider : MainAPI() {
         val result = mutableListOf<SeriesJsonDataModel>()
         var itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
         val items: List<SeriesJsonDataModel> =
-            Gson().fromJson(m3uData, itemType)
+            gson.fromJson(m3uData, itemType)
 
         val seriesDubCheck = items.first()?.seriesDubName ?: ""
         if (seriesDubCheck.isEmpty()) {
             itemType = object : TypeToken<List<com.lagradost.model.Episode>>() {}.type
-            val episodesList: List<com.lagradost.model.Episode> = Gson().fromJson(m3uData, itemType)
+            val episodesList: List<com.lagradost.model.Episode> = gson.fromJson(m3uData, itemType)
             episodesList.forEach { episode ->
                 val episodeName = episode?.name ?: ""
                 if (episodeName.isEmpty()) {
@@ -335,7 +337,7 @@ class UATuTFunProvider : MainAPI() {
         val getJsonData =
             "{" + documentM3u.toString().substringAfterLast("var player = new Playerjs({")
                 .substringBefore(");")
-        m3uUrl = Gson().fromJson(getJsonData, JsonObject::class.java).get("file").toString()
+        m3uUrl = gson.fromJson(getJsonData, JsonObject::class.java).get("file").toString()
 
         if (m3uUrl.first() == '"') {
             m3uUrl = m3uUrl.replace("\"", "")
@@ -373,7 +375,13 @@ class UATuTFunProvider : MainAPI() {
             val collectionOrObjectNotNull =
                 seriesJsonDataModel.isNotEmpty() && seriesJsonDataModel.firstOrNull() != null
 
-            val objectFieldsNotNull = seriesJsonDataModel.first()?.seasons
+            val objectFieldsNotNull = if (collectionOrObjectNotNull) {
+                seriesJsonDataModel.first()?.seasons
+            } else {
+                null
+            }
+
+
             if (collectionOrObjectNotNull && objectFieldsNotNull != null) {
                 return seriesJsonDataModelToEpisodes(seriesJsonDataModel, url)
             }
@@ -454,9 +462,9 @@ class UATuTFunProvider : MainAPI() {
     }
 
     private fun getEpisodeDate(episode: Element): Long {
-        Log.d("DEBUG getEpisodeDate", "Episode: $episode")
+//        Log.d("DEBUG getEpisodeDate", "Episode: $episode")
         val episodeDateText = episode.select("td.td-4").text()
-        Log.d("DEBUG getEpisodeDate", "EpisodeDateText: $episodeDateText")
+//        Log.d("DEBUG getEpisodeDate", "EpisodeDateText: $episodeDateText")
         return if (episodeDateText.isNotEmpty()) {
             simpleDateFormat.parse(
                 episodeDateText
@@ -487,21 +495,21 @@ class UATuTFunProvider : MainAPI() {
 
     private fun getActors(document: Document): List<String> {
         return document.select("ul.pmovie__list").select("li")
-            .first { it.text().contains("Актори:") }.select("a")
-            .map { it.text() }.toList()
+            .firstOrNull { it.text().contains("Актори:") }?.select("a")
+            ?.map { it.text() }?.toList() ?: emptyList()
     }
 
     private fun getTags(document: Document): List<String> {
         return document.select(otherDataSelector).select("li")
-            .first { element -> element.text().contains("Жанр:") }.select("a")
-            .map { it.text() }.toList()
+            .firstOrNull { element -> element.text().contains("Жанр:") }?.select("a")
+            ?.map { it.text() }?.toList() ?: emptyList()
     }
 
     private fun getYear(document: Document): Int {
         val yearIndexTag = "Рік виходу:"
         return document.select(otherDataSelector).select("li")
-            .first { it.select("span").text() == yearIndexTag }.text()
-            .replace(yearIndexTag, "").trim().toInt()
+            .firstOrNull { it.select("span").text() == yearIndexTag }?.text()
+            ?.replace(yearIndexTag, "")?.trim()?.toInt() ?: 0
     }
 
     private fun getPagePosterUrl(document: Document) =

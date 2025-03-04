@@ -19,7 +19,7 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
      * */
-    status = 3 // will be 3 if unspecified
+    status = 2 // will be 3 if unspecified
 
     iconUrl = "https://www.google.com/s2/favicons?domain=uatut.fun&sz=%size%"
 }
