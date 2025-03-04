@@ -346,10 +346,10 @@ class UATuTFunProvider : MainAPI() {
 
     private suspend fun getEpisodes(document: Document): List<Episode> {
         val url = document.select("link[rel=canonical]").attr("href")
-        val episodes = document.select("div.b-post__schedule_block").map { season ->
+        val episodes = document.select("div.b-post__schedule_block").flatMap { season ->
 
             val seasonName = season.select("div.title").text()
-            return season.select("tbody > tr.current-episode").map { episode ->
+             season.select("tbody > tr.current-episode").map { episode ->
 
                 val episodeName = episode.select("td.td-1").text()
                 val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
