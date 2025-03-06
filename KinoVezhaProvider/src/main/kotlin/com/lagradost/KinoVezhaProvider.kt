@@ -14,6 +14,7 @@ class KinoVezhaProvider : MainAPI() {
     override var name = "KinoVezha"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.Movie,
@@ -52,6 +53,8 @@ class KinoVezhaProvider : MainAPI() {
         }
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
@@ -95,16 +98,16 @@ class KinoVezhaProvider : MainAPI() {
                 .substringAfterLast("file: \'")
                 .substringBefore("\',")
 
-            AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
-                for(season in dubs.folder){                              // Seasons
-                    for(episode in season.folder){                       // Episodes
+            AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season -> // Dubs
+                for (episode in season.folder) {                                     // Seasons
+                    for (dubs in episode.folder) {                              // Episodes
                         episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,
-                                season.title.replace(" Сезон ","").toIntOrNull(),
-                                episode.title.replace("Серія ","").toIntOrNull(),
-                                episode.poster
+                                season.season,
+                                episode.number,
+                                dubs.poster
                             )
                         )
                     }
@@ -156,18 +159,26 @@ class KinoVezhaProvider : MainAPI() {
             .substringAfterLast("file: \'")
             .substringBefore("\',")
 
-        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = dubs.title,
-                                streamUrl = episode.file,
-                                referer = "https://tortuga.wtf/"
-                            ).last().let(callback)
-                        }
+        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season ->
+            if(season.title != dataList[0]) return@map
+
+            for (episode in season.folder) {
+                if(episode.title != dataList[1]) return@map
+
+                for (dubs in episode.folder) {
+                    M3u8Helper.generateM3u8(
+                        source = dubs.title,
+                        streamUrl = dubs.file,
+                        referer = "https://tortuga.wtf/"
+                    ).last().let(callback)
+
+                    if(dubs.subtitle.isNullOrBlank()) {
+                        subtitleCallback.invoke(
+                            SubtitleFile(
+                                dubs.subtitle.substringAfterLast("[").substringBefore("]"),
+                                dubs.subtitle.substringAfter("]")
+                            )
+                        )
                     }
                 }
             }
