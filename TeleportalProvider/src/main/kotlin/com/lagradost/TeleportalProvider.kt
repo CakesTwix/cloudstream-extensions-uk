@@ -34,6 +34,7 @@ class TeleportalProvider : MainAPI() {
     override var name = "Teleportal"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.TvSeries,
@@ -78,6 +79,8 @@ class TeleportalProvider : MainAPI() {
 
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         return Gson().fromJson<List<Search>>(app.get("$findUrl$query").text, listSearch).map{

@@ -42,6 +42,7 @@ class AnimeONProvider : MainAPI() {
     override var name = "AnimeON"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes =
         setOf(
@@ -97,6 +98,8 @@ class AnimeONProvider : MainAPI() {
             return newHomePageResponse(request.name, homeList)
         }
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val animeJSON =

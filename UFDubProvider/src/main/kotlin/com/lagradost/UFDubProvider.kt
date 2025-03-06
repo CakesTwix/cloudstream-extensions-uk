@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.net.Uri
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
@@ -14,6 +13,7 @@ class UFDubProvider : MainAPI() {
     override var name = "UFDub"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.AnimeMovie,
@@ -58,6 +58,8 @@ class UFDubProvider : MainAPI() {
         }
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(

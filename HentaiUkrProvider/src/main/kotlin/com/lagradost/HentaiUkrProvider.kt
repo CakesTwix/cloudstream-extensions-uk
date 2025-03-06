@@ -27,6 +27,7 @@ class HentaiUkrProvider : MainAPI() {
     override var name = "HentaiUkr 18+"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.NSFW,
@@ -59,6 +60,8 @@ class HentaiUkrProvider : MainAPI() {
         // Log.d("CakesTwix-Debug", "$cdnUrl${parsedJSON.data[1].posterId}")
         return newHomePageResponse(request.name, homeList)
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get(objectsUrl).text
