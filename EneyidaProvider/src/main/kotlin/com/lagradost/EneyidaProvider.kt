@@ -4,6 +4,7 @@ import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -182,30 +183,27 @@ class EneyidaProvider : MainAPI() {
             .substringAfterLast("file: \'")
             .substringBefore("\',")
 
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season ->
-            if(season.title != dataList[0]) return@map
+        tryParseJson<List<PlayerJson>>(playerRawJson)
+            ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
+            ?.flatMap { it.folder }              // Беремо список епізодів
+            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний епізод
+            ?.flatMap { it.folder }              // Беремо список дубляжів
+            ?.forEach { dubs ->                  // Обробляємо кожен дубляж
+                M3u8Helper.generateM3u8(
+                    source = dubs.title,
+                    streamUrl = dubs.file,
+                    referer = "https://tortuga.wtf/"
+                ).last().let(callback)
 
-            for (episode in season.folder) {
-                if(episode.title != dataList[1]) return@map
-
-                for (dubs in episode.folder) {
-                    M3u8Helper.generateM3u8(
-                        source = dubs.title,
-                        streamUrl = dubs.file,
-                        referer = "https://tortuga.wtf/"
-                    ).last().let(callback)
-
-                    if(dubs.subtitle.isNullOrBlank()) {
-                        subtitleCallback.invoke(
-                            SubtitleFile(
-                                dubs.subtitle.substringAfterLast("[").substringBefore("]"),
-                                dubs.subtitle.substringAfter("]")
-                            )
+                if (!dubs.subtitle.isNullOrBlank()) {
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            dubs.subtitle.substringAfterLast("[").substringBefore("]"),
+                            dubs.subtitle.substringAfter("]")
                         )
-                    }
+                    )
                 }
             }
-        }
         return true
     }
 

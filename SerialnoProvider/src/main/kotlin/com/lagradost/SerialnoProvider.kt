@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -151,35 +152,32 @@ class SerialnoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-
+        Log.d("CakesTwix-Debug", data)
         val playerRawJson = app.get(dataList[2]).document.select("script").html()
             .substringAfterLast("file: \'")
             .substringBefore("\',")
 
-        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season ->
-            if(season.title != dataList[0]) return@map
+        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)
+            ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
+            ?.flatMap { it.folder }              // Беремо список епізодів
+            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний епізод
+            ?.flatMap { it.folder }              // Беремо список дубляжів
+            ?.forEach { dubs ->                  // Обробляємо кожен дубляж
+                M3u8Helper.generateM3u8(
+                    source = dubs.title,
+                    streamUrl = dubs.file,
+                    referer = "https://tortuga.wtf/"
+                ).last().let(callback)
 
-            for (episode in season.folder) {
-                if(episode.title != dataList[1]) return@map
-
-                for (dubs in episode.folder) {
-                    M3u8Helper.generateM3u8(
-                        source = dubs.title,
-                        streamUrl = dubs.file,
-                        referer = "https://tortuga.wtf/"
-                    ).last().let(callback)
-
-                    if(dubs.subtitle.isNullOrBlank()) {
-                        subtitleCallback.invoke(
-                            SubtitleFile(
-                                dubs.subtitle.substringAfterLast("[").substringBefore("]"),
-                                dubs.subtitle.substringAfter("]")
-                            )
+                if (!dubs.subtitle.isNullOrBlank()) {
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            dubs.subtitle.substringAfterLast("[").substringBefore("]"),
+                            dubs.subtitle.substringAfter("]")
                         )
-                    }
+                    )
                 }
             }
-        }
         return true
     }
 }
