@@ -16,7 +16,9 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.models.CfgModel
 import com.lagradost.models.ObjectsModel
 
@@ -127,9 +129,7 @@ class HentaiUkrProvider : MainAPI() {
                     else -> Qualities.Unknown.value
                 }
             }
-            callback(ExtractorLink("${dataList[0]}${it.src}","Серія ${dataList[1] + 1}", "${dataList[0]}${it.src}",
-                dataList[0],
-                quality, false))
+            callback(newExtractorLink("${dataList[0]}${it.src}","Серія ${dataList[1] + 1}", "${dataList[0]}${it.src}", ExtractorLinkType.VIDEO))
         }
         return true
     }

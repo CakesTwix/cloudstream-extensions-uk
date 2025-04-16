@@ -1,9 +1,9 @@
 [versions]
-android-gradle-plugin = "8.8.0"
+android-gradle-plugin = "8.8.2"
 cloudstream3 = "pre-release"
 cloudstreamapi = "0.1.6"
 recloudstream-gradle = "-SNAPSHOT"
-gson = "2.9.0"
+gson = "2.10.1"
 kotlinx-coroutines-test = "1.10.1"
 nicehttp = "0.4.11"
 jsoup = "1.18.3"

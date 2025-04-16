@@ -2,8 +2,10 @@ package com.lagradost
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.getExtractorApiFromName
 import com.lagradost.extractors.AshdiExtractor
@@ -19,7 +21,7 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Basic Info
     override var mainUrl = "https://anitube.in.ua"
-    override var name = "Anitubeinua Beta"
+    override var name = "Anitubeinua"
     override val hasMainPage = true
     override var lang = "uk"
     override val hasQuickSearch = true
@@ -211,42 +213,36 @@ class AnitubeinuaProvider : MainAPI() {
                                 }
                                 it.urls.url.contains("https://www.udrop.com") -> {
                                     callback.invoke(
-                                            ExtractorLink(
-                                                    this.urls.url,
-                                                    name = "${it.urls.playerName} (${it.urls.name})",
-                                                    this.urls.url,
-                                                    "",
-                                                    0,
-                                                    isM3u8 = false,
-                                            ))
+                                        newExtractorLink(
+                                            this.urls.url,
+                                            "${it.urls.playerName} (${it.urls.name})",
+                                            this.urls.url,
+                                            ExtractorLinkType.M3U8
+                                        )
+                                    )
                                 }
                                 it.urls.url.contains("https://csst.online/embed/") ||
                                         it.urls.url.contains("https://monstro.site/embed/") -> {
                                     csstExtractor().ParseUrl(it.urls.url).split(",").forEach { csstUrl ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        this.urls.url,
-                                                        name =
-                                                        "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
-                                                        csstUrl.substringAfter("]"),
-                                                        "",
-                                                        0,
-                                                        isM3u8 = false,
-                                                ))
+                                            newExtractorLink(
+                                                this.urls.url,
+                                                "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
+                                                csstUrl.substringAfter("]"),
+                                                ExtractorLinkType.M3U8
+                                            )
+                                        )
                                     }
                                 }
                                 it.urls.url.contains("https://www.mp4upload.com/") -> {
                                     getExtractorApiFromName("Mp4Upload").getUrl(it.urls.url)?.forEach { extlink ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        extlink.source,
-                                                        "${it.urls.playerName} (${it.urls.name})",
-                                                        extlink.url,
-                                                        extlink.referer,
-                                                        extlink.quality,
-                                                        extlink.type,
-                                                        extlink.headers,
-                                                ))
+                                            newExtractorLink(
+                                                    extlink.source,
+                                                    "${it.urls.playerName} (${it.urls.name})",
+                                                    extlink.url,
+                                            )
+                                        )
                                     }
                                 }
                                 else -> {}
@@ -288,41 +284,35 @@ class AnitubeinuaProvider : MainAPI() {
                                 }
                                 contains("https://www.udrop.com") -> {
                                     callback.invoke(
-                                            ExtractorLink(
-                                                    dub.playerName,
-                                                    name = dub.playerName,
-                                                    this,
-                                                    "",
-                                                    0,
-                                                    isM3u8 = false,
-                                            ))
+                                        newExtractorLink(
+                                                dub.playerName,
+                                                name = dub.playerName,
+                                                this,
+                                            )
+                                    )
                                 }
                                 contains("https://monstro.site/embed/") ||
                                         contains("https://csst.online/embed/") -> {
                                     csstExtractor().ParseUrl(this).split(",").forEach {
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        dub.playerName,
-                                                        name =
-                                                        "${dub.playerName.replace("\"", "")} ${it.substringBefore("]").drop(1)}",
-                                                        it.substringAfter("]"),
-                                                        "",
-                                                        0,
-                                                        isM3u8 = false))
+                                            newExtractorLink(
+                                                dub.playerName,
+                                                name =
+                                                "${dub.playerName.replace("\"", "")} ${it.substringBefore("]").drop(1)}",
+                                                it.substringAfter("]"),
+                                            )
+                                        )
                                     }
                                 }
                                 contains("https://www.mp4upload.com/") -> {
                                     getExtractorApiFromName("Mp4Upload").getUrl(this)?.forEach { extlink ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        extlink.source,
-                                                        dub.playerName,
-                                                        extlink.url,
-                                                        extlink.referer,
-                                                        extlink.quality,
-                                                        extlink.type,
-                                                        extlink.headers,
-                                                ))
+                                            newExtractorLink(
+                                                extlink.source,
+                                                dub.playerName,
+                                                extlink.url,
+                                            )
+                                        )
                                     }
                                 }
                                 else -> {}

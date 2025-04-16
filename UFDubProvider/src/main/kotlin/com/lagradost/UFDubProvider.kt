@@ -2,7 +2,8 @@ package com.lagradost
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 
@@ -167,8 +168,7 @@ class UFDubProvider : MainAPI() {
         val m3u8Url = app.get(data).url
 
         // Add as source
-        callback(ExtractorLink(m3u8Url,"UFDub", m3u8Url, "https://dl.dropboxusercontent.com",
-            Qualities.Unknown.value, false))
+        callback(newExtractorLink(m3u8Url,"UFDub", m3u8Url, ExtractorLinkType.VIDEO))
         return true
     }
 
