@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.DubStatus
@@ -24,7 +23,6 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
@@ -33,6 +31,7 @@ import com.lagradost.models.FundubEpisode
 import com.lagradost.models.FundubModel
 import com.lagradost.models.FundubVideoUrl
 import com.lagradost.models.NewAnimeModel
+import com.lagradost.models.PlayerEpisodes
 import com.lagradost.models.SearchModel
 
 class AnimeONProvider : MainAPI() {
@@ -65,7 +64,6 @@ class AnimeONProvider : MainAPI() {
 
     private val listAnimeModel = object : TypeToken<List<AnimeModel>>() {}.type
     private val listFundub = object : TypeToken<List<FundubModel>>() {}.type
-    private val listFundubEpisodes = object : TypeToken<List<FundubEpisode>>() {}.type
 
     // Done
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -103,11 +101,15 @@ class AnimeONProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val animeJSON =
-            Gson().fromJson(app.get(searchApi.format(query)).text, SearchModel::class.java)
+            Gson().fromJson(app.get(searchApi.format(query),
+                headers = mapOf(
+                    "Referer" to "https://animeon.club/anime?search=",
+            )).text, SearchModel::class.java)
+
         val findList =
             animeJSON.result.map {
                 newAnimeSearchResponse(it.titleUa, "anime/${it.id}", TvType.Anime) {
-                    this.posterUrl = posterApi.format(it.poster)
+                    this.posterUrl = posterApi.format(it.image.preview)
                     addDubStatus(isDub = true, it.episodes)
                 }
             }
@@ -126,7 +128,7 @@ class AnimeONProvider : MainAPI() {
                                 AnimeInfoModel::class.java
                         )
         val showStatus =
-                with(animeJSON.status!!) {
+                with(animeJSON.status) {
                     when {
                         contains("ongoing") -> ShowStatus.Ongoing
                         contains("released") -> ShowStatus.Completed
@@ -149,15 +151,18 @@ class AnimeONProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
 
         // Get all fundub for title and parse only first fundub/player
+        // https://animeon.club/api/player/fundubs/6966
         val fundubs = Gson().fromJson<List<FundubModel>>(app.get("$mainUrl/api/player/fundubs/${animeJSON.id}",
             headers = mapOf(
                 "Referer" to "https://animeon.club/",
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
             )).text, listFundub)
 
-        Gson().fromJson<List<FundubEpisode>>(app.get("$mainUrl/api/player/episodes/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}",
+        Gson().fromJson(app.get("$mainUrl/api/player/episodes/${animeJSON.id}/${fundubs?.get(0)?.player?.get(0)?.id}/${fundubs?.get(0)?.fundub?.id}",
             headers = mapOf(
                 "Referer" to "https://animeon.club/",
-            )).text, listFundubEpisodes)?.map { epd -> // Episode
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+            )).text, PlayerEpisodes::class.java).episodes.map { epd -> // Episode
             episodes.add(
                     Episode(
                             "${animeJSON.id}, ${epd.episode}",
@@ -173,35 +178,35 @@ class AnimeONProvider : MainAPI() {
                     "$mainUrl/anime/${animeJSON.id}",
                     tvType,
             ) {
-                this.posterUrl = posterApi.format(animeJSON.poster)
+                this.posterUrl = posterApi.format(animeJSON.image.preview)
                 this.engName = animeJSON.titleEn
                 // this.tags = animeJSON.genres.map { it.name }
                 this.plot = animeJSON.description
                 addTrailer(animeJSON.trailer)
                 this.showStatus = showStatus
                 this.duration = extractIntFromString(animeJSON.episodeTime)
-                this.year = animeJSON.releaseDate
-                this.rating = animeJSON.rating.toString().toRatingInt()
+                this.year = animeJSON.releaseDate.toIntOrNull()
+                this.rating = animeJSON.rating.toRatingInt()
                 addEpisodes(DubStatus.Dubbed, episodes)
-                addMalId(animeJSON.malId)
+                addMalId(animeJSON.malId.toIntOrNull())
             }
         } else {
             var backgroundImage = animeJSON.backgroundImage
             if(backgroundImage.isNullOrBlank()){
-                backgroundImage = posterApi.format(animeJSON.poster)
+                backgroundImage = posterApi.format(animeJSON.image.preview)
             } else {
-                backgroundImage = posterApi.format(animeJSON.backgroundImage)
+                backgroundImage = posterApi.format(animeJSON.screenshots.first().original)
             }
             newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/${animeJSON.id}", tvType, "${animeJSON.id}") {
-                this.posterUrl = posterApi.format(animeJSON.poster)
-                this.tags = animeJSON.genres.map { it.name }
+                this.posterUrl = posterApi.format(animeJSON.image.preview)
+                this.tags = animeJSON.genres.map { it.nameUa }
                 this.plot = animeJSON.description
                 addTrailer(animeJSON.trailer)
                 this.duration = extractIntFromString(animeJSON.episodeTime)
-                this.year = animeJSON.releaseDate
+                this.year = animeJSON.releaseDate.toIntOrNull()
                 this.backgroundPosterUrl = backgroundImage
                 this.rating = animeJSON.rating.toString().toRatingInt()
-                addMalId(animeJSON.malId)
+                addMalId(animeJSON.malId.toIntOrNull())
             }
         }
     }
@@ -222,17 +227,18 @@ class AnimeONProvider : MainAPI() {
 
         if(dataList.size == 2){
             fundubs.map { dub ->
-                Gson().fromJson<List<FundubEpisode>>(app.get("$mainUrl/api/player/episodes/${dub.player[0].id}/${dub.fundub.id}",
+                Gson().fromJson(app.get("$mainUrl/api/player/episodes/${dataList[0]}/${dub.player[0].id}/${dub.fundub.id}",
                     headers = mapOf(
                         "Referer" to "https://animeon.club/",
-                    )).text, listFundubEpisodes).filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
-                    M3u8Helper.generateM3u8(
+                    )).text, PlayerEpisodes::class.java).episodes.filter{ it.episode == dataList[1].toIntOrNull() }.map { epd -> // Episode
+
+                        M3u8Helper.generateM3u8(
                             source = "${dub.fundub.name} (${dub.player[0].name})",
                             streamUrl = getM3U(app.get("$mainUrl/api/player/episode/${epd.id}",
                                 headers = mapOf(
                                     "Referer" to "https://animeon.club/",
                                 )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
-                            referer = "https://animeon.club"
+                            referer = "https://moonanime.art"
                     ).last().let(callback)
                 }
             }
@@ -242,11 +248,11 @@ class AnimeONProvider : MainAPI() {
         fundubs.map { dub ->
             M3u8Helper.generateM3u8(
                     source = "${dub.fundub.name} (${dub.player[0].name})",
-                    streamUrl = getM3U(app.get("${apiUrl}/player/${dub.player[0].id}/${dub.fundub.id}",
+                    streamUrl = getM3U(app.get("${apiUrl}/player/${dataList[0]}/${dub.player[0].id}/${dub.fundub.id}",
                         headers = mapOf(
                             "Referer" to "https://animeon.club/",
                         )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
-                    referer = "https://animeon.club"
+                    referer = ""
             ).last().let(callback)
         }
 
@@ -273,6 +279,7 @@ class AnimeONProvider : MainAPI() {
                                     "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                                     "accept-language" to "en-US,en;q=0.5"
                             )).document
+
                     return document.select("script").html()
                             .substringAfterLast("file: \"")
                             .substringBefore("\",")
