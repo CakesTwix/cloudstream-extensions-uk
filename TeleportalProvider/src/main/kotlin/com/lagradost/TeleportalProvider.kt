@@ -6,10 +6,12 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TrailerData
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.app
@@ -61,7 +63,7 @@ class TeleportalProvider : MainAPI() {
         // Movies
         if(request.data.substringAfterLast("/") == "documentaries"){
             val homeList = Gson().fromJson(app.get(request.data).text, Media::class.java).items.map{
-                newAnimeSearchResponse(it.title, "$apiUrl/ua/${it.videoSlug}", TvType.TvSeries) {
+                newAnimeSearchResponse(it.title, "$apiUrl/ua${it.videoSlug}", TvType.TvSeries) {
                     this.posterUrl = "$mainUrl${it.image}"
                 }
             }
@@ -133,7 +135,7 @@ class TeleportalProvider : MainAPI() {
         }
 
         return newMovieLoadResponse(title.title, url, TvType.Movie, "$apiUrl/ua/${title.typeSlug}/${title.channelSlug}/${title.videoSlug}") {
-            this.posterUrl = "$mainUrl${title.image}"
+            addTrailer(title.video)
             this.plot = title.description
         }
     }
