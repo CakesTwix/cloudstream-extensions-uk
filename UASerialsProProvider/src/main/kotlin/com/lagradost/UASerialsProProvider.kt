@@ -223,9 +223,15 @@ class UASerialsProProvider : MainAPI() {
         val dataList = data.split(", ")
         // Movie
         if(dataList.size == 2){
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file: \"")
-                .substringBefore("\",")
+            val html = app.get(dataList[1]).document.select("script").html()
+            val m3u8Url = when {
+                "file: \"" in html -> html.substringAfter("file: \"").substringBefore("\"")
+                "file: '" in html -> html.substringAfter("file: '").substringBefore("'")
+                "file:\"" in html -> html.substringAfter("file:\"").substringBefore("\"")
+                "file:'" in html -> html.substringAfter("file:'").substringBefore("'")
+                else -> return false
+            }
+
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),
