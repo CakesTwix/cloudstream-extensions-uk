@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -118,7 +119,7 @@ class AnitubeinuaProvider : MainAPI() {
 
         val ajax =
                 fromPlaylistAjax(
-                        "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=$dle_login_hash")
+                        "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=$dle_login_hash", referer = url)
 
         if (!ajax.isNullOrEmpty()) { // Ajax list
             ajax
@@ -183,7 +184,7 @@ class AnitubeinuaProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        // Log.d("CakesTwix-Debug", data)
+        Log.d("CakesTwix-Debug", data)
         if (dataList[1].toIntOrNull() != null) { // Its ajax list
             val ajax =
                     fromPlaylistAjax(
@@ -337,8 +338,12 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Thanks to Andro999b
     // https://github.com/Andro999b/movies-telegram-bot/blob/a296c7d4122a25fa70b612e75d741dd55c154640/functions/src/providers/AnitubeUAProvider.ts#L86-L137
-    private suspend fun fromPlaylistAjax(url: String): List<Ajax>? {
-        val responseGet = app.get(url).parsedSafe<Responses>()
+    private suspend fun fromPlaylistAjax(url: String, referer: String = "https://anitube.in.ua/"): List<Ajax>? {
+        val responseGet = app.get(
+            url,
+            referer = referer,
+            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+        ).parsedSafe<Responses>()
 
         // Not Ajax, return null
         if (responseGet?.success == false) {
