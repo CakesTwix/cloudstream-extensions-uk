@@ -1,11 +1,14 @@
 package com.lagradost
 
+import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.extractors.Mp4Upload
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.getExtractorApiFromName
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.extractors.csstExtractor
 import com.lagradost.models.Ajax
@@ -19,9 +22,10 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Basic Info
     override var mainUrl = "https://anitube.in.ua"
-    override var name = "Anitubeinua Beta"
+    override var name = "Anitubeinua"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes =
             setOf(
@@ -63,6 +67,8 @@ class AnitubeinuaProvider : MainAPI() {
             addDubStatus(isDub, isSub)
         }
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document =
@@ -113,7 +119,7 @@ class AnitubeinuaProvider : MainAPI() {
 
         val ajax =
                 fromPlaylistAjax(
-                        "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=$dle_login_hash")
+                        "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&user_hash=$dle_login_hash", referer = url)
 
         if (!ajax.isNullOrEmpty()) { // Ajax list
             ajax
@@ -178,7 +184,7 @@ class AnitubeinuaProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        // Log.d("CakesTwix-Debug", data)
+        Log.d("CakesTwix-Debug", data)
         if (dataList[1].toIntOrNull() != null) { // Its ajax list
             val ajax =
                     fromPlaylistAjax(
@@ -208,42 +214,36 @@ class AnitubeinuaProvider : MainAPI() {
                                 }
                                 it.urls.url.contains("https://www.udrop.com") -> {
                                     callback.invoke(
-                                            ExtractorLink(
-                                                    this.urls.url,
-                                                    name = "${it.urls.playerName} (${it.urls.name})",
-                                                    this.urls.url,
-                                                    "",
-                                                    0,
-                                                    isM3u8 = false,
-                                            ))
+                                        newExtractorLink(
+                                            this.urls.url,
+                                            "${it.urls.playerName} (${it.urls.name})",
+                                            this.urls.url,
+                                            ExtractorLinkType.M3U8
+                                        )
+                                    )
                                 }
                                 it.urls.url.contains("https://csst.online/embed/") ||
                                         it.urls.url.contains("https://monstro.site/embed/") -> {
                                     csstExtractor().ParseUrl(it.urls.url).split(",").forEach { csstUrl ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        this.urls.url,
-                                                        name =
-                                                        "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
-                                                        csstUrl.substringAfter("]"),
-                                                        "",
-                                                        0,
-                                                        isM3u8 = false,
-                                                ))
+                                            newExtractorLink(
+                                                this.urls.url,
+                                                "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
+                                                csstUrl.substringAfter("]"),
+                                                ExtractorLinkType.M3U8
+                                            )
+                                        )
                                     }
                                 }
                                 it.urls.url.contains("https://www.mp4upload.com/") -> {
-                                    Mp4Upload().getUrl(it.urls.url)?.forEach { extlink ->
+                                    getExtractorApiFromName("Mp4Upload").getUrl(it.urls.url)?.forEach { extlink ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        extlink.source,
-                                                        "${it.urls.playerName} (${it.urls.name})",
-                                                        extlink.url,
-                                                        extlink.referer,
-                                                        extlink.quality,
-                                                        extlink.type,
-                                                        extlink.headers,
-                                                ))
+                                            newExtractorLink(
+                                                    extlink.source,
+                                                    "${it.urls.playerName} (${it.urls.name})",
+                                                    extlink.url,
+                                            )
+                                        )
                                     }
                                 }
                                 else -> {}
@@ -285,41 +285,35 @@ class AnitubeinuaProvider : MainAPI() {
                                 }
                                 contains("https://www.udrop.com") -> {
                                     callback.invoke(
-                                            ExtractorLink(
-                                                    dub.playerName,
-                                                    name = dub.playerName,
-                                                    this,
-                                                    "",
-                                                    0,
-                                                    isM3u8 = false,
-                                            ))
+                                        newExtractorLink(
+                                                dub.playerName,
+                                                name = dub.playerName,
+                                                this,
+                                            )
+                                    )
                                 }
                                 contains("https://monstro.site/embed/") ||
                                         contains("https://csst.online/embed/") -> {
                                     csstExtractor().ParseUrl(this).split(",").forEach {
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        dub.playerName,
-                                                        name =
-                                                        "${dub.playerName.replace("\"", "")} ${it.substringBefore("]").drop(1)}",
-                                                        it.substringAfter("]"),
-                                                        "",
-                                                        0,
-                                                        isM3u8 = false))
+                                            newExtractorLink(
+                                                dub.playerName,
+                                                name =
+                                                "${dub.playerName.replace("\"", "")} ${it.substringBefore("]").drop(1)}",
+                                                it.substringAfter("]"),
+                                            )
+                                        )
                                     }
                                 }
                                 contains("https://www.mp4upload.com/") -> {
-                                    Mp4Upload().getUrl(this)?.forEach { extlink ->
+                                    getExtractorApiFromName("Mp4Upload").getUrl(this)?.forEach { extlink ->
                                         callback.invoke(
-                                                ExtractorLink(
-                                                        extlink.source,
-                                                        dub.playerName,
-                                                        extlink.url,
-                                                        extlink.referer,
-                                                        extlink.quality,
-                                                        extlink.type,
-                                                        extlink.headers,
-                                                ))
+                                            newExtractorLink(
+                                                extlink.source,
+                                                dub.playerName,
+                                                extlink.url,
+                                            )
+                                        )
                                     }
                                 }
                                 else -> {}
@@ -344,8 +338,12 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Thanks to Andro999b
     // https://github.com/Andro999b/movies-telegram-bot/blob/a296c7d4122a25fa70b612e75d741dd55c154640/functions/src/providers/AnitubeUAProvider.ts#L86-L137
-    private suspend fun fromPlaylistAjax(url: String): List<Ajax>? {
-        val responseGet = app.get(url).parsedSafe<Responses>()
+    private suspend fun fromPlaylistAjax(url: String, referer: String = "https://anitube.in.ua/"): List<Ajax>? {
+        val responseGet = app.get(
+            url,
+            referer = referer,
+            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+        ).parsedSafe<Responses>()
 
         // Not Ajax, return null
         if (responseGet?.success == false) {

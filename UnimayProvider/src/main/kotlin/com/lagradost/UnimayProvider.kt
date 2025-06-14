@@ -33,6 +33,7 @@ class UnimayProvider : MainAPI() {
     override var name = "Unimay"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.Anime,
@@ -76,6 +77,8 @@ class UnimayProvider : MainAPI() {
         }
         return newHomePageResponse(request.name, homeList)
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         return Gson().fromJson(app.get("$findUrl$query&page=0").text, SearchModel::class.java).content.map{
