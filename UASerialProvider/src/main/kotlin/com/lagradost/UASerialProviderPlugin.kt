@@ -8,6 +8,6 @@ import android.content.Context
 class UASerialProviderPlugin: Plugin() {
     override fun load(context: Context) {
         // All providers should be added in this manner. Please don't edit the providers list directly.
-        registerMainAPI(UASerialProvider("https://uaserial.com", "UASerial"))
+        registerMainAPI(UASerialProvider("https://uaserial.online", "UASerial"))
     }
 }

@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 12
+version = 13
 
 dependencies {
     implementation(libs.gson)
@@ -27,5 +27,5 @@ cloudstream {
         "TvSeries",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=uaserial.tv&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=uaserial.online&sz=%size%"
 }
