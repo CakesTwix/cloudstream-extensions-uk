@@ -17,6 +17,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
     override var name = name
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.TvSeries,
@@ -36,7 +37,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
     ): HomePageResponse {
         val document = app.get(request.data.format(page)).document
 
-        val home = document.select(".row .col").map {
+        val home = document.select("div[id=filters-grid-content]").select("div.row .col").map {
             it.toSearchResponse()
         }
         return newHomePageResponse(request.name, home)
@@ -52,6 +53,8 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
         }
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val searchResult = app.get(
@@ -183,6 +186,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                         .substringBefore("',")
                 }
 
+                if (!m3u8Url.startsWith("http")) return@map
                 M3u8Helper.generateM3u8(
                     source = "${dub.text()} (${player.attr("data-player-id").replaceFirstChar { it.uppercase() }})",
                     streamUrl = m3u8Url,

@@ -2,33 +2,20 @@ import com.lagradost.cloudstream3.gradle.CloudstreamExtension
 import com.android.build.gradle.BaseExtension
 
 buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        // Shitpack repo which contains our tools and dependencies
-        maven("https://jitpack.io")
-    }
-
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.3")
-        classpath("com.github.recloudstream:gradle:-SNAPSHOT")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0")
+        classpath(libs.recloudstream.gradle)
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven("https://jitpack.io")
-    }
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin) apply false
 }
 
-fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) =
-    extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
+fun Project.cloudstream(configuration: CloudstreamExtension.() -> Unit) = extensions.getByName<CloudstreamExtension>("cloudstream").configuration()
 
-fun Project.android(configuration: BaseExtension.() -> Unit) =
-    extensions.getByName<BaseExtension>("android").configuration()
+fun Project.android(configuration: BaseExtension.() -> Unit) = extensions.getByName<BaseExtension>("android").configuration()
 
 subprojects {
     apply(plugin = "com.android.library")
@@ -38,10 +25,7 @@ subprojects {
     cloudstream {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
         // you can modify it to use other git hosting services, like gitlab
-        setRepo(
-            System.getenv("GITHUB_REPOSITORY")
-                ?: "https://github.com/CakesTwix/cloudstream-extensions-uk"
-        )
+        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/CakesTwix/cloudstream-extensions-uk")
         authors = listOf("CakesTwix")
     }
 
@@ -73,40 +57,47 @@ subprojects {
     }
 
     dependencies {
-        ///////////////////for testing
-        val apkTasks = listOf("deployWithAdb", "build")
+        val apk by configurations
+        val implementation by configurations
+        val libs = rootProject.libs
+        val apkTasks = listOf("deployWithAdb", "build", "makePluginsJson")
         val useApk = gradle.startParameter.taskNames.any { taskName ->
             apkTasks.any { apkTask ->
                 taskName.contains(apkTask, ignoreCase = true)
             }
         }
 
-        val implementation by configurations
-        val apk by configurations
-
         // If the task is specifically to compile the app then use the stubs, otherwise us the library.
         if (useApk) {
             // Stubs for all Cloudstream classes
-            apk("com.lagradost:cloudstream3:pre-release")
+            apk(libs.cloudstream3)
         } else {
             // For running locally
-            implementation("com.github.Blatzar:CloudstreamApi:0.1.6")
+            implementation(libs.cloudstreamapi)
         }
-        ////////////////////////////////////
-        val cloudstream by configurations
-//        val implementation by configurations
-        cloudstream("com.lagradost:cloudstream3:pre-release")
 
         // these dependencies can include any of those which are added by the app,
         // but you dont need to include any of them if you dont need them
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle
         implementation(kotlin("stdlib")) // adds standard kotlin features, like listOf, mapOf etc
-        implementation("com.github.Blatzar:NiceHttp:0.4.11") // http library
-        implementation("org.jsoup:jsoup:1.18.3") // html parser
-        implementation("com.fasterxml.jackson.core:jackson-databind:2.15.0") // Use the latest version available
+        implementation(libs.nicehttp) // http library
+        implementation(libs.jsoup) // html parser
+    }
+
+    tasks.withType<Test>().configureEach {
+        if (name == "testReleaseUnitTest") {
+            ignoreFailures = true // ignore fail test
+        }
     }
 }
 
-task<Delete>("clean") {
-    delete(rootProject.buildDir)
+tasks.register<Delete>("clean") {
+    delete(getLayout().buildDirectory)
+}
+
+tasks.register<TestReport>("testReport") {
+    description = "Aggregate all test results as a HTML report"
+    group = "Build"
+    destinationDirectory = layout.buildDirectory.dir("reports/allTests")
+    testResults.from(subprojects.map { project -> project.tasks.getByName("testReleaseUnitTest") })
 }

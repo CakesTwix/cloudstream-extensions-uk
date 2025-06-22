@@ -16,7 +16,9 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.models.CfgModel
 import com.lagradost.models.ObjectsModel
 
@@ -27,6 +29,7 @@ class HentaiUkrProvider : MainAPI() {
     override var name = "HentaiUkr 18+"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.NSFW,
@@ -59,6 +62,8 @@ class HentaiUkrProvider : MainAPI() {
         // Log.d("CakesTwix-Debug", "$cdnUrl${parsedJSON.data[1].posterId}")
         return newHomePageResponse(request.name, homeList)
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get(objectsUrl).text
@@ -124,9 +129,7 @@ class HentaiUkrProvider : MainAPI() {
                     else -> Qualities.Unknown.value
                 }
             }
-            callback(ExtractorLink("${dataList[0]}${it.src}","Серія ${dataList[1] + 1}", "${dataList[0]}${it.src}",
-                dataList[0],
-                quality, false))
+            callback(newExtractorLink("${dataList[0]}${it.src}","Серія ${dataList[1] + 1}", "${dataList[0]}${it.src}", ExtractorLinkType.VIDEO))
         }
         return true
     }

@@ -6,10 +6,12 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.TrailerData
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.app
@@ -34,6 +36,7 @@ class TeleportalProvider : MainAPI() {
     override var name = "Teleportal"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.TvSeries,
@@ -79,6 +82,8 @@ class TeleportalProvider : MainAPI() {
 
     }
 
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
+
     override suspend fun search(query: String): List<SearchResponse> {
         return Gson().fromJson<List<Search>>(app.get("$findUrl$query").text, listSearch).map{
             newAnimeSearchResponse(it.title, "$apiUrl/ua/${it.typeSlug}/${it.channelSlug}/${it.projectSlug}", TvType.TvSeries) {
@@ -120,7 +125,7 @@ class TeleportalProvider : MainAPI() {
             }
             return newAnimeLoadResponse(
                 title.title,
-                "$mainUrl${title.projectSlug}",
+                "$apiUrl/ua/${title.typeSlug}/${title.channelSlug}/${title.projectSlug}",
                 tvType,
             ) {
                 this.posterUrl = "$mainUrl${title.image}"
@@ -130,7 +135,7 @@ class TeleportalProvider : MainAPI() {
         }
 
         return newMovieLoadResponse(title.title, url, TvType.Movie, "$apiUrl/ua/${title.typeSlug}/${title.channelSlug}/${title.videoSlug}") {
-            this.posterUrl = "$mainUrl${title.image}"
+            addTrailer(title.video)
             this.plot = title.description
         }
     }
