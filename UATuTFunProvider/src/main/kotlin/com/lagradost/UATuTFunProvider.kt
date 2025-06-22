@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.reflect.TypeToken
-import com.lagradost.api.Log
+//import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -100,7 +100,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        Log.d("DEBUG load", "Url: $url")
+//        Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
         return when (val tvType = getTvType(url)) {
@@ -133,7 +133,7 @@ class UATuTFunProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("DEBUG loadLinks", "Data: $data")
+//        Log.d("DEBUG loadLinks", "Data: $data")
         val tvType = if (data.startsWith("http")) {
             TvType.Movie
         } else {
@@ -175,10 +175,10 @@ class UATuTFunProvider : MainAPI() {
 
             else -> {//series
                 val (episodeName, episodeSeasonName, seriesUrl) = data.split(";")
-                Log.d(
-                    "DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
-                            " $episodeSeasonName, SeriesUrl: $seriesUrl"
-                )
+//                Log.d(
+//                    "DEBUG loadLinks", "EpisodeName: $episodeName, SeasonName:" +
+//                            " $episodeSeasonName, SeriesUrl: $seriesUrl"
+//                )
 
                 val jsonDataModel =
                     getSeriesJsonDataModelByEpisodeName(episodeName, episodeSeasonName, seriesUrl)
@@ -278,7 +278,7 @@ class UATuTFunProvider : MainAPI() {
         seriesUrl: String,
     ): List<SeriesJsonDataModel> {
         val document = app.get(seriesUrl).document
-        Log.d("DEBUG getSeriesJsonDataModel", "seriesUrl: $seriesUrl document: ${document.childrenSize()}")
+//        Log.d("DEBUG getSeriesJsonDataModel", "seriesUrl: $seriesUrl document: ${document.childrenSize()}")
         val m3uUrl = getM3uUrl(document)
 
         val text = if (m3uUrl.startsWith("http") && m3uUrl.endsWith(".txt")) {
@@ -299,7 +299,7 @@ class UATuTFunProvider : MainAPI() {
             text
         }
         val m3uData = removeSuffix.replace("\\", "")
-        Log.d("DEBUG getSeriesJsonDataModel", "Text: $text")
+//        Log.d("DEBUG getSeriesJsonDataModel", "Text: $text")
         //find all episodes and seasons
         return getObjectFromJson(m3uData)
     }
@@ -383,7 +383,7 @@ class UATuTFunProvider : MainAPI() {
             }
         }
 
-        Log.d("DEBUG getEpisodes", "Episodes: $episodes")
+//        Log.d("DEBUG getEpisodes", "Episodes: $episodes")
         if (episodes.isEmpty()) {//fix series without episodes description
             val seriesJsonDataModel = getSeriesJsonDataModel(url)
             val collectionOrObjectNotNull =
@@ -447,25 +447,25 @@ class UATuTFunProvider : MainAPI() {
         episodeSeasonName: String,
         seriesUrl: String
     ): List<SeriesJsonDataModel> {
-        Log.d(
-            "DEBUG getSeriesJsonDataModelByEpisodeName",
-            "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl"
-        )
+//        Log.d(
+//            "DEBUG getSeriesJsonDataModelByEpisodeName",
+//            "EpisodeName: $episodeName, SeasonName: $episodeSeasonName, SeriesUrl: $seriesUrl"
+//        )
         val seriesJsonDataModel = getSeriesJsonDataModel(seriesUrl)
-        Log.d(
-            "DEBUG getSeriesJsonDataModelByEpisodeName",
-            "SeriesJsonDataModel: $seriesJsonDataModel"
-        )
+//        Log.d(
+//            "DEBUG getSeriesJsonDataModelByEpisodeName",
+//            "SeriesJsonDataModel: $seriesJsonDataModel"
+//        )
         val seasonsList = seriesJsonDataModel.firstOrNull()?.seasons ?: return emptyList()
 
-        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "SeasonsList: $seasonsList")
-
+//        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "SeasonsList: $seasonsList")
+//
         val season = seasonsList.firstOrNull { season ->
             season.name.filter { seasonName -> seasonName.isDigit() } == episodeSeasonName
                 .filter { episodeSeasonName -> episodeSeasonName.isDigit() }
         }
-        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "Season: $season")
-
+//        Log.d("DEBUG getSeriesJsonDataModelByEpisodeName", "Season: $season")
+//
         val foundEpisode =
             season?.episodes?.firstOrNull { episode ->
                 episode.name
