@@ -1,8 +1,8 @@
 ﻿package com.lagradost
 
+import com.fasterxml.jackson.databind.json.JsonMapper
 import com.google.gson.Gson
 import com.google.gson.JsonArray
-import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
@@ -45,6 +45,10 @@ class UATuTFunProvider : MainAPI() {
     private val otherDataSelector = "div.bslide__desc > ul.bslide__text"
     private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
     private val gson = Gson()
+    private val mapper = JsonMapper.builder()
+        .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+        .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_SINGLE_QUOTES, true)
+        .build()
 
     // Basic Info
     override var mainUrl = "https://uk.uatut.fun"
@@ -182,7 +186,8 @@ class UATuTFunProvider : MainAPI() {
                     false
                 } else {
                     val sourceDubName = jsonDataModel.first().seriesDubName
-                    val m3u8DirectFileUrl = jsonDataModel.first().seasons.first().episodes.first().file
+                    val m3u8DirectFileUrl =
+                        jsonDataModel.first().seasons.first().episodes.first().file
                     M3u8Helper.generateM3u8(
                         source = sourceDubName,
                         streamUrl = m3u8DirectFileUrl,
@@ -278,9 +283,16 @@ class UATuTFunProvider : MainAPI() {
 
         val text = if (m3uUrl.startsWith("http") && m3uUrl.endsWith(".txt")) {
             app.get(m3uUrl).text
+        } else if (!m3uUrl.isEmpty()) {
+            return try {
+                getObjectFromJson(m3uUrl)
+            } catch (e: Exception) {
+                emptyList()
+            }
         } else {
             return emptyList()
         }
+
         val removeSuffix = if (text.startsWith("\"")) {
             text.replaceFirst("\"", "").removeSuffix("\"")
         } else {
@@ -338,7 +350,8 @@ class UATuTFunProvider : MainAPI() {
         val getJsonData =
             "{" + documentM3u.toString().substringAfterLast("var player = new Playerjs({")
                 .substringBefore(");")
-        m3uUrl = gson.fromJson(getJsonData, JsonObject::class.java).get("file").toString()
+
+        m3uUrl = mapper.readTree(getJsonData).get("file").asText()
 
         if (m3uUrl.first() == '"') {
             m3uUrl = m3uUrl.replace("\"", "")
@@ -351,7 +364,7 @@ class UATuTFunProvider : MainAPI() {
         val episodes = document.select("div.b-post__schedule_block").flatMap { season ->
 
             val seasonName = season.select("div.title").text()
-             season.select("tbody > tr.current-episode").map { episode ->
+            season.select("tbody > tr.current-episode").map { episode ->
 
                 val episodeName = episode.select("td.td-1").text()
                 val episodeSeason = seasonName.filter { it.isDigit() }.toInt()
