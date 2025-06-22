@@ -3,6 +3,11 @@ version = 1
 
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
+    // https://mvnrepository.com/artifact/junit/junit
+    testImplementation("junit:junit:4.13.2")
+// https://mvnrepository.com/artifact/org.jetbrains.kotlinx/kotlinx-coroutines-test
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+    testImplementation(kotlin("test"))
 }
 
 cloudstream {
