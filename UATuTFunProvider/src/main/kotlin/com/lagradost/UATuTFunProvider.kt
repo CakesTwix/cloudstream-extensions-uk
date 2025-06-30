@@ -515,7 +515,8 @@ class UATuTFunProvider : MainAPI() {
     private fun getTags(document: Document): List<String> {
         return document.select(otherDataSelector).select("li")
             .firstOrNull { element -> element.text().contains("Жанр:") }?.select("a")
-            ?.map { it.text().uppercase() }?.toList() ?: emptyList()
+            ?.map { it.text().replaceFirstChar { firstChat -> firstChat.uppercase() } }?.toList()
+            ?: emptyList()
     }
 
     private fun getYear(document: Document): Int {
