@@ -235,7 +235,7 @@ class UATuTFunProvider : MainAPI() {
             this.tags = tags
             this.year = year
             this.rating = rating
-            this.name = engTitle
+            this.name = "$title ($engTitle)"
             addActors(actors)
             addTrailer(trailerUrl)
             this.duration = duration
@@ -266,7 +266,7 @@ class UATuTFunProvider : MainAPI() {
             this.tags = tags
             this.year = year
             this.rating = rating
-            this.name = engTitle
+            this.name = "$title ($engTitle)"
             addActors(actors)
             addTrailer(trailerUrl)
             this.duration = duration
@@ -524,7 +524,7 @@ class UATuTFunProvider : MainAPI() {
     private fun getTags(document: Document): List<String> {
         return document.select(otherDataSelector).select("li")
             .firstOrNull { element -> element.text().contains("Жанр:") }?.select("a")
-            ?.map { it.text() }?.toList() ?: emptyList()
+            ?.map { it.text().uppercase() }?.toList() ?: emptyList()
     }
 
     private fun getYear(document: Document): Int {
