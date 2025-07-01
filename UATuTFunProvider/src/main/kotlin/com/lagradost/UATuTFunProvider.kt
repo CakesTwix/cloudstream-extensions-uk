@@ -86,7 +86,7 @@ class UATuTFunProvider : MainAPI() {
         } else {
             val mainPage = first.children().map {
                 it.toSearchResponse()
-            }
+            }.filter { !it.posterUrl.isNullOrEmpty() }
             newHomePageResponse(request.name, mainPage)
         }
     }
@@ -286,7 +286,7 @@ class UATuTFunProvider : MainAPI() {
         } else if (!m3uUrl.isEmpty()) {
             return try {
                 getObjectFromJson(m3uUrl)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 emptyList()
             }
         } else {
