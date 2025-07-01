@@ -1,8 +1,8 @@
 ﻿package com.lagradost
 
 import com.fasterxml.jackson.databind.json.JsonMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.gson.Gson
-import com.google.gson.JsonArray
 import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
@@ -304,14 +304,11 @@ class UATuTFunProvider : MainAPI() {
 
     private fun getObjectFromJson(m3uData: String): List<SeriesJsonDataModel> {
         val result = mutableListOf<SeriesJsonDataModel>()
-        var itemType = object : TypeToken<List<SeriesJsonDataModel>>() {}.type
-        val items: List<SeriesJsonDataModel> =
-            gson.fromJson(m3uData, itemType)
-
+        val items: List<SeriesJsonDataModel> = mapper.readValue<List<SeriesJsonDataModel>>(m3uData)
         val seriesDubCheck = items.first()?.seriesDubName ?: ""
+
         if (seriesDubCheck.isEmpty()) {
-            itemType = object : TypeToken<List<com.lagradost.model.Episode>>() {}.type
-            val episodesList: List<com.lagradost.model.Episode> = gson.fromJson(m3uData, itemType)
+            val episodesList: List<com.lagradost.model.Episode> = mapper.readValue(m3uData)
             episodesList.forEach { episode ->
                 val episodeName = episode?.name ?: ""
                 if (episodeName.isEmpty()) {
