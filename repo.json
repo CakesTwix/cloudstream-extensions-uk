@@ -3,6 +3,6 @@
     "description": "Cloudstream Ukraine Plugin Repository",
     "manifestVersion": 1,
     "pluginLists": [
-      "https://raw.githubusercontent.com/Partizanins/cloudstream-extensions-uk/builds/plugins.json"
+      "https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/builds/plugins.json"
     ]
 }
