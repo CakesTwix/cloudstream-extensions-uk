@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.reflect.TypeToken
-//import com.lagradost.api.Log
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -100,7 +100,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-//        Log.d("DEBUG load", "Url: $url")
+        Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
         return when (val tvType = getTvType(url)) {
