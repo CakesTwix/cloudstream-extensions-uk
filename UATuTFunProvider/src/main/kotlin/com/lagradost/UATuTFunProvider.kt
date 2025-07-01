@@ -2,8 +2,6 @@
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
@@ -44,7 +42,6 @@ class UATuTFunProvider : MainAPI() {
     private val searchMovieSelector = "div.poster.grid-item"
     private val otherDataSelector = "div.bslide__desc > ul.bslide__text"
     private val simpleDateFormat = SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-    private val gson = Gson()
     private val mapper = JsonMapper.builder()
         .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
         .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_SINGLE_QUOTES, true)
