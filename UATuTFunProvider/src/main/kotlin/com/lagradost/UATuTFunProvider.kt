@@ -155,13 +155,10 @@ class UATuTFunProvider : MainAPI() {
                     ).last().let(callback)
                 } else {
                     val m3u8 = app.get(m3uUrl)
-                    val jsonArray = gson.fromJson(
-                        m3u8.text,
-                        JsonArray::class.java
-                    )
-                    val m3uFileUrl = jsonArray.firstOrNull()?.asJsonObject?.get("file")
+                    val jsonArray = mapper.readTree(m3u8.text)
+                    val m3uFileUrl = jsonArray.firstOrNull { nodes -> !nodes.get("file").isNull }
 
-                    val m3u8DirectFileUrl = m3uFileUrl.toString().replace("\"", "")
+                    val m3u8DirectFileUrl = m3uFileUrl?.get("file")?.textValue() ?: ""
                     //todo add quality
                     M3u8Helper.generateM3u8(
                         source = "uatut",
