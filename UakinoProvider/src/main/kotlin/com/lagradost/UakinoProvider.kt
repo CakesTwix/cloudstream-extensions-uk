@@ -16,6 +16,7 @@ class UakinoProvider : MainAPI() {
     override var name = "Uakino"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
 
@@ -65,6 +66,8 @@ class UakinoProvider : MainAPI() {
             this.posterUrl = poster
         }
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document =

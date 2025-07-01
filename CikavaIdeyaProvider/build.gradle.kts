@@ -1,6 +1,10 @@
 // use an integer for version numbers
-version = 1
+version = 2
 
+dependencies {
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
 
 cloudstream {
     language = "uk"

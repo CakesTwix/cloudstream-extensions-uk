@@ -10,7 +10,7 @@ data class GeneralInfo (
 	val isFamilyFriendly : Boolean,
 	val timeRequired : Int,
 	val datePublished : String,
-	val director : List<Director>,
+	val director : List<Director>?,
 	val actor : List<Actor>,
 	val countryOfOrigin : List<CountryOfOrigin>,
 	val aggregateRating : AggregateRating?,

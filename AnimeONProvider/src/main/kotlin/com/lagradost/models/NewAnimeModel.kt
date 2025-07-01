@@ -16,7 +16,7 @@ data class Results (
     @SerializedName("image") val image : Image,
     @SerializedName("malId") val malId : Int,
     @SerializedName("rating") val rating : Double,
-    @SerializedName("status") val status : Status,
-    @SerializedName("type") val type : Type,
+    @SerializedName("status") val status : String?,
+    @SerializedName("type") val type : String?,
     @SerializedName("genres") val genres : List<Genres>
 )

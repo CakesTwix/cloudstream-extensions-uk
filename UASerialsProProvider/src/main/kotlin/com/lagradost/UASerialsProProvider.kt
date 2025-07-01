@@ -42,6 +42,7 @@ class UASerialsProProvider : MainAPI() {
     override var name = "UASerialsPro"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.TvSeries,
@@ -102,6 +103,8 @@ class UASerialsProProvider : MainAPI() {
         }
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
@@ -220,9 +223,15 @@ class UASerialsProProvider : MainAPI() {
         val dataList = data.split(", ")
         // Movie
         if(dataList.size == 2){
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file: \"")
-                .substringBefore("\",")
+            val html = app.get(dataList[1]).document.select("script").html()
+            val m3u8Url = when {
+                "file: \"" in html -> html.substringAfter("file: \"").substringBefore("\"")
+                "file: '" in html -> html.substringAfter("file: '").substringBefore("'")
+                "file:\"" in html -> html.substringAfter("file:\"").substringBefore("\"")
+                "file:'" in html -> html.substringAfter("file:'").substringBefore("'")
+                else -> return false
+            }
+
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),

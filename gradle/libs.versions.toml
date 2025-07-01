@@ -1,0 +1,28 @@
+[versions]
+android-gradle-plugin = "8.8.2"
+cloudstream3 = "pre-release"
+cloudstreamapi = "0.1.6"
+recloudstream-gradle = "-SNAPSHOT"
+gson = "2.10.1"
+kotlinx-coroutines-test = "1.10.1"
+nicehttp = "0.4.11"
+jsoup = "1.18.3"
+kotlin = "2.1.10"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+
+[libraries]
+cloudstream3 = { module = "com.lagradost:cloudstream3", version.ref = "cloudstream3" }
+cloudstreamapi = { module = "com.github.Blatzar:CloudstreamApi", version.ref = "cloudstreamapi" }
+recloudstream-gradle = { module = "com.github.recloudstream:gradle", version.ref = "recloudstream-gradle" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines-test" }
+nicehttp = { module = "com.github.Blatzar:NiceHttp", version.ref = "nicehttp" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }
+android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
+kotlin = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

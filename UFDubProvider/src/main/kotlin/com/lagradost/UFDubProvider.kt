@@ -1,9 +1,9 @@
 package com.lagradost
 
-import android.net.Uri
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 
@@ -14,6 +14,7 @@ class UFDubProvider : MainAPI() {
     override var name = "UFDub"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.AnimeMovie,
@@ -58,6 +59,8 @@ class UFDubProvider : MainAPI() {
         }
 
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
@@ -130,14 +133,15 @@ class UFDubProvider : MainAPI() {
         val matchResult = regexUFDubEpisodes.findAll(player)
 
         // Drop trailers from episodes
-        matchResult.filter { !(Uri.parse(it.value).getQueryParameter("Seriya")!!.contains("Трейлер")) }
+        matchResult.filter { !(it.value.contains("Seriya=") && it.value.contains("Трейлер")) }
             .forEach { item ->
 
-                val parsedUrl = Uri.parse(item.value)
+                val url = item.value.dropLast(1)
+                val seriya = url.substringAfter("Seriya=", "").substringBefore("&")
                 episodes.add(
                     Episode(
-                        item.value.dropLast(1), // Drop '
-                        parsedUrl.getQueryParameter("Seriya")!!,
+                        url,
+                        seriya
                     )
                 )
         }
@@ -164,8 +168,7 @@ class UFDubProvider : MainAPI() {
         val m3u8Url = app.get(data).url
 
         // Add as source
-        callback(ExtractorLink(m3u8Url,"UFDub", m3u8Url, "https://dl.dropboxusercontent.com",
-            Qualities.Unknown.value, false))
+        callback(newExtractorLink(m3u8Url,"UFDub", m3u8Url, ExtractorLinkType.VIDEO))
         return true
     }
 

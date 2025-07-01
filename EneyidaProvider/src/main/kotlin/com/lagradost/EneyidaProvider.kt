@@ -1,10 +1,10 @@
 package com.lagradost
 
-import android.util.Log
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -17,6 +17,7 @@ class EneyidaProvider : MainAPI() {
     override var name = "Eneyida"
     override val hasMainPage = true
     override var lang = "uk"
+    override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(
         TvType.Movie,
@@ -56,6 +57,8 @@ class EneyidaProvider : MainAPI() {
 
     }
 
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
+
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
             url = mainUrl,
@@ -83,7 +86,7 @@ class EneyidaProvider : MainAPI() {
         val year = fullInfo[0].select("a").text().toIntOrNull()
         val playerUrl = document.select(".tabs_b.visible iframe").attr("src")
 
-        val tvType = if (tags.contains("фільм") or playerUrl.contains("/vod/")) TvType.Movie else TvType.TvSeries
+        val tvType = if (tags.contains("фільм") or tags.contains("мультьфільм") or playerUrl.contains("/vod/")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".full_content-desc p")?.text()?.trim()
         val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
         val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text().toRatingInt()
@@ -101,16 +104,16 @@ class EneyidaProvider : MainAPI() {
                 .substringAfterLast("file: \'")
                 .substringBefore("\',")
 
-            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
-                for(season in dubs.folder){                              // Seasons
-                    for(episode in season.folder){                       // Episodes
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season -> // Dubs
+                for (episode in season.folder) {                                     // Seasons
+                    for (dubs in episode.folder) {                              // Episodes
                         episodes.add(
                             Episode(
                                 "${season.title}, ${episode.title}, $playerUrl",
                                 episode.title,
-                                season.title.replace(" Сезон ","").toIntOrNull(),
-                                episode.title.replace("Серія ","").toIntOrNull(),
-                                episode.poster
+                                season.title.replace(" сезон","").toIntOrNull(),
+                                episode.title.replace(" серія","").toIntOrNull(),
+                                dubs.poster
                             )
                         )
                     }
@@ -118,7 +121,7 @@ class EneyidaProvider : MainAPI() {
             }
             newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = banner
+                this.backgroundPosterUrl = "$mainUrl$banner"
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -130,7 +133,7 @@ class EneyidaProvider : MainAPI() {
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$title, $playerUrl") {
                 this.posterUrl = poster
-                this.backgroundPosterUrl = banner
+                this.backgroundPosterUrl = "$mainUrl$banner"
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -180,32 +183,27 @@ class EneyidaProvider : MainAPI() {
             .substringAfterLast("file: \'")
             .substringBefore("\',")
 
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = dubs.title,
-                                streamUrl = episode.file.replace("https://", "http://"),
-                                referer = "https://tortuga.wtf/"
-                            ).last().let(callback)
+        tryParseJson<List<PlayerJson>>(playerRawJson)
+            ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
+            ?.flatMap { it.folder }              // Беремо список епізодів
+            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний епізод
+            ?.flatMap { it.folder }              // Беремо список дубляжів
+            ?.forEach { dubs ->                  // Обробляємо кожен дубляж
+                M3u8Helper.generateM3u8(
+                    source = dubs.title,
+                    streamUrl = dubs.file,
+                    referer = "https://tortuga.wtf/"
+                ).last().let(callback)
 
-                            if(episode.subtitle.isBlank()) return@map
-                            episode.subtitle.split(",").forEach{
-                                subtitleCallback.invoke(
-                                    SubtitleFile(
-                                        it.substringAfterLast("[").substringBefore("]"),
-                                        it.substringAfter("]")
-                                    )
-                                )
-                            }
-                        }
-                    }
+                if (!dubs.subtitle.isNullOrBlank()) {
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            dubs.subtitle.substringAfterLast("[").substringBefore("]"),
+                            dubs.subtitle.substringAfter("]")
+                        )
+                    )
                 }
             }
-        }
         return true
     }
 

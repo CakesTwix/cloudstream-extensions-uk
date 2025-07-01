@@ -3,12 +3,14 @@ package com.lagradost.models
 data class PlayerJson (
 
 	val title : String,
+	val season : Int,
 	val folder : List<Season>
 )
 
 data class Season (
 
 	val title : String,
+	val number: Int,
 	val folder : List<Episode>
 )
 
