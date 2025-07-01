@@ -205,6 +205,7 @@ class UATuTFunProvider : MainAPI() {
             this.select(posterUrlSelector)
                 .attr("data-src")
         )
+        Log.d("DEBUG MovieSearchResponse", "seriesUrl: $posterUrl")
 
         return newMovieSearchResponse(title, url, TvType.Movie) {
             this.posterUrl = posterUrl
@@ -258,7 +259,7 @@ class UATuTFunProvider : MainAPI() {
         val trailerUrl = getTrailerUrL(document)
         val tags = getTags(document)
         val actors = getActors(document)
-        Log.d("DEBUG getNewMovieLoadResponse", "posterUrl: $posterUrl")
+
         return newMovieLoadResponse(title, url, tvType, url) {
             this.posterUrl = posterUrl
             this.plot = description
@@ -433,12 +434,15 @@ class UATuTFunProvider : MainAPI() {
         seasonName: String,
         episodeName: String
     ): String {
+        Log.d("DEBUG getEpisodePosterUrl", "seriesUrl: $seriesUrl")
         val seriesJsonDataModel =
             getSeriesJsonDataModelByEpisodeName(episodeName, seasonName, seriesUrl)
         if (seriesJsonDataModel.isEmpty()) {
             return ""
         }
-        return seriesJsonDataModel.first().seasons.first().episodes.first().poster
+        val poster = seriesJsonDataModel.first().seasons.first().episodes.first().poster
+        Log.d("DEBUG getEpisodePosterUrl", "poster: $poster")
+        return poster
     }
 
     private suspend fun getSeriesJsonDataModelByEpisodeName(
@@ -534,8 +538,11 @@ class UATuTFunProvider : MainAPI() {
             ?.replace(yearIndexTag, "")?.trim()?.toInt() ?: 0
     }
 
-    private fun getPagePosterUrl(document: Document) =
-        fixUrl(document.select("div.bslide__poster > a > img").attr("src"))
+    private fun getPagePosterUrl(document: Document): String {
+        val fixUrl = fixUrl(document.select("div.bslide__poster > a > img").attr("src"))
+        Log.d("DEBUG getPagePosterUrl", "fixUrl: $fixUrl")
+        return fixUrl
+    }
 
     private fun getPageEngTitle(document: Document) = document.select("div.bslide__subtitle").text()
 
