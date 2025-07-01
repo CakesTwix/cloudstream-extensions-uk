@@ -16,7 +16,6 @@ on:
 
 jobs:
   build:
-    if: github.ref_name != '1-add-ukuatutfun' # <-- This line skips the job if on '1-add-ukuatutfun' branch
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
