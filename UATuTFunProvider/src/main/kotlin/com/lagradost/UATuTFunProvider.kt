@@ -100,7 +100,6 @@ class UATuTFunProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        Log.d("DEBUG load", "Url: $url")
         val document = app.get(url).document
 
         return when (val tvType = getTvType(url)) {
@@ -259,7 +258,7 @@ class UATuTFunProvider : MainAPI() {
         val trailerUrl = getTrailerUrL(document)
         val tags = getTags(document)
         val actors = getActors(document)
-
+        Log.d("DEBUG getNewMovieLoadResponse", "posterUrl: $posterUrl")
         return newMovieLoadResponse(title, url, tvType, url) {
             this.posterUrl = posterUrl
             this.plot = description
