@@ -1,7 +1,5 @@
 package com.lagradost.models
 
-import com.google.gson.annotations.SerializedName
-
 data class PlayerJson (
 
 	val title : String,
