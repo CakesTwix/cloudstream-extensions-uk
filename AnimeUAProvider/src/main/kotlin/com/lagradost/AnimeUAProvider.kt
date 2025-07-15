@@ -101,6 +101,7 @@ class AnimeUAProvider : MainAPI() {
 
         val tvType = with(tags){
             when{
+                playerUrl.contains("/serial/") -> TvType.Anime
                 contains("Повнометражка") -> TvType.AnimeMovie
                 contains("OVA") -> TvType.OVA
                 contains("ONA") -> TvType.Anime
