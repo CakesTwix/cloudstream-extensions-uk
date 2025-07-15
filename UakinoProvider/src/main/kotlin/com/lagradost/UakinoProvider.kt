@@ -12,7 +12,7 @@ import org.jsoup.nodes.Element
 class UakinoProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://uakino.me"
+    override var mainUrl = "https://uakino.best"
     override var name = "Uakino"
     override val hasMainPage = true
     override var lang = "uk"
@@ -160,7 +160,7 @@ class UakinoProvider : MainAPI() {
                 app.get(
                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
                         headers = mapOf(
-                            "Referer" to "https://uakino.me",
+                            "Referer" to mainUrl,
                             "X-Requested-With" to "XMLHttpRequest",
                             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                 )
@@ -224,7 +224,7 @@ class UakinoProvider : MainAPI() {
                 app.get(
                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
                         headers = mapOf(
-                                "Referer" to "https://uakino.me",
+                                "Referer" to mainUrl,
                                 "X-Requested-With" to "XMLHttpRequest",
                                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                         )
@@ -294,7 +294,7 @@ class UakinoProvider : MainAPI() {
 
         val responseGet = app.get(dataList[0],
                 headers = mapOf(
-                        "Referer" to "https://uakino.me",
+                        "Referer" to mainUrl,
                         "X-Requested-With" to "XMLHttpRequest",
                         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                 )).parsedSafe<Responses>() // ajax link
