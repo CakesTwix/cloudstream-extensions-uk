@@ -139,10 +139,11 @@ class UFDubProvider : MainAPI() {
                 val url = item.value.dropLast(1)
                 val seriya = url.substringAfter("Seriya=", "").substringBefore("&")
                 episodes.add(
-                    Episode(
-                        url,
-                        seriya
-                    )
+
+                    newEpisode(url) {
+                        this.name = seriya
+                        this.data = url
+                    }
                 )
         }
 

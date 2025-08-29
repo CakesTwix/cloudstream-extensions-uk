@@ -20,6 +20,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
@@ -164,12 +165,12 @@ class AnimeONProvider : MainAPI() {
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
             )).text, PlayerEpisodes::class.java).episodes.map { epd -> // Episode
             episodes.add(
-                    Episode(
-                            "${animeJSON.id}, ${epd.episode}",
-                            "Епізод ${epd.episode}",
-                            episode = epd.episode,
-                            posterUrl = epd.poster
-                    )
+                newEpisode("${animeJSON.id}, ${epd.episode}") {
+                    this.name = "Епізод ${epd.episode}"
+                    this.posterUrl = epd.poster
+                    this.episode = epd.episode
+                    this.data = "${animeJSON.id}, ${epd.episode}"
+                }
             )
         }
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {

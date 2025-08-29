@@ -117,12 +117,12 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                     var episodeName = documentSeason.select("div[data-episode-id=${episode.episodeNumber}] div.name").text().replaceFirstChar { it.uppercase() }
                     if (episodeName.isBlank()) { episodeName = episode.name.replaceFirstChar { it.uppercase() } }
                     episodes.add(
-                        Episode(
-                            "${season.url}, ${episode.episodeNumber}",
-                            episodeName,
-                            season.seasonNumber,
-                            episode.episodeNumber.split("-")[0].toIntOrNull()
-                        )
+                        newEpisode("${season.url}, ${episode.episodeNumber}") {
+                            this.name = episodeName
+                            this.season = season.seasonNumber
+                            this.episode = episode.episodeNumber.split("-")[0].toIntOrNull()
+                            this.data = "${season.url}, ${episode.episodeNumber}"
+                        }
                     )
                 }
             }

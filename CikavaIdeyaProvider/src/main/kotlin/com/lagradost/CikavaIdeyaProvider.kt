@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
@@ -143,12 +144,12 @@ class CikavaIdeyaProvider : MainAPI() {
                     val episodes = player1.getJSONObject(seasonKey)
                     for (episodeKey in episodes.keys()) {
                         episodesList.add(
-                            Episode(
-                                episodes.getString(episodeKey),
-                                episodeKey,
-                                seasonKey.replace(" сезон","").toIntOrNull(),
-                                episodeKey.replace(" серія","").toIntOrNull(),
-                            )
+                            newEpisode(episodes.getString(episodeKey)) {
+                                this.name = episodeKey
+                                this.season = seasonKey.replace(" сезон","").toIntOrNull()
+                                this.episode = episodeKey.replace(" серія","").toIntOrNull()
+                                this.data = episodes.getString(episodeKey)
+                            }
                         )
                     }
                 }

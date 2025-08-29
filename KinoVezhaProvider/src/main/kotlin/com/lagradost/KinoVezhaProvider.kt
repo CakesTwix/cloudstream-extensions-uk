@@ -102,13 +102,13 @@ class KinoVezhaProvider : MainAPI() {
                 for (episode in season.folder) {                                     // Seasons
                     for (dubs in episode.folder) {                              // Episodes
                         episodes.add(
-                            Episode(
-                                "${season.title}, ${episode.title}, $playerUrl",
-                                episode.title,
-                                season.season,
-                                episode.number,
-                                dubs.poster
-                            )
+                            newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                                this.name = episode.title
+                                this.season = season.season
+                                this.episode = episode.number
+                                this.posterUrl = dubs.poster
+                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                            }
                         )
                     }
                 }

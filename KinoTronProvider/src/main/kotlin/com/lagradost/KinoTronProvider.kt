@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
@@ -129,13 +130,13 @@ class KinoTronProvider : MainAPI() {
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
                         episodes.add(
-                            Episode(
-                                "${season.title}, ${episode.title}, $playerUrl",
-                                episode.title,
-                                season.title.replace(" Сезон ","").toIntOrNull(),
-                                episode.title.replace("Серія ","").toIntOrNull(),
-                                episode.poster
-                            )
+                             newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                                this.name = episode.title
+                                this.season = season.title.replace(" Сезон ","").toIntOrNull()
+                                this.episode = episode.title.replace("Серія ","").toIntOrNull()
+                                this.posterUrl = episode.poster
+                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                            }
                         )
                     }
                 }

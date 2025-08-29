@@ -130,13 +130,13 @@ class AnimeUAProvider : MainAPI() {
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
                         episodes.add(
-                            Episode(
-                                "${season.title}, ${episode.title}, $playerUrl",
-                                episode.title,
-                                season.title.replace(" Сезон ","").toIntOrNull(),
-                                episode.title.replace("Серія ","").toIntOrNull(),
-                                episode.poster
-                            )
+                            newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                                this.name = episode.title
+                                this.season = season.title.replace(" Сезон ","").toIntOrNull()
+                                this.episode = episode.title.replace("Серія ","").toIntOrNull()
+                                this.posterUrl = episode.poster
+                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                            }
                         )
                     }
                 }

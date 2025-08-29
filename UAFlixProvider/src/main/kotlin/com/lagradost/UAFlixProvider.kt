@@ -18,6 +18,7 @@ import com.lagradost.cloudstream3.fixUrl
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
@@ -157,13 +158,13 @@ class UAFlixProvider : MainAPI() {
 
                 episodesList.select(".video-item").map { video_item ->
                     episodes.add(
-                        Episode(
-                                video_item.select(".vi-img").attr("href"),
-                                video_item.select(".vi-rate").text(),
-                                extractIntsFromString(video_item.select(".vi-title").text())[0].value.toIntOrNull(),
-                                extractIntsFromString(video_item.select(".vi-title").text())[1].value.toIntOrNull(),
-                                posterUrl = fixUrl(video_item.select(".img-resp-h img").attr("data-src"))
-                        )
+                        newEpisode(video_item.select(".vi-img").attr("href")) {
+                            this.name = video_item.select(".vi-rate").text()
+                            this.season = extractIntsFromString(video_item.select(".vi-title").text())[0].value.toIntOrNull()
+                            this.episode = extractIntsFromString(video_item.select(".vi-title").text())[1].value.toIntOrNull()
+                            this.posterUrl = fixUrl(video_item.select(".img-resp-h img").attr("data-src"))
+                            this.data = video_item.select(".vi-img").attr("href")
+                        }
                     )
                 }
             }
@@ -177,13 +178,13 @@ class UAFlixProvider : MainAPI() {
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
                         episodes.add(
-                            Episode(
-                                    "${season.title}, ${episode.title}, $playerUrl",
-                                    episode.title,
-                                    season.title.replace(" Сезон ","").toIntOrNull(),
-                                    episode.title.replace("Серія ","").toIntOrNull(),
-                                    episode.poster
-                            )
+                            newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                                this.name = episode.title
+                                this.season = season.title.replace(" Сезон ","").toIntOrNull()
+                                this.episode = season.title.replace(" Серія ","").toIntOrNull()
+                                this.posterUrl = episode.poster
+                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                            }
                         )
                     }
                 }

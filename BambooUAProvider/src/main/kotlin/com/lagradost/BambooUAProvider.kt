@@ -17,6 +17,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
@@ -146,22 +147,22 @@ class BambooUAProvider : MainAPI() {
             if(it.select("h3.my-4").text() == "Субтитри"){
                 it.select("span.play_me").forEach{ episode ->
                     subEpisodes.add(
-                        Episode(
-                            episode.attr("data-file"),
-                            episode.attr("data-title"),
-                            episode = episode.attr("data-title").replace("Серія ","").toIntOrNull(),
-                        )
+                        newEpisode(episode.attr("data-file")) {
+                            this.name = episode.attr("data-title")
+                            this.episode = episode.attr("data-title").replace("Серія ","").toIntOrNull()
+                            this.data = episode.attr("data-file")
+                        }
                     )
                 }
                 // Parse dub
             } else if(it.select("h3.my-4").text() == "Озвучення"){
                 it.select("span.play_me").forEach{ episode ->
                     dubEpisodes.add(
-                        Episode(
-                            episode.attr("data-file"),
-                            episode.attr("data-title"),
-                            episode = episode.attr("data-title").replace("Серія ","").toIntOrNull(),
-                        )
+                        newEpisode(episode.attr("data-file")) {
+                            this.name = episode.attr("data-title")
+                            this.episode = episode.attr("data-title").replace("Серія ","").toIntOrNull()
+                            this.data = episode.attr("data-file")
+                        }
                     )
                 }
             }

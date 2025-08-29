@@ -174,10 +174,10 @@ class UakinoProvider : MainAPI() {
                                 "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
                             val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
-                                Episode(
-                                    "$href,$name", // link, Серія 1
-                                    name,
-                                )
+                                newEpisode("$href,$name") {
+                                    this.name = name
+                                    this.data = "$href,$name"
+                                }
                             } else {
                                 null
                             }

@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
@@ -123,13 +124,13 @@ class SerialnoProvider : MainAPI() {
             for (episode in season.folder) {                                     // Seasons
                 for (dubs in episode.folder) {                              // Episodes
                     episodes.add(
-                        Episode(
-                            "${season.title}, ${episode.title}, $playerUrl",
-                            episode.title,
-                            season.season,
-                            episode.number,
-                            dubs.poster
-                        )
+                        newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                            this.name = episode.title
+                            this.season = season.season
+                            this.episode = episode.number
+                            this.posterUrl = dubs.poster
+                            this.data = "${season.title}, ${episode.title}, $playerUrl"
+                        }
                     )
                 }
             }

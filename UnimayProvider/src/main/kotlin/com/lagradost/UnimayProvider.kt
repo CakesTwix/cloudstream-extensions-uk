@@ -19,6 +19,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -115,13 +116,13 @@ class UnimayProvider : MainAPI() {
         anime.playlist.forEach{
             if (it.premium) return@forEach
             episodes.add(
-                Episode
-                    (
-                    "${anime.code}, ${it.number}",
-                    it.title,
-                    episode = it.number,
-                    posterUrl = if(it.imageUuid != null) { "$imagesUrl${it.imageUuid}" } else null,
-                )
+
+                newEpisode("${anime.code}, ${it.number}") {
+                    this.name = it.title
+                    this.posterUrl = if(it.imageUuid != null) { "$imagesUrl${it.imageUuid}" } else null
+                    this.episode = it.number
+                    this.data = "${anime.code}, ${it.number}"
+                }
             )
         }
 

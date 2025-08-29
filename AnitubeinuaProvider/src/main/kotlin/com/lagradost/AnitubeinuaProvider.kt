@@ -131,12 +131,18 @@ class AnitubeinuaProvider : MainAPI() {
 
                             if (it.urls.isDub) {
                                 dubEpisodes.add(
-                                        Episode(
-                                                "${it.name}, $id, ${it.urls.isDub}", it.name, episode = it.numberEpisode))
+                                    newEpisode("${it.name}, $id, ${it.urls.isDub}") {
+                                        this.name = it.name
+                                        this.episode = it.numberEpisode
+                                    }
+                                )
                             } else {
                                 subEpisodes.add(
-                                        Episode(
-                                                "${it.name}, $id, ${it.urls.isDub}", it.name, episode = it.numberEpisode))
+                                    newEpisode("${it.name}, $id, ${it.urls.isDub}") {
+                                        this.name = it.name
+                                        this.episode = it.numberEpisode
+                                    }
+                                )
                             }
                         }
                     }
@@ -153,11 +159,12 @@ class AnitubeinuaProvider : MainAPI() {
                             varEpisodeNumber = episodesList.last().episodeNumber?.plus(1)
                         }
                         dubEpisodes.add(
-                                Episode(
-                                        "$varEpisodeNumber, $url",
-                                        episode.episodeName,
-                                        episode = varEpisodeNumber,
-                                ))
+                            newEpisode("$varEpisodeNumber, $url") {
+                                this.name = episode.episodeName
+                                this.episode = episode.episodeNumber
+                                this.data = "$varEpisodeNumber, $url"
+                            }
+                        )
                     }
                 }
             }

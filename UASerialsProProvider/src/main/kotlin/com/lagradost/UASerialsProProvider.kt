@@ -21,6 +21,7 @@ import com.lagradost.cloudstream3.base64Encode
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
@@ -180,12 +181,12 @@ class UASerialsProProvider : MainAPI() {
             seriesJson[0].seasons.forEachIndexed { seasonsIndex, season ->
                     season.episodes.forEachIndexed { episodesIndex, episode ->
                         episodes.add(
-                            Episode(
-                                "$seasonsIndex, $episodesIndex, $url",
-                                episode.title,
-                                seasonsIndex + 1,
-                                episodesIndex + 1,
-                            )
+                            newEpisode("$seasonsIndex, $episodesIndex, $url") {
+                                this.name = episode.title
+                                this.season = seasonsIndex + 1
+                                this.episode = episodesIndex + 1
+                                this.data = "$seasonsIndex, $episodesIndex, $url"
+                            }
                         )
                     }
                 }

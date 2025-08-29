@@ -13,6 +13,7 @@ import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newAnimeSearchResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
@@ -91,12 +92,12 @@ class HentaiUkrProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
         parsedJSON.forEachIndexed { index, cfgModel ->
             episodes.add(
-                Episode(
-                    "$url, $index",
-                    "Серія ${index + 1}",
-                    episode = index + 1,
-                    posterUrl = "$mainUrl${cfgModel.poster}"
-                )
+                newEpisode("$url, $index") {
+                    this.name = "Серія ${index + 1}"
+                    this.episode = index + 1
+                    this.posterUrl = "$mainUrl${cfgModel.poster}"
+                    this.data = "$url, $index"
+                }
             )
         }
         return newTvSeriesLoadResponse(

@@ -18,6 +18,7 @@ import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrl
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
@@ -392,14 +393,15 @@ class UATuTFunProvider : MainAPI() {
                 val episodeDate: Long = getEpisodeDate(episode)
                 val episodeNumber = episodeName.filter { it.isDigit() }.toInt()
                 val episodeSeasonTag = "$episodeName;$seasonName;$url"
-                Episode(
-                    data = episodeSeasonTag,
-                    name = episodeName,
-                    season = episodeSeason,
-                    episode = episodeNumber,
-                    posterUrl = episodePosterUrl,
-                    date = episodeDate
-                )
+
+                newEpisode(episodeSeasonTag) {
+                    this.name = episodeName
+                    this.season = episodeSeason
+                    this.episode = episodeNumber
+                    this.posterUrl = episodePosterUrl
+                    this.date = episodeDate
+                    this.data = episodeSeasonTag
+                }
             }
         }
 
@@ -437,13 +439,13 @@ class UATuTFunProvider : MainAPI() {
                     val episodeName = episode.name
                     val episodeNumber = episode.name.filter { it.isDigit() }.toInt()
                     val episodeSeasonTag = "$episodeName;$seasonName;$url"
-                    Episode(
-                        data = episodeSeasonTag,
-                        name = episodeName,
-                        season = episodeSeasonNumber,
-                        episode = episodeNumber,
-                        posterUrl = episodePosterUrl,
-                    )
+                    newEpisode(episodeSeasonTag) {
+                        this.name = episodeName
+                        this.season = episodeSeasonNumber
+                        this.episode = episodeNumber
+                        this.posterUrl = episodePosterUrl
+                        this.data = episodeSeasonTag
+                    }
                 }
             }
         }
