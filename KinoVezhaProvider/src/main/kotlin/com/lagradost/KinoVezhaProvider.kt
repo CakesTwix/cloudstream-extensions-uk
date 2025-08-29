@@ -78,7 +78,7 @@ class KinoVezhaProvider : MainAPI() {
         // Parse info
         val title = document.select(".inner-page__title").text()
         val poster = mainUrl + document.select(".img-fit-cover img").attr("src")
-        val tags = document.select(".inner-page__list li")[1].select("a").map { it.text() }
+        val tags = document.select(".inner-page__list li")[2].select("a").map { it.text() }
         // Log.d("load-debug", tags.toString())
         val year = document.select(".inner-page__list li")[0].select("a").text().toIntOrNull()
 
