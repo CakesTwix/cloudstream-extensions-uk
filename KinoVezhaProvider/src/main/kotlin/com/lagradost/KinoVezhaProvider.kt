@@ -10,7 +10,7 @@ import org.jsoup.nodes.Element
 class KinoVezhaProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://kinovezha.com"
+    override var mainUrl = "https://kinovezha.tv"
     override var name = "KinoVezha"
     override val hasMainPage = true
     override var lang = "uk"
@@ -58,7 +58,7 @@ class KinoVezhaProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.post(
-            url = "$mainUrl/index.php?do=search",
+            url = mainUrl,
             data = mapOf(
                 "do" to "search",
                 "subaction" to "search",
