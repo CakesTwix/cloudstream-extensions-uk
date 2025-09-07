@@ -28,9 +28,9 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
 import com.lagradost.models.AnimeModel
-import com.lagradost.models.FundubEpisode
 import com.lagradost.models.FundubModel
 import com.lagradost.models.FundubVideoUrl
+import com.lagradost.models.FundubsModel
 import com.lagradost.models.NewAnimeModel
 import com.lagradost.models.PlayerEpisodes
 import com.lagradost.models.SearchModel
@@ -153,26 +153,30 @@ class AnimeONProvider : MainAPI() {
 
         // Get all fundub for title and parse only first fundub/player
         // https://animeon.club/api/player/fundubs/6966
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("$mainUrl/api/player/fundubs/${animeJSON.id}",
+        val fundubs = Gson().fromJson(app.get("$mainUrl/api/player/fundubs/${animeJSON.id}",
             headers = mapOf(
                 "Referer" to mainUrl,
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
-            )).text, listFundub)
+            )).text, FundubsModel::class.java).fundubs
 
-        Gson().fromJson(app.get("$mainUrl/api/player/episodes/${animeJSON.id}?playerId=${fundubs?.get(0)?.player?.get(0)?.id}&fundubId=${fundubs?.get(0)?.fundub?.id}",
-            headers = mapOf(
-                "Referer" to mainUrl,
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
-            )).text, PlayerEpisodes::class.java).episodes.map { epd -> // Episode
-            episodes.add(
-                newEpisode("${animeJSON.id}, ${epd.episode}") {
-                    this.name = "Епізод ${epd.episode}"
-                    this.posterUrl = epd.poster
-                    this.episode = epd.episode
-                    this.data = "${animeJSON.id}, ${epd.episode}"
-                }
-            )
+
+        if(fundubs.isNotEmpty()){
+            Gson().fromJson(app.get("$mainUrl/api/player/episodes/${animeJSON.id}?playerId=${fundubs[0].player[0].id}&fundubId=${fundubs[0].fundub.id}",
+                headers = mapOf(
+                    "Referer" to mainUrl,
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
+                )).text, PlayerEpisodes::class.java).episodes.map { epd -> // Episode
+                episodes.add(
+                    newEpisode("${animeJSON.id}, ${epd.episode}") {
+                        this.name = "Епізод ${epd.episode}"
+                        this.posterUrl = epd.poster
+                        this.episode = epd.episode
+                        this.data = "${animeJSON.id}, ${epd.episode}"
+                    }
+                )
+            }
         }
+
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
             newAnimeLoadResponse(
                     animeJSON.titleUa,
@@ -221,10 +225,10 @@ class AnimeONProvider : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        val fundubs = Gson().fromJson<List<FundubModel>>(app.get("$mainUrl/api/player/fundubs/${dataList[0]}",
+        val fundubs = Gson().fromJson(app.get("$mainUrl/api/player/fundubs/${dataList[0]}",
             headers = mapOf(
                 "Referer" to mainUrl,
-            )).text, listFundub)
+            )).text, FundubsModel::class.java).fundubs
 
         if(dataList.size == 2){
             fundubs.map { dub ->
