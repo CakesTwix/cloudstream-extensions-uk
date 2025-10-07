@@ -32,6 +32,7 @@ class UakinoProvider : MainAPI() {
         )
 
     val blackUrls = "(/news/)|(/franchise/)"
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
@@ -217,6 +218,7 @@ class UakinoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(",")
+        // Log.d("CakesTwix-Debug", data)
         // TODO: OPTIMIZE code!!! Remove this shitty code as soon as possible!!!!!!
         if (dataList.size == 1) {
             val id = data.split("/").last().split("-").first()
@@ -230,6 +232,7 @@ class UakinoProvider : MainAPI() {
                         )
                 )
                     .parsedSafe<Responses>()
+            // Log.d("CakesTwix-Debug", responseGet.toString())
             if (responseGet?.success == true) { // Its serial
                 responseGet.response?.let {
                     Jsoup.parse(it).select("div.playlists-videos li").mapNotNull { eps ->
@@ -244,11 +247,7 @@ class UakinoProvider : MainAPI() {
                         app.get(href, referer = "$mainUrl/").document.select("script").map { script
                             ->
                             if (script.data().contains("var player = new Playerjs({")) {
-                                val m3uLink =
-                                    script
-                                        .data()
-                                        .substringAfterLast("file:\"")
-                                        .substringBefore("\",")
+                                val m3uLink = fileRegex.find(script.data())?.groups?.get(1)?.value ?: ""
 
                                 // Add as source
                                 M3u8Helper.generateM3u8(
@@ -270,8 +269,7 @@ class UakinoProvider : MainAPI() {
                     app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script
                         ->
                         if (script.data().contains("var player = new Playerjs({")) {
-                            val m3uLink =
-                                script.data().substringAfterLast("file:\"").substringBefore("\",")
+                            val m3uLink = fileRegex.find(script.data())?.groups?.get(1)?.value ?: ""
 
                             // Add as source
                             M3u8Helper.generateM3u8(
@@ -298,8 +296,9 @@ class UakinoProvider : MainAPI() {
                         "X-Requested-With" to "XMLHttpRequest",
                         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
                 )).parsedSafe<Responses>() // ajax link
+        // Log.d("CakesTwix-Debug", responseGet.toString())
         if (responseGet?.success == true) { // Its serial
-            responseGet?.response?.let {
+            responseGet.response.let {
                 Jsoup.parse(it)
                     .select("div.playlists-videos li:contains(${dataList[1]})")
                     .mapNotNull { eps ->
@@ -315,11 +314,7 @@ class UakinoProvider : MainAPI() {
                         app.get(href, referer = "$mainUrl/").document.select("script").map { script
                             ->
                             if (script.data().contains("var player = new Playerjs({")) {
-                                val m3uLink =
-                                    script
-                                        .data()
-                                        .substringAfterLast("file:\"")
-                                        .substringBefore("\",")
+                                val m3uLink = fileRegex.find(script.data())?.groups?.get(1)?.value ?: ""
 
                                 // Add as source
                                 M3u8Helper.generateM3u8(
@@ -340,8 +335,7 @@ class UakinoProvider : MainAPI() {
             if (iframeUrl != null) {
                 app.get(iframeUrl, referer = "$mainUrl/").document.select("script").map { script ->
                     if (script.data().contains("var player = new Playerjs({")) {
-                        val m3uLink =
-                            script.data().substringAfterLast("file:\"").substringBefore("\",")
+                        val m3uLink = fileRegex.find(script.data())?.groups?.get(1)?.value ?: ""
 
                         // Add as source
                         M3u8Helper.generateM3u8(
