@@ -41,9 +41,18 @@ class AnitubeinuaProvider : MainAPI() {
             )
 
     private var dle_login_hash = ""
+    
+    companion object {
+        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get(request.data + page).document
+        val document = app.get(request.data + page,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to mainUrl
+            )
+        ).document
 
         val home = document.select(".story").map { it.toSearchResponse() }
         return newHomePageResponse(request.name, home)
@@ -78,7 +87,11 @@ class AnitubeinuaProvider : MainAPI() {
                         mapOf(
                                 "do" to "search",
                                 "subaction" to "search",
-                                "story" to query.replace(" ", "+")))
+                                "story" to query.replace(" ", "+")),
+                        headers = mapOf(
+                                "User-Agent" to USER_AGENT,
+                                "Referer" to mainUrl
+                        ))
                         .document
 
         return document.select("article.story").map { it.toSearchResponse() }
@@ -86,7 +99,12 @@ class AnitubeinuaProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): AnimeLoadResponse {
-        val document = app.get(url).document
+        val document = app.get(url,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to mainUrl
+            )
+        ).document
 
         val someInfo = document.select(".story_c_r")
 
@@ -193,6 +211,25 @@ class AnitubeinuaProvider : MainAPI() {
         val dataList = data.split(", ")
         Log.d("CakesTwix-Debug", data)
         if (dataList[1].toIntOrNull() != null) { // Its ajax list
+            // If dle_login_hash is empty, fetch it from the anime page
+            if (dle_login_hash.isEmpty()) {
+                val animeUrl = "$mainUrl/${dataList[1]}-temp.html" // construct URL from ID
+                val pageDoc = app.get(animeUrl,
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to mainUrl
+                    )
+                ).document
+                
+                dle_login_hash = pageDoc
+                    .body()
+                    .selectFirst("script")
+                    ?.html()
+                    ?.substringAfterLast("dle_login_hash = '")
+                    ?.substringBefore("';")
+                    ?: ""
+            }
+            
             val ajax =
                     fromPlaylistAjax(
                             "$mainUrl/engine/ajax/playlists.php?news_id=${dataList[1]}&xfield=playlist&user_hash=$dle_login_hash")
@@ -258,7 +295,12 @@ class AnitubeinuaProvider : MainAPI() {
                         }
                     }
         } else {
-            val document = app.get(dataList[1]).document
+            val document = app.get(dataList[1],
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to mainUrl
+                )
+            ).document
             document.select("script").map { script ->
                 if (script.data().contains("RalodePlayer.init(")) {
                     var latestNumber: Int? = 0
@@ -349,7 +391,10 @@ class AnitubeinuaProvider : MainAPI() {
         val responseGet = app.get(
             url,
             referer = referer,
-            headers = mapOf("X-Requested-With" to "XMLHttpRequest")
+            headers = mapOf(
+                "X-Requested-With" to "XMLHttpRequest",
+                "User-Agent" to USER_AGENT
+            )
         ).parsedSafe<Responses>()
 
         // Not Ajax, return null
