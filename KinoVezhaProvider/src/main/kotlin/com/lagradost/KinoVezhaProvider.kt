@@ -189,7 +189,11 @@ class KinoVezhaProvider : MainAPI() {
          */
         @OptIn(ExperimentalEncodingApi::class)
         fun decodeBase64(encodedString: String): String? {
-            return String(Base64.decode(encodedString.replace("==", "")), Charsets.UTF_8)
+            try {
+                return String(Base64.decode(encodedString.replace("==", "")), Charsets.UTF_8)
+            } catch (_: Exception) {
+                return String(Base64.decode(encodedString.replace("===", "=")), Charsets.UTF_8)
+            }
         }
 
         /**
