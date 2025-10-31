@@ -2,7 +2,6 @@
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-//import com.lagradost.api.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -11,6 +10,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.MovieSearchResponse
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvSeriesLoadResponse
@@ -23,7 +23,6 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.model.Season
@@ -242,7 +241,7 @@ class UATuTFunProvider : MainAPI() {
             this.plot = description
             this.tags = tags
             this.year = year
-            this.rating = rating
+            this.score = Score.from10(rating)
             this.name = "$title ($engTitle)"
             addActors(actors)
             addTrailer(trailerUrl)
@@ -273,7 +272,7 @@ class UATuTFunProvider : MainAPI() {
             this.plot = description
             this.tags = tags
             this.year = year
-            this.rating = rating
+            this.score = Score.from10(rating)
             this.name = "$title ($engTitle)"
             addActors(actors)
             addTrailer(trailerUrl)
@@ -534,7 +533,7 @@ class UATuTFunProvider : MainAPI() {
     }
 
     private fun getRating(document: Document) =
-        document.select("div.pmovie__rating-content > a")[0].text().toRatingInt()
+        document.select("div.pmovie__rating-content > a")[0].text()
 
     private fun getDescription(document: Document) =
         document.select("div.page__text").text()

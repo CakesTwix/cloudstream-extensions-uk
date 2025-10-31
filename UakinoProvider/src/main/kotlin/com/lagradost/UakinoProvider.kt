@@ -103,7 +103,7 @@ class UakinoProvider : MainAPI() {
         var tags = emptyList<String>()
         var year = 2023
         var actors = emptyList<String>()
-        var rating = "0".toRatingInt()
+        var rating = "0"
 
         document.select(".fi-item-s, .fi-item").forEach { metadata ->
             with(metadata.select(".fi-label").text()) {
@@ -113,7 +113,7 @@ class UakinoProvider : MainAPI() {
                     contains("Актори:") -> actors = metadata.select(".fi-desc").text().split(", ")
                     contains("") -> {
                         if (!metadata.select(".fi-label").select("img").isEmpty()){
-                            rating = metadata.select(".fi-desc").text().substringBefore("/").toRatingInt()
+                            rating = metadata.select(".fi-desc").text().substringBefore("/")
                         }
                     }
                 }
@@ -190,7 +190,7 @@ class UakinoProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
                 addEpisodes(DubStatus.None, episodes.distinctBy { it.name })
                 this.recommendations = recommendations
@@ -202,7 +202,7 @@ class UakinoProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)

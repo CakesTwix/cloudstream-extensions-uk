@@ -86,7 +86,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
 
             val tvType = TvType.Movie
             val description = document.selectFirst(".text")?.text()?.trim()
-            val rating = document.select("div.rating__item--imdb div.number").text().toRatingInt()
+            val rating = document.select("div.rating__item--imdb div.number").text()
             val actors = titleJsonMovie.actor.map { it.name }
 
             return newMovieLoadResponse(title, url, tvType, url) {
@@ -94,7 +94,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
             }
         } else {
@@ -106,7 +106,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
 
             val tvType = TvType.TvSeries
             val description = document.selectFirst(".text")?.text()?.trim()
-            val rating = document.select("div.rating__item--imdb div.number").text().toRatingInt()
+            val rating = document.select("div.rating__item--imdb div.number").text()
 
             val actors = titleJson.partOfTVSeries.actor.map { it.name }
 
@@ -132,7 +132,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
             }
         }

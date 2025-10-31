@@ -59,7 +59,7 @@ class UnimayProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        if (page != 1 && request.data.contains("updates")) return HomePageResponse(emptyList())
+        if (page != 1 && request.data.contains("updates")) return newHomePageResponse(emptyList())
         if (request.data.contains("updates")){
             val homeList = Gson().fromJson<List<Updates>>(app.get("${request.data}").text, listUpdatesModel).map{
                 newAnimeSearchResponse(it.release.name, "$apiUrl/v1/release?code=${it.release.code}", TvType.Anime) {

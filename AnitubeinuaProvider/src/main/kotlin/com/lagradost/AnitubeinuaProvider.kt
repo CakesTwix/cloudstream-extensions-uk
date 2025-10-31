@@ -118,7 +118,7 @@ class AnitubeinuaProvider : MainAPI() {
         val description = document.selectFirst("div.my-text")?.text()?.trim()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val trailer = document.selectFirst(".rcol a.rollover")?.attr("href").toString()
-        val rating = document.selectFirst(".lexington-box > div:last-child span")?.text().toRatingInt()
+        val rating = document.selectFirst(".lexington-box > div:last-child span")?.text()
 
         val recommendations = document.select(".horizontal ul li").map { it.toSearchResponse() }
 
@@ -193,7 +193,7 @@ class AnitubeinuaProvider : MainAPI() {
             this.year = year
             this.plot = description
             this.tags = tags
-            this.rating = rating
+            this.score = Score.from10(rating)
             addTrailer(trailer)
             this.recommendations = recommendations
             addEpisodes(DubStatus.Dubbed, dubEpisodes)

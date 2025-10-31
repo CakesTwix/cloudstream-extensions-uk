@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -112,7 +113,7 @@ class KinoTronProvider : MainAPI() {
         }
         val description = document.select(".full-text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
-        val rating = document.selectFirst(".fqualityimdb")?.text().toRatingInt()
+        val rating = document.selectFirst(".fqualityimdb")?.text()
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
@@ -146,7 +147,7 @@ class KinoTronProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$title, $playerUrl") {
@@ -154,7 +155,7 @@ class KinoTronProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
             }
         }
     }

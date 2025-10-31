@@ -91,7 +91,7 @@ class UFDubProvider : MainAPI() {
 
         val description = document.select("div.full-text p").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
-        val rating = toRatingInt(document.select(".fp-rate"))
+        val score = toRatingInt(document.select(".fp-rate"))
 
         val recommendations = document.select(".rel").map {
             newMovieSearchResponse(it.select(".img-box img").attr("alt"), it.attr("href"), TvType.Anime) {
@@ -152,7 +152,7 @@ class UFDubProvider : MainAPI() {
             this.year = year
             this.plot = description
             this.tags = tags
-            this.rating = rating
+            this.score = Score.from10(score)
             this.recommendations = recommendations
         }
     }
@@ -173,15 +173,7 @@ class UFDubProvider : MainAPI() {
         return true
     }
 
-    private fun decode(input: String): String{
-        // Decoded string, thanks to Secozzi
-        val hexRegex = Regex("\\\\u([0-9a-fA-F]{4})")
-        return hexRegex.replace(input) { matchResult ->
-            Integer.parseInt(matchResult.groupValues[1], 16).toChar().toString()
-        }
-    }
-
-    private fun toRatingInt(el: Elements): Int? {
+    private fun toRatingInt(el: Elements): String {
         // +54
         val raterate = el.select(".ratingtypeplusminus").text().toInt();
         // 60
@@ -190,6 +182,6 @@ class UFDubProvider : MainAPI() {
         val minusik = (ratecount - raterate) / 2;
         val plusik = ratecount - minusik;
 
-        return (plusik.toFloat() / ratecount.toFloat() * 10).toString().toRatingInt();
+        return (plusik.toFloat() / ratecount.toFloat() * 10).toString();
     }
 }
