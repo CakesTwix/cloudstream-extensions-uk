@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.ShowStatus
 import com.lagradost.cloudstream3.SubtitleFile
@@ -23,7 +24,6 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
-import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AnimeInfoModel
@@ -55,6 +55,8 @@ class AnimeONProvider : MainAPI() {
     private val posterApi = "$mainUrl/api/uploads/images/%s"
     private val searchApi = "$apiUrl/search?=text="
 
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+
     // Sections
     override val mainPage =
         mainPageOf(
@@ -68,7 +70,7 @@ class AnimeONProvider : MainAPI() {
 
     // Done
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        if(!request.data.contains("pageIndex") && page !=1) return HomePageResponse(emptyList())
+        if(!request.data.contains("pageIndex") && page !=1) return newHomePageResponse(emptyList())
         val document = app.get(request.data.format(page),
             headers = mapOf(
                 "Referer" to mainUrl,
@@ -191,7 +193,7 @@ class AnimeONProvider : MainAPI() {
                 this.showStatus = showStatus
                 this.duration = extractIntFromString(animeJSON.episodeTime)
                 this.year = animeJSON.releaseDate.toIntOrNull()
-                this.rating = animeJSON.rating.toRatingInt()
+                this.score = Score.from10(animeJSON.rating)
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addMalId(animeJSON.malId.toIntOrNull())
             }
@@ -210,7 +212,7 @@ class AnimeONProvider : MainAPI() {
                 this.duration = extractIntFromString(animeJSON.episodeTime)
                 this.year = animeJSON.releaseDate.toIntOrNull()
                 this.backgroundPosterUrl = backgroundImage
-                this.rating = animeJSON.rating.toRatingInt()
+                this.score = Score.from10(animeJSON.rating)
                 addMalId(animeJSON.malId.toIntOrNull())
             }
         }
@@ -239,16 +241,18 @@ class AnimeONProvider : MainAPI() {
 
                         M3u8Helper.generateM3u8(
                             source = "${dub.fundub.name} (${dub.player[0].name})",
-                            streamUrl = getM3U(app.get("$mainUrl/api/player/episode/${epd.id}",
-                                headers = mapOf(
+                            streamUrl = getM3U(
+                                app.get("$mainUrl/api/player/episode/${epd.id}",
+                                    headers = mapOf(
                                     "Referer" to mainUrl,
-                                )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
-                            referer = "https://moonanime.art/iframe/rnxylfdgutgcfekzljkq/?player=animeon.club",
+                                    )
+                                ).parsedSafe<FundubVideoUrl>()!!.videoUrl),
+                            referer = "https://moonanime.art/",
                             headers = mapOf("User-Agent" to  "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
                                 "Accept" to "*/*",
                                 "accept-language" to "uk,ru;q=0.9,en-US;q=0.8,en;q=0.7",
                                 "origin" to "https://moonanime.art")
-                    ).last().let(callback)
+                        ).last().let(callback)
                 }
             }
             return true
@@ -289,15 +293,11 @@ class AnimeONProvider : MainAPI() {
                                     "accept-language" to "en-US,en;q=0.5"
                             )).document
 
-                    return document.select("script").html()
-                            .substringAfterLast("file: \"")
-                            .substringBefore("\",")
+                    return fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
                 }
 
                 contains("https://ashdi.vip/vod") -> {
-                    return app.get(this).document.select("script").html()
-                            .substringAfterLast("file:\"")
-                            .substringBefore("\",")
+                    return fileRegex.find(app.get(this).document.select("script").html())?.groups?.get(1)?.value ?: ""
                 }
 
                 else -> return ""
