@@ -4,7 +4,6 @@ import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -89,7 +88,7 @@ class EneyidaProvider : MainAPI() {
         val tvType = if (tags.contains("фільм") or tags.contains("мультьфільм") or playerUrl.contains("/vod/")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".full_content-desc p")?.text()?.trim()
         val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
-        val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text().toRatingInt()
+        val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text()
         val actors = fullInfo[4].select("a").map { it.text() }
 
         val recommendations = document.select(".short.related_item").map {
@@ -104,15 +103,16 @@ class EneyidaProvider : MainAPI() {
                 .substringAfterLast("file: \'")
                 .substringBefore("\',")
 
-            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season -> // Dubs
-                for (episode in season.folder) {                                     // Seasons
-                    for (dubs in episode.folder) {                              // Episodes
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dub -> // Dubs
+                for (season in dub.folder) {                                     // Seasons
+                    for (episode in season.folder) {                              // Episodes
+
                         episodes.add(
                             newEpisode("${season.title}, ${episode.title}, $playerUrl") {
                                 this.name = episode.title
                                 this.season = season.title.replace(" сезон","").toIntOrNull()
-                                this.episode =season.title.replace(" серія","").toIntOrNull()
-                                this.posterUrl = dubs.poster
+                                this.episode = episode.title.replace(" серія","").toIntOrNull()
+                                this.posterUrl = episode.poster
                                 this.data = "${season.title}, ${episode.title}, $playerUrl"
                             }
                         )
@@ -125,7 +125,7 @@ class EneyidaProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)
@@ -137,7 +137,7 @@ class EneyidaProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)
@@ -171,7 +171,7 @@ class EneyidaProvider : MainAPI() {
 
             if(subtitleUrl.isNullOrBlank()) return true
             subtitleCallback.invoke(
-                SubtitleFile(
+                newSubtitleFile(
                     subtitleUrl.substringAfterLast("[").substringBefore("]"),
                     subtitleUrl.substringAfter("]")
                 )
@@ -183,28 +183,36 @@ class EneyidaProvider : MainAPI() {
             .substringAfterLast("file: \'")
             .substringBefore("\',")
 
-        tryParseJson<List<PlayerJson>>(playerRawJson)
-            ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
-            ?.flatMap { it.folder }              // Беремо список епізодів
-            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний епізод
-            ?.flatMap { it.folder }              // Беремо список дубляжів
-            ?.forEach { dubs ->                  // Обробляємо кожен дубляж
-                M3u8Helper.generateM3u8(
-                    source = dubs.title,
-                    streamUrl = dubs.file,
-                    referer = "https://tortuga.wtf/"
-                ).last().let(callback)
+        tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { level1Item ->
+            val isSeasonFirst = level1Item.title.contains("сезон", ignoreCase = true)
 
-                if (!dubs.subtitle.isNullOrBlank()) {
-                    subtitleCallback.invoke(
-                        SubtitleFile(
-                            dubs.subtitle.substringAfterLast("[").substringBefore("]"),
-                            dubs.subtitle.substringAfter("]")
-                        )
-                    )
-                }
+            val (dubTitle, seasonList) = if (isSeasonFirst) {
+                level1Item.title to level1Item.folder // Сценарій А: Season -> Dub -> Episode
+            } else {
+                level1Item.title to level1Item.folder // Сценарій Б: Dub -> Season -> Episode
             }
+
+            seasonList.forEach { season ->
+                val sourceTitle = if (isSeasonFirst) season.title else dubTitle
+
+                season.folder
+                    .filter { it.title == dataList[1] && !it.file.isNullOrBlank() }
+                    .forEach { episode ->
+                        M3u8Helper.generateM3u8(sourceTitle, episode.file, "https://tortuga.wtf/").last().let(callback)
+
+                        episode.subtitle?.takeIf { it.isNotBlank() }?.let { subtitleRaw ->
+                            subtitleRaw.indexOf(']').takeIf { it > 0 }?.let { endIndex ->
+                                subtitleCallback(
+                                    newSubtitleFile(
+                                        subtitleRaw.substring(subtitleRaw.lastIndexOf('[') + 1, endIndex),
+                                        subtitleRaw.substring(endIndex + 1)
+                                    )
+                                )
+                            }
+                        }
+                    }
+            }
+        }
         return true
     }
-
 }
