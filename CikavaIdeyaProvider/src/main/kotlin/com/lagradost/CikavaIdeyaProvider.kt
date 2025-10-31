@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -37,6 +38,7 @@ class CikavaIdeyaProvider : MainAPI() {
     )
 
     private var dle_login_hash = ""
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
     // Sections
     override val mainPage = mainPageOf(
@@ -110,7 +112,7 @@ class CikavaIdeyaProvider : MainAPI() {
         val tvType = if (tags.contains("Фільми") or tags.contains("Артхаус")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".fdesc")?.text()?.trim()
         // val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
-        val rating = document.select(".likes").text().dropLast(1).toRatingInt()
+        val rating = document.select(".likes").text().dropLast(1)
         // val actors = fullInfo[4].select("a").map { it.text() }
 
         val recommendations = document.select(".th-rel").map {
@@ -162,7 +164,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
                 // addTrailer(trailer)
@@ -174,7 +176,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
                 // addTrailer(trailer)
@@ -190,18 +192,14 @@ class CikavaIdeyaProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        val m3u8Url = document.select("script").html()
-            .substringAfterLast("file:\"")
-            .substringBefore("\",")
+        val m3u8Url = fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
         M3u8Helper.generateM3u8(
             source = "Цікава Ідея",
             streamUrl = m3u8Url.replace("https://", "http://"),
             referer = "https://tortuga.wtf/"
         ).last().let(callback)
 
-        val subtitleUrl = document.select("script").html()
-                .substringAfterLast("subtitle:\"")
-                .substringBefore("\",")
+        val subtitleUrl = fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
 
         if(subtitleUrl.isNullOrBlank()) return true
         subtitleCallback.invoke(
