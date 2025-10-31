@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -14,13 +15,15 @@ import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
-import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Element
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 class SerialnoProvider : MainAPI() {
 
@@ -37,7 +40,6 @@ class SerialnoProvider : MainAPI() {
         TvType.TvSeries,
         TvType.Anime
     )
-
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/series/page/" to "Серіали",
@@ -45,6 +47,8 @@ class SerialnoProvider : MainAPI() {
         "$mainUrl/mini-serials/page/" to "Міні-серіали",
 
         )
+
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
     override suspend fun getMainPage(
         page: Int,
@@ -108,18 +112,15 @@ class SerialnoProvider : MainAPI() {
         val tvType = TvType.TvSeries
         val description = document.select(".full-text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
-        val rating = document.selectFirst(".th-voice")?.text().toRatingInt()
-
+        val rating = document.selectFirst(".th-voice")?.text()
         // Parse episodes
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("src")
 
         // Return to app
         // Parse Episodes as Series
-        val playerRawJson = app.get(playerUrl).document.select("script").html()
-            .substringAfterLast("file: \'")
-            .substringBefore("\',")
-
+        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(playerUrl).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString())
+        Log.d("CakesTwix-Debug", playerRawJson.toString())
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season -> // Dubs
             for (episode in season.folder) {                                     // Seasons
                 for (dubs in episode.folder) {                              // Episodes
@@ -140,7 +141,7 @@ class SerialnoProvider : MainAPI() {
             this.year = year
             this.plot = description
             this.tags = tags
-            this.rating = rating
+            this.score = Score.from10(rating)
         }
     }
 
@@ -154,9 +155,7 @@ class SerialnoProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(", ")
         Log.d("CakesTwix-Debug", data)
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file: \'")
-            .substringBefore("\',")
+        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(dataList[2]).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: "")
 
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)
             ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
@@ -172,7 +171,7 @@ class SerialnoProvider : MainAPI() {
 
                 if (!dubs.subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(
-                        SubtitleFile(
+                        newSubtitleFile(
                             dubs.subtitle.substringAfterLast("[").substringBefore("]"),
                             dubs.subtitle.substringAfter("]")
                         )
@@ -180,5 +179,45 @@ class SerialnoProvider : MainAPI() {
                 }
             }
         return true
+    }
+
+    object Decoder {
+
+        /**
+         * Декодує рядок із формату Base64.
+         * @param encodedString Закодований рядок (Base64).
+         * @return Декодований рядок (String) або null у разі помилки.
+         */
+        @OptIn(ExperimentalEncodingApi::class)
+        fun decodeBase64(encodedString: String): String? {
+            try {
+                return String(Base64.decode(encodedString.replace("==", "")), Charsets.UTF_8)
+            } catch (_: Exception) {
+                return String(Base64.decode(encodedString.replace("===", "=")), Charsets.UTF_8)
+            }
+
+        }
+
+        /**
+         * Реверсує (перевертає) вхідний рядок.
+         * @param inputString Рядок для реверсування.
+         * @return Реверсований рядок.
+         */
+        fun reverseText(inputString: String): String {
+            return inputString.reversed()
+        }
+
+        /**
+         * Комбінована функція: спочатку декодує Base64, потім реверсує результат.
+         * (Це зазвичай використовується, коли обфускація складається з двох етапів).
+         * @param encodedString Закодований рядок.
+         * @return Реверсований та декодований рядок або null.
+         */
+        fun decodeAndReverse(encodedString: String): String? {
+            val decoded = decodeBase64(encodedString)
+            return decoded?.let {
+                reverseText(it)
+            }
+        }
     }
 }
