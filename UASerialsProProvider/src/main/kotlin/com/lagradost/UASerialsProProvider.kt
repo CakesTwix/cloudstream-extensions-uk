@@ -1,5 +1,6 @@
 package com.lagradost
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
@@ -10,6 +11,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -24,7 +26,6 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
-import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AESPlayerDecodedModel
@@ -35,6 +36,8 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 class UASerialsProProvider : MainAPI() {
 
@@ -133,7 +136,7 @@ class UASerialsProProvider : MainAPI() {
         val tags = mutableListOf<String>()
         val actors = mutableListOf<String>()
         val year = document.select(yearSelector).text().substringAfter(": ").substringBefore("-").toIntOrNull()
-        val rating = document.selectFirst(ratingSelector)!!.text().toRatingInt()
+        val rating = document.selectFirst(ratingSelector)!!.text()
 
         document.select(".short-list li").forEach { menu ->
             with(menu){
@@ -194,7 +197,7 @@ class UASerialsProProvider : MainAPI() {
             newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.engName = engTitle
-                this.rating = rating
+                this.score = Score.from10(rating)
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -205,7 +208,7 @@ class UASerialsProProvider : MainAPI() {
             newMovieLoadResponse(title, url, TvType.Movie, "$title, ${movieJson[0].url}") {
                 this.posterUrl = poster
                 this.name = engTitle
-                this.rating = rating
+                this.score = Score.from10(rating)
                 this.year = year
                 this.plot = description
                 this.tags = tags
@@ -235,7 +238,7 @@ class UASerialsProProvider : MainAPI() {
 
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = m3u8Url.replace("https://", "http://"),
+                streamUrl = Decoder.decodeAndReverse(m3u8Url)!!.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/",
             ).last().let(callback)
             return true
@@ -260,9 +263,10 @@ class UASerialsProProvider : MainAPI() {
                     val matchResult = regex.find(it)
                     matchResult?.groups?.get(1)?.value.toString()
                 }
+
                 M3u8Helper.generateM3u8(
                     source = episode.title,
-                    streamUrl = m3u8Url.replace("https://", "http://"),
+                    streamUrl = Decoder.decodeAndReverse(m3u8Url)!!.replace("https://", "http://"),
                     referer = "https://tortuga.wtf/"
                 ).last().let(callback)
             }
@@ -311,4 +315,44 @@ class UASerialsProProvider : MainAPI() {
         @SerializedName("iv") val iv: String,
         @SerializedName("iterations") val iterations: Int = 999,
     )
+
+    object Decoder {
+
+        /**
+         * Декодує рядок із формату Base64.
+         * @param encodedString Закодований рядок (Base64).
+         * @return Декодований рядок (String) або null у разі помилки.
+         */
+        @OptIn(ExperimentalEncodingApi::class)
+        fun decodeBase64(encodedString: String): String? {
+            try {
+                return String(Base64.decode(encodedString.replace("==", "")), Charsets.UTF_8)
+            } catch (_: Exception) {
+                return String(Base64.decode(encodedString.replace("===", "=")), Charsets.UTF_8)
+            }
+
+        }
+
+        /**
+         * Реверсує (перевертає) вхідний рядок.
+         * @param inputString Рядок для реверсування.
+         * @return Реверсований рядок.
+         */
+        fun reverseText(inputString: String): String {
+            return inputString.reversed()
+        }
+
+        /**
+         * Комбінована функція: спочатку декодує Base64, потім реверсує результат.
+         * (Це зазвичай використовується, коли обфускація складається з двох етапів).
+         * @param encodedString Закодований рядок.
+         * @return Реверсований та декодований рядок або null.
+         */
+        fun decodeAndReverse(encodedString: String): String? {
+            val decoded = decodeBase64(encodedString)
+            return decoded?.let {
+                reverseText(it)
+            }
+        }
+    }
 }
