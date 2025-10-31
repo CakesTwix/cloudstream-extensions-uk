@@ -50,6 +50,8 @@ class KlonTVProvider : MainAPI() {
     private val recommendationsSelector = ".related-news__small-card"
     // private val ratingSelector = ".pmovie__subrating img"
 
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
@@ -102,7 +104,7 @@ class KlonTVProvider : MainAPI() {
         // JSON
         val title = titleJson.name
         val poster = titleJson.image
-        val rating = titleJson.aggregateRating?.ratingValue.toString().toRatingInt()
+        val rating = titleJson.aggregateRating?.ratingValue.toString()
         val actors = titleJson.actor.map { it.name }
 
         // HTML
@@ -159,7 +161,7 @@ class KlonTVProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addActors(actors)
@@ -170,7 +172,7 @@ class KlonTVProvider : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                this.rating = rating
+                this.score = Score.from10(rating)
                 this.recommendations = recommendations
                 addActors(actors)
             }
@@ -187,9 +189,9 @@ class KlonTVProvider : MainAPI() {
         val dataList = data.split(", ")
         // Its film, parse one m3u8
         if (dataList.size == 2) {
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file:\"")
-                .substringBefore("\",")
+            // TODO: Remove this hack
+            val m3u8Url = fileRegex.find(app.get(dataList[1].replace("?multivoice", "")).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
+
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url,
@@ -202,7 +204,7 @@ class KlonTVProvider : MainAPI() {
 
             if (subtitleUrl.isNullOrBlank()) return true
             subtitleCallback.invoke(
-                SubtitleFile(
+                newSubtitleFile(
                     subtitleUrl.substringAfterLast("[").substringBefore("]"),
                     subtitleUrl.substringAfter("]")
                 )
@@ -210,9 +212,7 @@ class KlonTVProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file:\'")
-            .substringBefore("\',")
+        val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dub ->
             dub.folder.filter { it.title == dataList[0] }
