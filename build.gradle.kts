@@ -57,7 +57,7 @@ subprojects {
     }
 
     dependencies {
-        val apk by configurations
+        val cloudstream by configurations
         val implementation by configurations
         val libs = rootProject.libs
         val apkTasks = listOf("deployWithAdb", "build", "makePluginsJson")
@@ -67,8 +67,8 @@ subprojects {
             }
         }
 
-        // If the task is specifically to compile the app then use the stubs, otherwise us the library.
-        apk(libs.cloudstream3)
+        // If the task is specifically to compile the app then use the stubs, otherwise use the library.
+        cloudstream(libs.cloudstream3)
 
         // these dependencies can include any of those which are added by the app,
         // but you dont need to include any of them if you dont need them
