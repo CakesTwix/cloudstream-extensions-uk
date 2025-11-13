@@ -1,6 +1,5 @@
 package com.lagradost
 
-import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
@@ -228,7 +227,6 @@ class UASerialsProProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
-        Log.d("CakesTwix-Debug", data)
         // Movie
         if(dataList.size == 2){
             val html = app.get(dataList[1],
@@ -241,7 +239,7 @@ class UASerialsProProvider : MainAPI() {
 
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = m3u8Url.replace("https://", "http://"),
+                streamUrl = if (m3u8Url.startsWith("http")) m3u8Url else Decoder.decodeAndReverse(m3u8Url)!!,
                 referer = "https://tortuga.wtf/",
             ).dropLast(1).forEach(callback)
             return true
@@ -268,7 +266,7 @@ class UASerialsProProvider : MainAPI() {
 
                 M3u8Helper.generateM3u8(
                     source = episode.title,
-                    streamUrl = m3u8Url.replace("https://", "http://"),
+                    streamUrl = if (m3u8Url.startsWith("http")) m3u8Url else Decoder.decodeAndReverse(m3u8Url)!!,
                     referer = mainUrl
                 ).dropLast(1).forEach(callback)
             }
@@ -326,13 +324,12 @@ class UASerialsProProvider : MainAPI() {
          * @return Декодований рядок (String) або null у разі помилки.
          */
         @OptIn(ExperimentalEncodingApi::class)
-        fun decodeBase64(encodedString: String): String? {
+        fun decodeBase64(encodedString: String): String {
             try {
                 return String(Base64.decode(encodedString.replace("==", "")), Charsets.UTF_8)
             } catch (_: Exception) {
                 return String(Base64.decode(encodedString.replace("===", "=")), Charsets.UTF_8)
             }
-
         }
 
         /**
