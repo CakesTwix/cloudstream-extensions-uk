@@ -23,6 +23,8 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
         TvType.TvSeries,
     )
 
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/%d?priority=popular" to "⭐ За популярністю",
@@ -156,9 +158,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
             val onlyPlayerHTML = app.get(mainUrl + movieHTML).document.select(".player .voices__wrap option").attr("value")
             // Log.d("CakesTwix-Debug", onlyPlayerHTML)
 
-            val m3u8Url = app.get(onlyPlayerHTML).document.select("script").html()
-                .substringAfterLast("file:\"")
-                .substringBefore("\",")
+            val m3u8Url = fileRegex.find(app.get(onlyPlayerHTML).document.select("script").html())?.groups?.get(1)?.value ?: ""
 
             M3u8Helper.generateM3u8(
                 source = "Movie",
@@ -176,9 +176,7 @@ open class UASerialProvider(url: String, name: String) : MainAPI() {
                 // Log.d("load-debug", dub.text()) // Name
                 // Log.d("load-debug", dub.attr("value"))// Url
 
-                var m3u8Url = app.get(dub.attr("value")).document.select("script").html()
-                    .substringAfterLast("file:\"")
-                    .substringBefore("\",")
+                var m3u8Url = fileRegex.find(app.get(dub.attr("value")).document.select("script").html())?.groups?.get(1)?.value ?: ""
 
                 if (player.attr("data-player-id") == "spilberg"){
                     m3u8Url = app.get(dub.attr("value")).document.select("script").html()
