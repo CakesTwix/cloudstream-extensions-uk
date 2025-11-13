@@ -55,6 +55,9 @@ class UASerialsProProvider : MainAPI() {
         TvType.Anime
     )
 
+    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+    val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0"
+
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/series/page/" to "Серіали",
@@ -225,20 +228,20 @@ class UASerialsProProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val dataList = data.split(", ")
+        Log.d("CakesTwix-Debug", data)
         // Movie
         if(dataList.size == 2){
-            val html = app.get(dataList[1]).document.select("script").html()
-            val m3u8Url = when {
-                "file: \"" in html -> html.substringAfter("file: \"").substringBefore("\"")
-                "file: '" in html -> html.substringAfter("file: '").substringBefore("'")
-                "file:\"" in html -> html.substringAfter("file:\"").substringBefore("\"")
-                "file:'" in html -> html.substringAfter("file:'").substringBefore("'")
-                else -> return false
-            }
+            val html = app.get(dataList[1],
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to mainUrl
+                )).document.select("script[type=text/javascript]").html()
+
+            val m3u8Url = fileRegex.find(html)?.groups?.get(1)?.value ?: ""
 
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = Decoder.decodeAndReverse(m3u8Url)!!.replace("https://", "http://"),
+                streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/",
             ).dropLast(1).forEach(callback)
             return true
@@ -254,20 +257,19 @@ class UASerialsProProvider : MainAPI() {
             "297796CCB81D2551",
             false
         ).replace("\\", "").substringBeforeLast("]") + "]"
-
+        // Log.d("CakesTwix-Debug", decryptData)
         Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)[0]
             .seasons[dataList[0].toInt()].episodes[dataList[1].toInt()].sounds.forEach { episode ->
-            val m3u8Url = app.get(episode.url).document.select("script").html()
-                .let {
-                    val regex = """file:\s*"(.*?)"""".toRegex()
-                    val matchResult = regex.find(it)
-                    matchResult?.groups?.get(1)?.value.toString()
-                }
+                val m3u8Url = fileRegex.find(app.get(episode.url,
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to mainUrl
+                    )).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: ""
 
                 M3u8Helper.generateM3u8(
                     source = episode.title,
-                    streamUrl = Decoder.decodeAndReverse(m3u8Url)!!.replace("https://", "http://"),
-                    referer = "https://tortuga.wtf/"
+                    streamUrl = m3u8Url.replace("https://", "http://"),
+                    referer = mainUrl
                 ).dropLast(1).forEach(callback)
             }
         return true
