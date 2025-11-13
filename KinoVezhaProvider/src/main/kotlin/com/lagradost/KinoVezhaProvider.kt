@@ -150,7 +150,7 @@ class KinoVezhaProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url.toString(),
                 referer = "https://tortuga.wtf/"
-            ).last().let(callback)
+            ).dropLast(1).forEach(callback)
 
             return true
         }
@@ -166,7 +166,7 @@ class KinoVezhaProvider : MainAPI() {
                     source = dubs.title,
                     streamUrl = dubs.file,
                     referer = "https://tortuga.wtf/"
-                ).last().let(callback)
+                ).dropLast(1).forEach(callback)
 
                 if (!dubs.subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(

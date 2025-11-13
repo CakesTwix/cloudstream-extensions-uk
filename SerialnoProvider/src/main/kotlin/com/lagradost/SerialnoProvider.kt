@@ -167,7 +167,7 @@ class SerialnoProvider : MainAPI() {
                     source = dubs.title,
                     streamUrl = dubs.file,
                     referer = "https://tortuga.wtf/"
-                ).last().let(callback)
+                ).dropLast(1).forEach(callback)
 
                 if (!dubs.subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(

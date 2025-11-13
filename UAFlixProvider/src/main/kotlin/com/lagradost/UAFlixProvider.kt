@@ -246,7 +246,7 @@ class UAFlixProvider : MainAPI() {
                         source = "UAFlix",
                         streamUrl = playerRawJson,
                         referer = "https://tortuga.wtf/"
-                ).last().let(callback)
+                ).dropLast(1).forEach(callback)
                 return true
             }
             val playerRawJson = app.get(playerUrl, referer = "https://uafix.net").document.select("script").html()
@@ -259,7 +259,7 @@ class UAFlixProvider : MainAPI() {
                             source = dubs.title,
                             streamUrl = dubs.folder[0].folder[0].file,
                             referer = "https://tortuga.wtf/"
-                    ).last().let(callback)
+                    ).dropLast(1).forEach(callback)
                 }
             }
 
@@ -280,7 +280,7 @@ class UAFlixProvider : MainAPI() {
                                     source = dubs.title,
                                     streamUrl = episode.file.replace("https://", "http://"),
                                     referer = "https://tortuga.wtf/"
-                            ).last().let(callback)
+                            ).dropLast(1).forEach(callback)
                         }
                     }
                 }

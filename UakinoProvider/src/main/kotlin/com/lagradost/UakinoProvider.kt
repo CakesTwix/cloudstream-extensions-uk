@@ -255,7 +255,7 @@ class UakinoProvider : MainAPI() {
                                     streamUrl = m3uLink,
                                     referer = "https://ashdi.vip/"
                                 )
-                                    .last().let(callback)
+                                    .dropLast(1).forEach(callback)
                             }
                         }
                     }
@@ -282,7 +282,7 @@ class UakinoProvider : MainAPI() {
                                 streamUrl = m3uLink,
                                 referer = "https://ashdi.vip/"
                             )
-                                .last().let(callback)
+                                .dropLast(1).forEach(callback)
                         }
                     }
                 }
@@ -322,7 +322,7 @@ class UakinoProvider : MainAPI() {
                                     streamUrl = m3uLink,
                                     referer = "https://ashdi.vip/"
                                 )
-                                    .last().let(callback)
+                                    .dropLast(1).forEach(callback)
                             }
                         }
                     }
@@ -348,7 +348,7 @@ class UakinoProvider : MainAPI() {
                             streamUrl = m3uLink,
                             referer = "https://ashdi.vip/"
                         )
-                            .last().let(callback)
+                            .dropLast(1).forEach(callback)
                     }
                 }
             }

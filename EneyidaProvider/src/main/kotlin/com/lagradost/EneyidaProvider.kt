@@ -163,7 +163,7 @@ class EneyidaProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/"
-            ).last().let(callback)
+            ).dropLast(1).forEach(callback)
 
             val subtitleUrl = app.get(dataList[1]).document.select("script").html()
                     .substringAfterLast("subtitle: \"")
@@ -198,7 +198,7 @@ class EneyidaProvider : MainAPI() {
                 season.folder
                     .filter { it.title == dataList[1] && !it.file.isNullOrBlank() }
                     .forEach { episode ->
-                        M3u8Helper.generateM3u8(sourceTitle, episode.file, "https://tortuga.wtf/").last().let(callback)
+                        M3u8Helper.generateM3u8(sourceTitle, episode.file, "https://tortuga.wtf/").dropLast(1).forEach(callback)
 
                         episode.subtitle?.takeIf { it.isNotBlank() }?.let { subtitleRaw ->
                             subtitleRaw.indexOf(']').takeIf { it > 0 }?.let { endIndex ->

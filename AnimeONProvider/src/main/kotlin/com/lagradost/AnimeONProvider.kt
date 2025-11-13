@@ -252,7 +252,7 @@ class AnimeONProvider : MainAPI() {
                                 "Accept" to "*/*",
                                 "accept-language" to "uk,ru;q=0.9,en-US;q=0.8,en;q=0.7",
                                 "origin" to "https://moonanime.art")
-                        ).last().let(callback)
+                        ).dropLast(1).forEach(callback)
                 }
             }
             return true
@@ -266,7 +266,7 @@ class AnimeONProvider : MainAPI() {
                             "Referer" to mainUrl,
                         )).parsedSafe<FundubVideoUrl>()!!.videoUrl),
                     referer = ""
-            ).last().let(callback)
+            ).dropLast(1).forEach(callback)
         }
 
         return true

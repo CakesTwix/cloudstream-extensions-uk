@@ -149,7 +149,7 @@ class UATuTFunProvider : MainAPI() {
                         source = dubName,
                         streamUrl = m3uUrl,
                         referer = "https://uk.uatut.fun/"
-                    ).last().let(callback)
+                    ).dropLast(1).forEach(callback)
                 } else {
                     val m3u8 = app.get(m3uUrl)
                     val jsonArray = mapper.readTree(m3u8.text)

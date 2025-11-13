@@ -197,7 +197,7 @@ class CikavaIdeyaProvider : MainAPI() {
             source = "Цікава Ідея",
             streamUrl = m3u8Url.replace("https://", "http://"),
             referer = "https://tortuga.wtf/"
-        ).last().let(callback)
+        ).dropLast(1).forEach(callback)
 
         val subtitleUrl = fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
 

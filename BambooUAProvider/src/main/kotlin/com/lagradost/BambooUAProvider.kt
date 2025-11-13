@@ -210,7 +210,7 @@ class BambooUAProvider : MainAPI() {
                     source = it.attr("data-title"),
                     streamUrl = it.attr("data-file"),
                     referer = ""
-                ).last().let(callback)
+                ).dropLast(1).forEach(callback)
             }
             return true
         }
@@ -220,7 +220,7 @@ class BambooUAProvider : MainAPI() {
             source = "Bambooua",
             streamUrl = data,
             referer = ""
-        ).last().let(callback)
+        ).dropLast(1).forEach(callback)
 
         return true
     }

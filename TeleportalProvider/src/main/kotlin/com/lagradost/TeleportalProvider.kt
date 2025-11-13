@@ -161,7 +161,7 @@ class TeleportalProvider : MainAPI() {
             source = video.projectName,
             streamUrl = video.mediaHlsNoAdv,
             referer = mainUrl
-        ).last().let(callback)
+        ).dropLast(1).forEach(callback)
         return true
     }
 

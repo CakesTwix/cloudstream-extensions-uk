@@ -179,7 +179,7 @@ class KinoTronProvider : MainAPI() {
                 source = dataList[0],
                 streamUrl = m3u8Url,
                 referer = "https://tortuga.wtf/"
-            ).last().let(callback)
+            ).dropLast(1).forEach(callback)
 
             return true
         }
@@ -198,7 +198,7 @@ class KinoTronProvider : MainAPI() {
                                 source = dubs.title,
                                 streamUrl = episode.file,
                                 referer = "https://tortuga.wtf/"
-                            ).last().let(callback)
+                            ).dropLast(1).forEach(callback)
                         }
                     }
                 }
