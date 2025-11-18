@@ -41,8 +41,8 @@ class KinoTronProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/serials/page/" to "Серіали",
         "$mainUrl/films/page/" to "Фільми",
+        "$mainUrl/serials/page/" to "Серіали",
         "$mainUrl/cartoons/page/" to "Мультфільми",
         "$mainUrl/cartoon-series/page/" to "Мультсеріали",
         "$mainUrl/anime/page/" to "Аніме",
