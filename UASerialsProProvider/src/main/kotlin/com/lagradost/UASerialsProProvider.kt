@@ -25,6 +25,7 @@ import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AESPlayerDecodedModel
@@ -55,6 +56,7 @@ class UASerialsProProvider : MainAPI() {
     )
 
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+    val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
     val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0"
 
     // Sections
@@ -242,6 +244,17 @@ class UASerialsProProvider : MainAPI() {
                 streamUrl = if (m3u8Url.startsWith("http")) m3u8Url else Decoder.decodeAndReverse(m3u8Url)!!,
                 referer = "https://tortuga.wtf/",
             ).dropLast(1).forEach(callback)
+
+            val subtitleUrl = Decoder.decodeAndReverse(subsRegex.find(html)?.groups?.get(1)?.value ?: "")
+
+            if(subtitleUrl.isNullOrBlank()) return true
+            subtitleCallback.invoke(
+                newSubtitleFile(
+                    subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                    subtitleUrl.substringAfter("]")
+                )
+            )
+
             return true
         }
 
@@ -258,17 +271,28 @@ class UASerialsProProvider : MainAPI() {
         // Log.d("CakesTwix-Debug", decryptData)
         Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)[0]
             .seasons[dataList[0].toInt()].episodes[dataList[1].toInt()].sounds.forEach { episode ->
-                val m3u8Url = fileRegex.find(app.get(episode.url,
+                val playerData = app.get(episode.url,
                     headers = mapOf(
                         "User-Agent" to USER_AGENT,
                         "Referer" to mainUrl
-                    )).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: ""
+                    ))
+
+                val m3u8Url = fileRegex.find(playerData.document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: ""
 
                 M3u8Helper.generateM3u8(
                     source = episode.title,
                     streamUrl = if (m3u8Url.startsWith("http")) m3u8Url else Decoder.decodeAndReverse(m3u8Url)!!,
                     referer = mainUrl
                 ).dropLast(1).forEach(callback)
+
+                val subtitleUrl = Decoder.decodeAndReverse(subsRegex.find(playerData.document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: "")
+
+                subtitleCallback.invoke(
+                    newSubtitleFile(
+                        subtitleUrl!!.substringAfterLast("[").substringBefore("]"),
+                        subtitleUrl.substringAfter("]")
+                    )
+                )
             }
         return true
     }
