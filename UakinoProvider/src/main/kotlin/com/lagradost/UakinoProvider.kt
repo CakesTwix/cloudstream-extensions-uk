@@ -33,6 +33,7 @@ class UakinoProvider : MainAPI() {
 
     val blackUrls = "(/news/)|(/franchise/)"
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+    val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
@@ -254,8 +255,18 @@ class UakinoProvider : MainAPI() {
                                     source = dub,
                                     streamUrl = m3uLink,
                                     referer = "https://ashdi.vip/"
+                                ).dropLast(1).forEach(callback)
+
+                                val subtitleUrl = subsRegex.find(script.data())?.groups?.get(1)?.value ?: ""
+
+                                if(subtitleUrl.isNullOrBlank()) return true
+
+                                subtitleCallback.invoke(
+                                    newSubtitleFile(
+                                        subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                                        subtitleUrl.substringAfter("]")
+                                    )
                                 )
-                                    .dropLast(1).forEach(callback)
                             }
                         }
                     }
@@ -281,8 +292,18 @@ class UakinoProvider : MainAPI() {
                                     .toString(),
                                 streamUrl = m3uLink,
                                 referer = "https://ashdi.vip/"
+                            ).dropLast(1).forEach(callback)
+
+                            val subtitleUrl = subsRegex.find(script.data())?.groups?.get(1)?.value ?: ""
+
+                            if(subtitleUrl.isNullOrBlank()) return true
+
+                            subtitleCallback.invoke(
+                                newSubtitleFile(
+                                    subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                                    subtitleUrl.substringAfter("]")
+                                )
                             )
-                                .dropLast(1).forEach(callback)
                         }
                     }
                 }
@@ -321,8 +342,18 @@ class UakinoProvider : MainAPI() {
                                     source = dub,
                                     streamUrl = m3uLink,
                                     referer = "https://ashdi.vip/"
+                                ).dropLast(1).forEach(callback)
+
+                                val subtitleUrl = subsRegex.find(script.data())?.groups?.get(1)?.value ?: ""
+
+                                if(subtitleUrl.isNullOrBlank()) return true
+
+                                subtitleCallback.invoke(
+                                    newSubtitleFile(
+                                        subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                                        subtitleUrl.substringAfter("]")
+                                    )
                                 )
-                                    .dropLast(1).forEach(callback)
                             }
                         }
                     }
@@ -347,8 +378,18 @@ class UakinoProvider : MainAPI() {
                                 .toString(),
                             streamUrl = m3uLink,
                             referer = "https://ashdi.vip/"
+                        ).dropLast(1).forEach(callback)
+
+                        val subtitleUrl = subsRegex.find(script.data())?.groups?.get(1)?.value ?: ""
+
+                        if(subtitleUrl.isNullOrBlank()) return true
+
+                        subtitleCallback.invoke(
+                            newSubtitleFile(
+                                subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                                subtitleUrl.substringAfter("]")
+                            )
                         )
-                            .dropLast(1).forEach(callback)
                     }
                 }
             }
