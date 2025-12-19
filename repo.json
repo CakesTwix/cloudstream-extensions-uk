@@ -1,8 +1,8 @@
 {
-    "name": "CakesTwix Providers Repository",
+    "name": "CakesTwix Providers Repository Codeberg",
     "description": "Cloudstream Ukraine Plugin Repository",
     "manifestVersion": 1,
     "pluginLists": [
-      "https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/builds/plugins.json"
+      "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/builds/plugins.json"
     ]
 }
