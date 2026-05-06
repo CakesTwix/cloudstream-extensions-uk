@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 13
+version = 14
 
 dependencies {
     implementation(libs.gson)
@@ -13,7 +13,7 @@ cloudstream {
     // All of these properties are optional, you can safely remove them
 
     description = "AnimeON - Дивитися аніме україньскою"
-    authors = listOf("CakesTwix")
+    authors = listOf("CakesTwix","deleteBlack666")
 
     /**
      * Status int as the following:
