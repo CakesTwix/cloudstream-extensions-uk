@@ -133,11 +133,10 @@ class AnimeONProvider : MainAPI() {
         if (translationsJson != null) {
             try {
                 val translations = Gson().fromJson(translationsJson, TranslationsResponse::class.java).translations
-                if (translations.isNotEmpty()) {
-                    val best = translations.maxByOrNull { t -> t.player.maxOfOrNull { it.episodesCount } ?: 0 } ?: translations[0]
-                    val translationId = best.translation.id
-
-                    for (player in best.player.sortedByDescending { it.episodesCount }) {
+                val seenEpisodes = mutableSetOf<Int>()
+                for (translation in translations) {
+                    val translationId = translation.translation.id
+                    for (player in translation.player) {
                         val collected = mutableListOf<FundubEpisode>()
 
                         for (offset in 0..5000 step 100) {
@@ -152,8 +151,8 @@ class AnimeONProvider : MainAPI() {
                             if (eps.size < 100) break
                         }
 
-                        if (collected.isNotEmpty()) {
-                            collected.forEach { ep ->
+                        for (ep in collected) {
+                            if (seenEpisodes.add(ep.episode)) {
                                 episodes.add(newEpisode("$animeId, ${ep.episode}, ${ep.id}") {
                                     this.name = "Епізод ${ep.episode}"
                                     this.posterUrl = ep.poster
@@ -161,10 +160,10 @@ class AnimeONProvider : MainAPI() {
                                     this.data = "$animeId, ${ep.episode}, ${ep.id}"
                                 })
                             }
-                            break
                         }
                     }
                 }
+                episodes.sortBy { it.episode }
             } catch (e: Exception) { }
         }
 
