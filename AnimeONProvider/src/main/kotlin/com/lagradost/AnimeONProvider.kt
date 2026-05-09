@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.models.*
 
 class AnimeONProvider : MainAPI() {
@@ -270,13 +271,39 @@ class AnimeONProvider : MainAPI() {
                         ).dropLast(1).forEach(callback)
                         break
                     }
-                    val m3u8 = getMoonM3U(videoUrl)
-                    if (m3u8.isNotEmpty() && m3u8.startsWith("https")) {
-                        M3u8Helper.generateM3u8(
-                            source = "${item.translation.name} (${player.name})",
-                            streamUrl = m3u8,
-                            referer = "https://moonanime.art/"
-                        ).dropLast(1).forEach(callback)
+                    val rawFile = getMoonFile(videoUrl)
+                    if (rawFile.isNotEmpty()) {
+                        val sourceName = "${item.translation.name} (${player.name})"
+                        if (rawFile.startsWith("[")) {
+                            val qualityRegex = Regex("""\[(\d+p)\](https?://[^\s,]+)""")
+                            qualityRegex.findAll(rawFile).forEach { match ->
+                                val quality = match.groupValues[1]
+                                val url = match.groupValues[2]
+                                M3u8Helper.generateM3u8(
+                                    source = "$sourceName $quality",
+                                    streamUrl = url,
+                                    referer = "https://moonanime.art/",
+                                    headers = mapOf(
+                                        "User-Agent" to userAgent,
+                                        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                                        "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+                                        "Referer" to "https://animeon.club/"
+                                    )
+                                ).dropLast(1).forEach(callback)
+                            }
+                        } else if (rawFile.contains(".m3u8")) {
+                            M3u8Helper.generateM3u8(
+                                source = sourceName,
+                                streamUrl = rawFile,
+                                referer = "https://moonanime.art/",
+                                headers = mapOf(
+                                    "User-Agent" to userAgent,
+                                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                                    "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+                                    "Referer" to "https://animeon.club/"
+                                )
+                            ).dropLast(1).forEach(callback)
+                        }
                         break
                     }
                 }
@@ -286,9 +313,8 @@ class AnimeONProvider : MainAPI() {
         return true
     }
 
-    private fun moonDecrypt(encoded: String): String {
+    private fun moonDecrypt(encoded: String, key: String = "mAnK"): String {
         return try {
-            val key = "mAnK"
             val decoded = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
             val result = StringBuilder()
             for (i in decoded.indices) {
@@ -298,26 +324,43 @@ class AnimeONProvider : MainAPI() {
         } catch (e: Exception) { "" }
     }
 
-    private suspend fun getMoonM3U(iframeUrl: String): String {
+    private fun moonOuterDecode(base64Blob: String): String {
         return try {
-            val response = app.get(iframeUrl, headers = mapOf(
-                "Referer" to "https://animeon.club/",
-                "Origin" to "https://animeon.club",
-                "User-Agent" to userAgent,
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Sec-Fetch-Dest" to "iframe",
-                "Sec-Fetch-Mode" to "navigate",
-                "Sec-Fetch-Site" to "cross-site"
-            ))
-            val html = response.body.string()
-
-            val encRegex = Regex("""file:\s*_0xd\("([^"]+)"\)""")
-            val encMatch = encRegex.find(html)?.groupValues?.get(1)
-                ?: return ""
-
-            moonDecrypt(encMatch)
+            val raw = android.util.Base64.decode(base64Blob, android.util.Base64.DEFAULT)
+            if (raw.size < 32) return ""
+            val key = raw.sliceArray(0 until 32)
+            val data = raw.sliceArray(32 until raw.size)
+            val result = StringBuilder()
+            for (i in data.indices) {
+                result.append(((data[i].toInt() and 0xFF) xor (key[i % 32].toInt() and 0xFF)).toChar())
+            }
+            result.toString()
         } catch (e: Exception) { "" }
+    }
+
+    private suspend fun getMoonFile(iframeUrl: String): String {
+        val html = app.get(iframeUrl, headers = mapOf(
+            "User-Agent" to userAgent,
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer" to "https://animeon.club/"
+        )).text
+
+        val fileRegex = Regex("""file:\s*_0xd\(["']([^"']+)["']\)""")
+
+        val directMatch = fileRegex.find(html)?.groupValues?.get(1)
+        if (directMatch != null) {
+            val result = moonDecrypt(directMatch)
+            if (result.isNotEmpty()) return result
+        }
+
+        val atobRegex = Regex("""atob\(["']([^"']+)["']\)""")
+        val atobMatch = atobRegex.find(html)?.groupValues?.get(1) ?: return ""
+        val decodedJs = moonOuterDecode(atobMatch)
+        if (decodedJs.isEmpty()) return ""
+
+        val innerMatch = fileRegex.find(decodedJs)?.groupValues?.get(1) ?: return ""
+        return moonDecrypt(innerMatch)
     }
 
     private fun extractIntFromString(string: String): Int? {
