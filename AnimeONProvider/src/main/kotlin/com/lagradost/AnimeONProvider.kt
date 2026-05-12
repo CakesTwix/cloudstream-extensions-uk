@@ -1,6 +1,7 @@
 package com.lagradost
 
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
@@ -27,7 +28,7 @@ class AnimeONProvider : MainAPI() {
 
     private val apiUrl = "$mainUrl/api/anime"
     private val posterApi = "$mainUrl/api/uploads/images/%s"
-    private val searchApi = "$apiUrl/search?text="
+    private val searchApi = "$mainUrl/api/anime?search=" // виправлений ендпоінт
     private val userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
 
     override val mainPage = mainPageOf(
@@ -37,6 +38,12 @@ class AnimeONProvider : MainAPI() {
     )
 
     private val listResults = object : TypeToken<List<Results>>() {}.type
+
+    // Data class для відповіді пошуку (якщо відсутній у моделях)
+    private data class SearchApiResponse(
+        @SerializedName("results") val results: List<Result>,
+        @SerializedName("totalCount") val totalCount: Int? = null,
+    )
 
     private suspend fun fetchJsonOrNull(url: String): String? {
         return try {
@@ -51,20 +58,18 @@ class AnimeONProvider : MainAPI() {
 
     // Парсить screen.jpg з HTML сторінки ashdi плеєра
     private suspend fun getAshdiPoster(videoUrl: String?): String? {
-    if (videoUrl.isNullOrEmpty()) return null
-    if (!videoUrl.contains("ashdi.vip")) return null
-    val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
-    return try {
-        val html = app.get(url, headers = mapOf(
-            "User-Agent" to userAgent,
-            "Referer" to "$mainUrl/"
-        )).text
-        // Шукаємо poster:"http://..." або poster:'http://...'
-        val posterRegex = Regex("""poster:\s*["'](https?://[^"']+)["']""")
-        val match = posterRegex.find(html)?.groupValues?.get(1) ?: return null
-        // Завжди повертаємо https://
-        "https://" + match.removePrefix("http://").removePrefix("https://")
-    } catch (e: Exception) { null }
+        if (videoUrl.isNullOrEmpty()) return null
+        if (!videoUrl.contains("ashdi.vip")) return null
+        val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
+        return try {
+            val html = app.get(url, headers = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to "$mainUrl/"
+            )).text
+            val posterRegex = Regex("""poster:\s*["'](https?://[^"']+)["']""")
+            val match = posterRegex.find(html)?.groupValues?.get(1) ?: return null
+            "https://" + match.removePrefix("http://").removePrefix("https://")
+        } catch (e: Exception) { null }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -119,15 +124,39 @@ class AnimeONProvider : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val jsonText = fetchJsonOrNull(searchApi + query) ?: return emptyList()
+        // Якщо користувач ввів число – пробуємо знайти за ID
+        val id = query.toIntOrNull()
+        if (id != null) {
+            val animeById = searchById(id)
+            if (animeById != null) return listOf(animeById)
+        }
+
+        // Новий ендпоінт: /api/anime?search=...
+        val url = "$searchApi${query}"
+        val jsonText = fetchJsonOrNull(url) ?: return emptyList()
         return try {
-            Gson().fromJson(jsonText, SearchModel::class.java).result.map {
-                newAnimeSearchResponse(it.titleUa, "anime/${it.id}", TvType.Anime) {
-                    this.posterUrl = posterApi.format(it.image.preview)
-                    addDubStatus(isDub = true, it.episodes)
+            val response = Gson().fromJson(jsonText, SearchApiResponse::class.java)
+            response.results.map { result ->
+                newAnimeSearchResponse(result.titleUa, "anime/${result.id}", TvType.Anime) {
+                    this.posterUrl = posterApi.format(result.image.preview)
+                    addDubStatus(isDub = true, result.episodes)
                 }
             }
-        } catch (e: Exception) { emptyList() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    // Пошук за ID (прямий запит до /api/anime/{id})
+    private suspend fun searchById(id: Int): SearchResponse? {
+        val jsonText = fetchJsonOrNull("$apiUrl/$id") ?: return null
+        val anime = try {
+            Gson().fromJson(jsonText, AnimeInfoModel::class.java)
+        } catch (e: Exception) { return null }
+        return newAnimeSearchResponse(anime.titleUa, "anime/${anime.id}", TvType.Anime) {
+            this.posterUrl = posterApi.format(anime.image.preview)
+            addDubStatus(isDub = true, anime.episodes)
+        }
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -171,8 +200,6 @@ class AnimeONProvider : MainAPI() {
 
                         for (ep in collected) {
                             if (seenEpisodes.add(ep.episode)) {
-                                // Якщо poster є — використовуємо його,
-                                // інакше парсимо screen.jpg з ashdi плеєра
                                 val posterUrl = if (!ep.poster.isNullOrEmpty()) {
                                     ep.poster
                                 } else {
@@ -249,7 +276,6 @@ class AnimeONProvider : MainAPI() {
             val translationId = item.translation.id
             for (player in item.player) {
 
-                // Отримуємо videoUrl через ep.id напряму
                 val realVideoUrl = if (episodeId != null) {
                     try {
                         val epDetailJson = fetchJsonOrNull("$mainUrl/api/player/$episodeId/episode")
@@ -259,7 +285,6 @@ class AnimeONProvider : MainAPI() {
                     } catch (e: Exception) { null }
                 } else null
 
-                // Шукаємо епізод через пагінацію для fileUrl
                 var episode: FundubEpisode? = null
                 val startOffset = maxOf(0, ((targetEpisode - 1) / 100) * 100)
                 for (offset in startOffset..startOffset + 100 step 100) {
@@ -274,7 +299,6 @@ class AnimeONProvider : MainAPI() {
                     if (episode != null) break
                 }
 
-                // Ashdi — fileUrl напряму
                 val fileUrl = episode?.fileUrl
                 if (!fileUrl.isNullOrEmpty()) {
                     M3u8Helper.generateM3u8(
@@ -285,7 +309,6 @@ class AnimeONProvider : MainAPI() {
                     break
                 }
 
-                // Moon
                 val videoUrl = realVideoUrl ?: episode?.videoUrl
                 if (!videoUrl.isNullOrEmpty() && videoUrl.contains("moonanime.art")) {
                     if (videoUrl.contains("m3u8")) {
