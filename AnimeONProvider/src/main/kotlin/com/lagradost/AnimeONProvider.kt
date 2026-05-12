@@ -49,6 +49,24 @@ class AnimeONProvider : MainAPI() {
         } catch (e: Exception) { null }
     }
 
+    // Парсить screen.jpg з HTML сторінки ashdi плеєра
+    private suspend fun getAshdiPoster(videoUrl: String?): String? {
+    if (videoUrl.isNullOrEmpty()) return null
+    if (!videoUrl.contains("ashdi.vip")) return null
+    val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
+    return try {
+        val html = app.get(url, headers = mapOf(
+            "User-Agent" to userAgent,
+            "Referer" to "$mainUrl/"
+        )).text
+        // Шукаємо poster:"http://..." або poster:'http://...'
+        val posterRegex = Regex("""poster:\s*["'](https?://[^"']+)["']""")
+        val match = posterRegex.find(html)?.groupValues?.get(1) ?: return null
+        // Завжди повертаємо https://
+        "https://" + match.removePrefix("http://").removePrefix("https://")
+    } catch (e: Exception) { null }
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
 
         if (request.name == "Популярні аніме") {
@@ -153,9 +171,17 @@ class AnimeONProvider : MainAPI() {
 
                         for (ep in collected) {
                             if (seenEpisodes.add(ep.episode)) {
+                                // Якщо poster є — використовуємо його,
+                                // інакше парсимо screen.jpg з ashdi плеєра
+                                val posterUrl = if (!ep.poster.isNullOrEmpty()) {
+                                    ep.poster
+                                } else {
+                                    getAshdiPoster(ep.videoUrl)
+                                }
+
                                 episodes.add(newEpisode("$animeId, ${ep.episode}, ${ep.id}") {
                                     this.name = "Епізод ${ep.episode}"
-                                    this.posterUrl = ep.poster
+                                    this.posterUrl = posterUrl
                                     this.episode = ep.episode
                                     this.data = "$animeId, ${ep.episode}, ${ep.id}"
                                 })
@@ -367,5 +393,4 @@ class AnimeONProvider : MainAPI() {
         if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
         return value.value.toIntOrNull()
     }
-
 }
