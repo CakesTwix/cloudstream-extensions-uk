@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 16
+version = 17
 
 dependencies {
     implementation(libs.gson)
@@ -29,5 +29,5 @@ cloudstream {
         "OVA",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=animeon.club&sz=%size%"
+    iconUrl = "https://animeon.club/assets/images/short-logo.png"
 }
