@@ -85,35 +85,38 @@ class AnimeONProvider : MainAPI() {
         }
     }
 
+    // Гібридний пошук постера: спочатку стандартний poster:, потім screen.jpg
     private suspend fun getAshdiPoster(videoUrl: String?): String? {
-    if (videoUrl.isNullOrEmpty()) return null
-    if (!videoUrl.contains("ashdi.vip")) return null
-    val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
-    return try {
-        val html = app.get(url, headers = mapOf(
-            "User-Agent" to userAgent,
-            "Referer" to "$mainUrl/"
-        )).text
+        if (videoUrl.isNullOrEmpty()) return null
+        if (!videoUrl.contains("ashdi.vip")) return null
+        val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
+        return try {
+            val html = app.get(url, headers = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to "$mainUrl/"
+            )).text
 
-        // Шукаємо poster:'...' або poster:"..."
-        for (quote in listOf("'", "\"")) {
-            val prefix = "poster:$quote"
-            val idx = html.indexOf(prefix)
-            if (idx != -1) {
-                val start = idx + prefix.length
-                val end = html.indexOf(quote, start)
-                if (end != -1) {
-                    val raw = html.substring(start, end)
-                    if (raw.isNotEmpty()) {
-                        // Робимо посилання абсолютним, якщо воно відносне
-                        return if (raw.startsWith("http")) raw
-                        else "https:$raw"
+            // 1. Шукаємо poster:'...' або poster:"..."
+            for (quote in listOf("'", "\"")) {
+                val prefix = "poster:$quote"
+                val idx = html.indexOf(prefix)
+                if (idx != -1) {
+                    val start = idx + prefix.length
+                    val end = html.indexOf(quote, start)
+                    if (end != -1) {
+                        val raw = html.substring(start, end)
+                        if (raw.isNotEmpty()) {
+                            return if (raw.startsWith("http")) raw
+                            else "https:$raw"
+                        }
                     }
                 }
             }
-        }
-        null
-    } catch (e: Exception) { null }
+
+            // 2. Якщо не знайшли – шукаємо будь-яке посилання на screen.jpg
+            val screenRegex = Regex("""(https?://[^"'\s]+screen\.jpg)""")
+            screenRegex.find(html)?.groupValues?.get(1)
+        } catch (e: Exception) { null }
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -178,114 +181,121 @@ class AnimeONProvider : MainAPI() {
         }
     }
 
-    
-        override suspend fun load(url: String): LoadResponse {
-    val animeId = url.substringAfterLast("/").substringBefore("-").toIntOrNull()
-        ?: throw Exception("Invalid anime ID in URL: $url")
+    override suspend fun load(url: String): LoadResponse {
+        val animeId = url.substringAfterLast("/").substringBefore("-").toIntOrNull()
+            ?: throw Exception("Invalid anime ID in URL: $url")
 
-    val realApiUrl = resolveAnimeApiUrl(animeId)
-    val jsonText = fetchJsonOrNull(realApiUrl) ?: throw Exception("Failed to load anime $animeId")
-    val animeJSON = Gson().fromJson(jsonText, AnimeInfoModel::class.java)
-        ?: throw Exception("Failed to parse anime $animeId")
+        val realApiUrl = resolveAnimeApiUrl(animeId)
+        val jsonText = fetchJsonOrNull(realApiUrl) ?: throw Exception("Failed to load anime $animeId")
+        val animeJSON = Gson().fromJson(jsonText, AnimeInfoModel::class.java)
+            ?: throw Exception("Failed to parse anime $animeId")
 
-    val posterUrl = animeJSON.image?.preview?.let { posterApi.format(it) } ?: ""
-    val genres = animeJSON.genres?.map { it.nameUa } ?: emptyList()
+        val posterUrl = animeJSON.image?.preview?.let { posterApi.format(it) } ?: ""
+        val genres = animeJSON.genres?.map { it.nameUa } ?: emptyList()
 
-    val showStatus = if (animeJSON.status.contains("ongoing")) ShowStatus.Ongoing else ShowStatus.Completed
-    val tvType = with(animeJSON.type) {
-        when {
-            contains("tv") -> TvType.Anime
-            contains("OVA") || contains("ONA") || contains("Спеціальний випуск") -> TvType.OVA
-            contains("movie") -> TvType.AnimeMovie
-            else -> TvType.Anime
+        val showStatus = if (animeJSON.status.contains("ongoing")) ShowStatus.Ongoing else ShowStatus.Completed
+        val tvType = with(animeJSON.type) {
+            when {
+                contains("tv") -> TvType.Anime
+                contains("OVA") || contains("ONA") || contains("Спеціальний випуск") -> TvType.OVA
+                contains("movie") -> TvType.AnimeMovie
+                else -> TvType.Anime
+            }
         }
-    }
-    val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
-    val translationsJson = fetchJsonOrNull("$mainUrl/api/player/$animeId/translations")
-    if (translationsJson != null) {
-        try {
-            val translations = Gson().fromJson(translationsJson, TranslationsResponse::class.java).translations
-            val episodeSources = mutableMapOf<Int, MutableList<EpisodeSource>>()
-            val episodeAshdiVod = mutableMapOf<Int, String?>()
+        val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
+        val translationsJson = fetchJsonOrNull("$mainUrl/api/player/$animeId/translations")
+        if (translationsJson != null) {
+            try {
+                val translations = Gson().fromJson(translationsJson, TranslationsResponse::class.java).translations
+                val episodeSources = mutableMapOf<Int, MutableList<EpisodeSource>>()
+                val episodePosters = mutableMapOf<Int, String?>() // прев'ю з Moon
 
-            for (translation in translations) {
-                val translationId = translation.translation.id
-                for (player in translation.player) {
-                    val collected = mutableListOf<FundubEpisode>()
-                    for (offset in 0..11000 step 100) {
-                        val epUrl = "$mainUrl/api/player/$animeId/episodes?take=100&skip=$offset&playerId=${player.id}&translationId=$translationId"
-                        val epJson = fetchJsonOrNull(epUrl) ?: break
-                        val eps = try { Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
-                        if (eps.isNullOrEmpty()) break
-                        collected.addAll(eps)
-                        if (eps.size < 100) break
-                    }
-                    for (ep in collected) {
-                        episodeSources.getOrPut(ep.episode) { mutableListOf() }.add(
-                            EpisodeSource(
-                                translationName = translation.translation.name,
-                                playerName = player.name,
-                                videoUrl = ep.videoUrl,
-                                fileUrl = ep.fileUrl,
+                for (translation in translations) {
+                    val translationId = translation.translation.id
+                    for (player in translation.player) {
+                        val collected = mutableListOf<FundubEpisode>()
+                        for (offset in 0..11000 step 100) {
+                            val epUrl = "$mainUrl/api/player/$animeId/episodes?take=100&skip=$offset&playerId=${player.id}&translationId=$translationId"
+                            val epJson = fetchJsonOrNull(epUrl) ?: break
+                            val eps = try { Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
+                            if (eps.isNullOrEmpty()) break
+                            collected.addAll(eps)
+                            if (eps.size < 100) break
+                        }
+                        for (ep in collected) {
+                            episodeSources.getOrPut(ep.episode) { mutableListOf() }.add(
+                                EpisodeSource(
+                                    translationName = translation.translation.name,
+                                    playerName = player.name,
+                                    videoUrl = ep.videoUrl,
+                                    fileUrl = ep.fileUrl,
+                                )
                             )
-                        )
-                        if (player.name.contains("Ashdi", ignoreCase = true) && !ep.videoUrl.isNullOrEmpty()) {
-                            if (!episodeAshdiVod.containsKey(ep.episode)) {
-                                episodeAshdiVod[ep.episode] = ep.videoUrl
+                            // Зберігаємо прев'ю з Moon, якщо воно не з недоступного домену mooncdn.net
+                            if (player.name.contains("Moon", ignoreCase = true) && !ep.poster.isNullOrEmpty()) {
+                                if (!ep.poster.contains("mooncdn.net")) {
+                                    if (!episodePosters.containsKey(ep.episode)) {
+                                        episodePosters[ep.episode] = ep.poster
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            episodeSources.keys.sorted().forEach { epNum ->
-                val sources = episodeSources[epNum] ?: return@forEach
-                var epPoster: String? = null
+                episodeSources.keys.sorted().forEach { epNum ->
+                    val sources = episodeSources[epNum] ?: return@forEach
+                    // Гібрид: спочатку Moon, потім Ashdi
+                    var epPoster: String? = episodePosters[epNum]
 
-                val ashdiVideoUrl = episodeAshdiVod[epNum]
-                if (!ashdiVideoUrl.isNullOrEmpty()) {
-                    epPoster = getAshdiPoster(ashdiVideoUrl)
+                    if (epPoster.isNullOrEmpty()) {
+                        val ashdiSource = sources.firstOrNull {
+                            it.playerName.contains("Ashdi", ignoreCase = true) && !it.videoUrl.isNullOrEmpty()
+                        }
+                        if (ashdiSource != null) {
+                            epPoster = getAshdiPoster(ashdiSource.videoUrl!!)
+                        }
+                    }
+
+                    val dataJson = Gson().toJson(sources)
+                    episodes.add(newEpisode(dataJson) {
+                        this.name = "Епізод $epNum"
+                        this.posterUrl = epPoster
+                        this.episode = epNum
+                        this.data = dataJson
+                    })
                 }
-
-                val dataJson = Gson().toJson(sources)
-                episodes.add(newEpisode(dataJson) {
-                    this.name = "Епізод $epNum"
-                    this.posterUrl = epPoster
-                    this.episode = epNum
-                    this.data = dataJson
-                })
+            } catch (e: Exception) { }
+        }
+        return if (tvType == TvType.Anime || tvType == TvType.OVA) {
+            newAnimeLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType) {
+                this.posterUrl = posterUrl
+                this.engName = animeJSON.titleEn
+                this.tags = genres
+                this.plot = animeJSON.description
+                addTrailer(animeJSON.trailer)
+                this.showStatus = showStatus
+                this.duration = extractIntFromString(animeJSON.episodeTime)
+                this.year = animeJSON.releaseDate?.toIntOrNull()
+                this.score = Score.from10(animeJSON.rating)
+                addEpisodes(DubStatus.Dubbed, episodes)
+                addMalId(animeJSON.malId.toIntOrNull())
             }
-        } catch (e: Exception) { }
-    }
-    return if (tvType == TvType.Anime || tvType == TvType.OVA) {
-        newAnimeLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType) {
-            this.posterUrl = posterUrl
-            this.engName = animeJSON.titleEn
-            this.tags = genres
-            this.plot = animeJSON.description
-            addTrailer(animeJSON.trailer)
-            this.showStatus = showStatus
-            this.duration = extractIntFromString(animeJSON.episodeTime)
-            this.year = animeJSON.releaseDate?.toIntOrNull()
-            this.score = Score.from10(animeJSON.rating)
-            addEpisodes(DubStatus.Dubbed, episodes)
-            addMalId(animeJSON.malId.toIntOrNull())
-        }
-    } else {
-        val backgroundImage = if (animeJSON.backgroundImage.isNullOrBlank()) posterUrl else animeJSON.backgroundImage
-        newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType, "$animeId") {
-            this.posterUrl = posterUrl
-            this.tags = genres
-            this.plot = animeJSON.description
-            addTrailer(animeJSON.trailer)
-            this.duration = extractIntFromString(animeJSON.episodeTime)
-            this.year = animeJSON.releaseDate?.toIntOrNull()
-            this.backgroundPosterUrl = backgroundImage
-            this.score = Score.from10(animeJSON.rating)
-            addMalId(animeJSON.malId.toIntOrNull())
+        } else {
+            val backgroundImage = if (animeJSON.backgroundImage.isNullOrBlank()) posterUrl else animeJSON.backgroundImage
+            newMovieLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType, "$animeId") {
+                this.posterUrl = posterUrl
+                this.tags = genres
+                this.plot = animeJSON.description
+                addTrailer(animeJSON.trailer)
+                this.duration = extractIntFromString(animeJSON.episodeTime)
+                this.year = animeJSON.releaseDate?.toIntOrNull()
+                this.backgroundPosterUrl = backgroundImage
+                this.score = Score.from10(animeJSON.rating)
+                addMalId(animeJSON.malId.toIntOrNull())
+            }
         }
     }
-        }
 
     override suspend fun loadLinks(
         data: String,
@@ -468,4 +478,4 @@ class AnimeONProvider : MainAPI() {
         if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
         return value.value.toIntOrNull()
     }
-}
+} 
