@@ -321,18 +321,20 @@ class AnimeONProvider : MainAPI() {
 
             try {
                 if (isAshdi) {
-                    if (!fileUrl.isNullOrEmpty()) {
+                    // ВАЖЛИВО: для Ashdi спочатку videoUrl (надійніше), потім fileUrl
+                    if (!videoUrl.isNullOrEmpty() && videoUrl.contains("ashdi.vip")) {
+                        processAshdiIframe(videoUrl, sourceName, callback)
+                        foundAny = true
+                    } else if (!fileUrl.isNullOrEmpty()) {
                         M3u8Helper.generateM3u8(
                             source = sourceName,
                             streamUrl = fileUrl,
                             referer = "https://ashdi.vip"
                         ).dropLast(1).forEach(callback)
                         foundAny = true
-                    } else if (!videoUrl.isNullOrEmpty() && videoUrl.contains("ashdi.vip")) {
-                        processAshdiIframe(videoUrl, sourceName, callback)
-                        foundAny = true
                     }
                 } else {
+                    // Для не-Ashdi (Moon) залишаємо без змін
                     if (!fileUrl.isNullOrEmpty()) {
                         M3u8Helper.generateM3u8(
                             source = sourceName,
@@ -478,4 +480,4 @@ class AnimeONProvider : MainAPI() {
         if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
         return value.value.toIntOrNull()
     }
-} 
+}
