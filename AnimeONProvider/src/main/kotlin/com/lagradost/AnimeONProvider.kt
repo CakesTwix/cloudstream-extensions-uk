@@ -208,18 +208,22 @@ class AnimeONProvider : MainAPI() {
             try {
                 val translations = Gson().fromJson(translationsJson, TranslationsResponse::class.java).translations
                 val episodeSources = mutableMapOf<Int, MutableList<EpisodeSource>>()
-                val episodePosters = mutableMapOf<Int, String?>() // прев'ю з Moon
+                val episodePosters = mutableMapOf<Int, String?>()
 
                 for (translation in translations) {
                     val translationId = translation.translation.id
                     for (player in translation.player) {
                         val collected = mutableListOf<FundubEpisode>()
-                        for (offset in 0..11000 step 100) {
+                        val seenIds = mutableSetOf<Int>()
+                        // Починаємо з -1 щоб отримати episode 0, далі звичайна пагінація
+                        for (offset in listOf(-1) + (0..11000 step 100).toList()) {
                             val epUrl = "$mainUrl/api/player/$animeId/episodes?take=100&skip=$offset&playerId=${player.id}&translationId=$translationId"
                             val epJson = fetchJsonOrNull(epUrl) ?: break
                             val eps = try { Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
                             if (eps.isNullOrEmpty()) break
-                            collected.addAll(eps)
+                            // Дедуплікація по id щоб уникнути дублів між skip=-1 і skip=0
+                            val newEps = eps.filter { seenIds.add(it.id) }
+                            collected.addAll(newEps)
                             if (eps.size < 100) break
                         }
                         for (ep in collected) {
@@ -245,7 +249,6 @@ class AnimeONProvider : MainAPI() {
 
                 episodeSources.keys.sorted().forEach { epNum ->
                     val sources = episodeSources[epNum] ?: return@forEach
-                    // Гібрид: спочатку Moon, потім Ashdi
                     var epPoster: String? = episodePosters[epNum]
 
                     if (epPoster.isNullOrEmpty()) {
