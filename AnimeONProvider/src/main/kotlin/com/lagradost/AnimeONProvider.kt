@@ -650,46 +650,65 @@ class AnimeONProvider : MainAPI() {
     }
 
     private fun moonOuterDecode(base64Blob: String): String {
-        return try {
-            val raw = android.util.Base64.decode(base64Blob, android.util.Base64.DEFAULT)
-            if (raw.size < 32) return ""
-            val key = raw.sliceArray(0 until 32)
-            val data = raw.sliceArray(32 until raw.size)
-            val result = StringBuilder()
-            for (i in data.indices) {
-                result.append(((data[i].toInt() and 0xFF) xor (key[i % 32].toInt() and 0xFF)).toChar())
-            }
-            result.toString()
-        } catch (e: Exception) { "" }
-    }
+    return try {
+        val raw = android.util.Base64.decode(base64Blob, android.util.Base64.DEFAULT)
+        if (raw.size < 33) return ""   // мінімум: 1 байт стану + 32 байти ключа
 
-    private suspend fun getMoonFile(iframeUrl: String): String {
-        val html = app.get(iframeUrl, headers = mapOf(
-            "User-Agent" to userAgent,
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer" to "https://animeon.club/"
-        )).text
+        val state0 = raw[0].toInt() and 0xFF
+        val key = raw.sliceArray(1 until 33)
+        val data = raw.sliceArray(33 until raw.size)
 
-        val fileRegex = Regex("""file:\s*_0xd\(["']([^"']+)["']\)""")
-        val directMatch = fileRegex.find(html)?.groupValues?.get(1)
-        if (directMatch != null) {
-            val result = moonDecrypt(directMatch)
-            if (result.isNotEmpty()) return result
+        val result = StringBuilder()
+        var state = state0
+        for (i in data.indices) {
+            val d = data[i].toInt() and 0xFF
+            val k = key[i % 32].toInt() and 0xFF
+            val dec = d xor k xor state
+            result.append(dec.toChar())
+            
+            state = (d + k) and 0xFF
         }
+        result.toString()
+    } catch (e: Exception) { "" }
+    }
+    
+    private suspend fun getMoonFile(iframeUrl: String): String {
+    val cleanUrl = iframeUrl
+        .replace(Regex("[?&]player=[^&]*"), "")
+        .replace("?&", "?")
+        .trimEnd('?', '&')
 
-        val atobRegex = Regex("""atob\(["']([^"']+)["']\)""")
-        val atobMatch = atobRegex.find(html)?.groupValues?.get(1) ?: return ""
-        val decodedJs = moonOuterDecode(atobMatch)
-        if (decodedJs.isEmpty()) return ""
+    val html = app.get(cleanUrl, headers = mapOf(
+        "User-Agent" to userAgent,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer" to "https://animeon.club/"
+    )).text
 
-        val innerMatch = fileRegex.find(decodedJs)?.groupValues?.get(1) ?: return ""
-        return moonDecrypt(innerMatch)
+    
+    val atobRegex = Regex("""atob\(["']([^"']+)["']\)""")
+    val atobMatch = atobRegex.find(html)?.groupValues?.get(1) ?: return ""
+    val decodedJs = moonOuterDecode(atobMatch)
+    if (decodedJs.isEmpty()) return ""
+
+    
+    val keyRegex = Regex("""var\s+k\s*=\s*["']([^"']+)["']""")
+    val xorKey = keyRegex.find(decodedJs)?.groupValues?.get(1) ?: return ""
+
+    
+    val encodedRegex = Regex("""_0xd\(["']([^"']+)["']\)""")
+    for (match in encodedRegex.findAll(decodedJs)) {
+        val decoded = moonDecrypt(match.groupValues[1], xorKey)
+        if (decoded.contains(".m3u8")) {
+            return decoded
+        }
     }
 
-    private fun extractIntFromString(string: String): Int? {
-        val value = Regex("(\\d+)").findAll(string).lastOrNull() ?: return null
-        if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
-        return value.value.toIntOrNull()
+    return ""
     }
+private fun extractIntFromString(string: String): Int? {
+    val value = Regex("(\\d+)").findAll(string).lastOrNull() ?: return null
+    if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
+    return value.value.toIntOrNull()
+}
 }
