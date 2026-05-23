@@ -119,18 +119,18 @@ class SerialnoProvider : MainAPI() {
 
         // Return to app
         // Parse Episodes as Series
-        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(playerUrl).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString())
+        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(playerUrl).document.select("script").html())?.groups?.get(1)?.value.toString())
         Log.d("CakesTwix-Debug", playerRawJson.toString())
-        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season -> // Dubs
-            for (episode in season.folder) {                                     // Seasons
-                for (dubs in episode.folder) {                              // Episodes
+        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season ->
+            for (episode in season.folder) {
+                val episodeData = "$playerUrl|${season.title}|${episode.title}"
+                if (episodes.none { it.data == episodeData }) {
                     episodes.add(
-                        newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                        newEpisode(episodeData) {
                             this.name = episode.title
-                            this.season = season.season
-                            this.episode = episode.number
-                            this.posterUrl = dubs.poster
-                            this.data = "${season.title}, ${episode.title}, $playerUrl"
+                            this.season = season.season.toIntOrNull()
+                            this.episode = episode.number.toIntOrNull()
+                            this.posterUrl = episode.poster
                         }
                     )
                 }
@@ -146,34 +146,35 @@ class SerialnoProvider : MainAPI() {
     }
 
 
-    // It works when I click to view the series
     override suspend fun loadLinks(
-        data: String, // (Serial) [Season, Episode, Player Url]
+        data: String, // (Serial) [Player Url, Season, Episode]
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(", ")
+        val dataList = data.split("|")
         Log.d("CakesTwix-Debug", data)
-        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(dataList[2]).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value ?: "")
+        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(dataList[0]).document.select("script").html())?.groups?.get(1)?.value ?: "")
 
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)
-            ?.filter { it.title == dataList[0] } // Фільтруємо потрібний сезон
+            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний сезон
             ?.flatMap { it.folder }              // Беремо список епізодів
-            ?.filter { it.title == dataList[1] } // Фільтруємо потрібний епізод
-            ?.flatMap { it.folder }              // Беремо список дубляжів
-            ?.forEach { dubs ->                  // Обробляємо кожен дубляж
+            ?.filter { it.title == dataList[2] } // Фільтруємо потрібний епізод
+            ?.forEach { episode ->               // Обробляємо кожен епізод
+                val dubTitle = if (episode.file.startsWith("{")) episode.file.substringAfter("{").substringBefore("}") else "Цікава Ідея"
+                val streamUrl = if (episode.file.startsWith("{")) episode.file.substringAfter("}") else episode.file
+
                 M3u8Helper.generateM3u8(
-                    source = dubs.title,
-                    streamUrl = dubs.file,
+                    source = dubTitle,
+                    streamUrl = streamUrl,
                     referer = "https://tortuga.wtf/"
                 ).dropLast(1).forEach(callback)
 
-                if (!dubs.subtitle.isNullOrBlank()) {
+                if (!episode.subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(
                         newSubtitleFile(
-                            dubs.subtitle.substringAfterLast("[").substringBefore("]"),
-                            dubs.subtitle.substringAfter("]")
+                            episode.subtitle.substringAfterLast("[").substringBefore("]"),
+                            episode.subtitle.substringAfter("]")
                         )
                     )
                 }
@@ -182,6 +183,30 @@ class SerialnoProvider : MainAPI() {
     }
 
     object Decoder {
+
+        fun torDecrypt(encoded: String): String {
+            if (encoded.isEmpty()) return ""
+            try {
+                val cleaned = encoded.replace(Regex("[^A-Za-z0-9+/]"), "")
+                val pad = cleaned.length % 4
+                val cleanEncoded = cleaned + if (pad > 1) "=".repeat(4 - pad) else ""
+
+                val decoded = android.util.Base64.decode(cleanEncoded, android.util.Base64.DEFAULT)
+                if (decoded.size < 2) return ""
+
+                val saltChar = decoded[0].toInt() and 0xFF
+                val decryptedBytes = ByteArray(decoded.size - 1)
+
+                for (i in 1 until decoded.size) {
+                    val f = (saltChar + 7 * (i - 1) + 13) % 256
+                    decryptedBytes[i - 1] = (decoded[i].toInt() xor f).toByte()
+                }
+
+                return String(decryptedBytes, Charsets.UTF_8)
+            } catch (e: Exception) {
+                return ""
+            }
+        }
 
         /**
          * Декодує рядок із формату Base64.
@@ -214,6 +239,10 @@ class SerialnoProvider : MainAPI() {
          * @return Реверсований та декодований рядок або null.
          */
         fun decodeAndReverse(encodedString: String): String? {
+            val decrypted = torDecrypt(encodedString)
+            if (decrypted.startsWith("http") || decrypted.startsWith("[")) {
+                return decrypted
+            }
             val decoded = decodeBase64(encodedString)
             return decoded?.let {
                 reverseText(it)
