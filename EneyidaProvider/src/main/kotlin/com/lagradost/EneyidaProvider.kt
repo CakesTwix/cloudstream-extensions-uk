@@ -108,12 +108,12 @@ class EneyidaProvider : MainAPI() {
                     for (episode in season.folder) {                              // Episodes
 
                         episodes.add(
-                            newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                            newEpisode("${season.title}|${episode.title}|$playerUrl") {
                                 this.name = episode.title
                                 this.season = season.title.replace(" сезон","").toIntOrNull()
                                 this.episode = episode.title.replace(" серія","").toIntOrNull()
                                 this.posterUrl = episode.poster
-                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                                this.data = "${season.title}|${episode.title}|$playerUrl"
                             }
                         )
                     }
@@ -131,7 +131,7 @@ class EneyidaProvider : MainAPI() {
                 addTrailer(trailer)
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, TvType.Movie, "$title, $playerUrl") {
+            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|$playerUrl") {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = "$mainUrl$banner"
                 this.year = year
@@ -152,7 +152,7 @@ class EneyidaProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(", ")
+        val dataList = data.split("|")
 
         // Its film, parse one m3u8
         if(dataList.size == 2){

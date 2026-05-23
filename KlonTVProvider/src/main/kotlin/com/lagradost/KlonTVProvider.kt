@@ -145,12 +145,12 @@ class KlonTVProvider : MainAPI() {
                 for (season in dubs.folder) {                              // Seasons
                     for (episode in season.folder) {                       // Episodes
                         episodes.add(
-                            newEpisode("${season.title}, ${episode.title}, $playerUrl") {
+                            newEpisode("${season.title}|${episode.title}|$playerUrl") {
                                 this.name = episode.title
                                 this.season = season.title.replace(" Сезон ","").toIntOrNull()
                                 this.episode = episode.title.replace("Серія ","").toIntOrNull()
                                 this.posterUrl = episode.poster
-                                this.data = "${season.title}, ${episode.title}, $playerUrl"
+                                this.data = "${season.title}|${episode.title}|$playerUrl"
                             }
                         )
                     }
@@ -167,7 +167,7 @@ class KlonTVProvider : MainAPI() {
                 addActors(actors)
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, tvType, "$title, $playerUrl") {
+            newMovieLoadResponse(title, url, tvType, "${title.replace("|", "")}|$playerUrl") {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -186,7 +186,7 @@ class KlonTVProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(", ")
+        val dataList = data.split("|")
         // Its film, parse one m3u8
         if (dataList.size == 2) {
             // TODO: Remove this hack
