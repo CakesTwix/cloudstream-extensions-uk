@@ -14,6 +14,7 @@ import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.app
@@ -77,8 +78,9 @@ class UASerialsProProvider : MainAPI() {
 
     // Load info
     // private val titleLoadSelector = ".page__subcol-main h1"
-    // private val genresSelector = "li span:contains(Жанр:) a"
-    private val yearSelector = "a[href*=https://uaserials.pro/year/]"
+    private val genresSelector = ".short-list li:contains(Жанр) a"
+    private val actorsSelector = ".short-list li:contains(Актори) a"
+    private val yearSelector = ".short-list a[href*=/year/]"
     // private val playerSelector = "iframe"
     private val descriptionSelector = ".full-text"
     private val ratingSelector = ".short-rate-in"
@@ -139,17 +141,11 @@ class UASerialsProProvider : MainAPI() {
         val poster = document.selectFirst("div.fimg.img-wide img")?.attr("src")
         val tags = mutableListOf<String>()
         val actors = mutableListOf<String>()
-        val year = document.select(yearSelector).text().substringAfter(": ").substringBefore("-").toIntOrNull()
+        val year = document.selectFirst(yearSelector)?.text()?.toIntOrNull()
         val rating = document.selectFirst(ratingSelector)!!.text()
 
-        document.select(".short-list li").forEach { menu ->
-            with(menu){
-                when{
-                    this.select("span").text() == "Жанр:" -> menu.select("a").map { tags.add(it.text()) }
-                    this.select("span").text() == "Актори:" -> menu.select("#text").text().split(", ").map { actors.add(it) }
-                }
-            }
-        }
+        document.select(genresSelector).forEach { tags.add(it.text()) }
+        document.select(actorsSelector).forEach { actors.add(it.text()) }
 
         val tvType = with(tags){
             when{
@@ -207,6 +203,7 @@ class UASerialsProProvider : MainAPI() {
                 this.tags = tags
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
+                addActors(actors)
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$title, ${movieJson[0].url}") {
@@ -216,6 +213,7 @@ class UASerialsProProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.recommendations = recommendations
+                addActors(actors)
             }
         }
     }
