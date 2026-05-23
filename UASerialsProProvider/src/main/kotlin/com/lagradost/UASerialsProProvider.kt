@@ -341,6 +341,30 @@ class UASerialsProProvider : MainAPI() {
 
     object Decoder {
 
+        fun torDecrypt(encoded: String): String {
+            if (encoded.isEmpty()) return ""
+            try {
+                val cleaned = encoded.replace(Regex("[^A-Za-z0-9+/]"), "")
+                val pad = cleaned.length % 4
+                val cleanEncoded = cleaned + if (pad > 1) "=".repeat(4 - pad) else ""
+
+                val decoded = android.util.Base64.decode(cleanEncoded, android.util.Base64.DEFAULT)
+                if (decoded.size < 2) return ""
+
+                val saltChar = decoded[0].toInt() and 0xFF
+                val decryptedBytes = ByteArray(decoded.size - 1)
+
+                for (i in 1 until decoded.size) {
+                    val f = (saltChar + 7 * (i - 1) + 13) % 256
+                    decryptedBytes[i - 1] = (decoded[i].toInt() xor f).toByte()
+                }
+
+                return String(decryptedBytes, Charsets.UTF_8)
+            } catch (e: Exception) {
+                return ""
+            }
+        }
+
         /**
          * Декодує рядок із формату Base64.
          * @param encodedString Закодований рядок (Base64).
@@ -371,6 +395,10 @@ class UASerialsProProvider : MainAPI() {
          * @return Реверсований та декодований рядок або null.
          */
         fun decodeAndReverse(encodedString: String): String? {
+            val decrypted = torDecrypt(encodedString)
+            if (decrypted.startsWith("http")) {
+                return decrypted
+            }
             val decoded = decodeBase64(encodedString)
             return decoded?.let {
                 reverseText(it)
