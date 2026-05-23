@@ -184,11 +184,11 @@ class UASerialsProProvider : MainAPI() {
             seriesJson[0].seasons.forEachIndexed { seasonsIndex, season ->
                     season.episodes.forEachIndexed { episodesIndex, episode ->
                         episodes.add(
-                            newEpisode("$seasonsIndex, $episodesIndex, $url") {
+                            newEpisode("$seasonsIndex|$episodesIndex|$url") {
                                 this.name = episode.title
                                 this.season = seasonsIndex + 1
                                 this.episode = episodesIndex + 1
-                                this.data = "$seasonsIndex, $episodesIndex, $url"
+                                this.data = "$seasonsIndex|$episodesIndex|$url"
                             }
                         )
                     }
@@ -206,7 +206,7 @@ class UASerialsProProvider : MainAPI() {
                 addActors(actors)
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, TvType.Movie, "$title, ${movieJson[0].url}") {
+            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|${movieJson[0].url}") {
                 this.posterUrl = poster
                 this.score = Score.from10(rating)
                 this.year = year
@@ -225,7 +225,7 @@ class UASerialsProProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(", ")
+        val dataList = data.split("|")
         // Movie
         if(dataList.size == 2){
             val html = app.get(dataList[1],
