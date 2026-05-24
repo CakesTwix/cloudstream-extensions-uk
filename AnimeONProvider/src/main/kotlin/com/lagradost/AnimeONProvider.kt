@@ -1,6 +1,7 @@
 package com.lagradost
 
 import com.google.gson.Gson
+
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.*
@@ -145,22 +146,15 @@ class AnimeONProvider : MainAPI() {
                 "Referer" to "$mainUrl/"
             )).text
 
-            for (quote in listOf("'", "\"")) {
-                val prefix = "poster:$quote"
-                val idx = html.indexOf(prefix)
-                if (idx != -1) {
-                    val start = idx + prefix.length
-                    val end = html.indexOf(quote, start)
-                    if (end != -1) {
-                        val raw = html.substring(start, end)
-                        if (raw.isNotEmpty()) {
-                            return if (raw.startsWith("http")) raw
-                            else "https:$raw"
-                        }
-                    }
-                }
+            // Формат: poster:"https://xxx.ashdi.vip/.../screen.jpg"
+            // або    poster:'//xxx.ashdi.vip/.../screen.jpg' (protocol-relative)
+            val posterRegex = Regex("""poster:\s*["']((?:https?:)?//[^"']+)["']""")
+            val raw = posterRegex.find(html)?.groupValues?.get(1)
+            if (!raw.isNullOrEmpty()) {
+                return if (raw.startsWith("http")) raw else "https:$raw"
             }
 
+            // Запасний варіант: шукаємо будь-який screen.jpg у HTML
             val screenRegex = Regex("""((?:https?:)?//[^"'\s]+screen\.jpg)""")
             val screenMatch = screenRegex.find(html)?.groupValues?.get(1) ?: return null
             if (screenMatch.startsWith("http")) screenMatch else "https:$screenMatch"
@@ -285,13 +279,12 @@ class AnimeONProvider : MainAPI() {
                                     fileUrl = ep.fileUrl,
                                 )
                             )
-                            if (player.name.contains("Moon", ignoreCase = true) && !ep.poster.isNullOrEmpty()) {
-    // Блокуємо тільки прямі биті лінки на mooncdn.net, дозволяючи mooncdn.space з будь-якими назвами папок
-    val restricted = ep.poster.contains("mooncdn.net")
-    if (!restricted && !episodePosters.containsKey(ep.episode)) {
-        episodePosters[ep.episode] = ep.poster
-    }
-}
+                            if (!ep.poster.isNullOrEmpty() && !episodePosters.containsKey(ep.episode)) {
+                                val restricted = ep.poster.contains("mooncdn.net")
+                                if (!restricted) {
+                                    episodePosters[ep.episode] = ep.poster
+                                }
+                            }
 
                         }
                     }
@@ -300,11 +293,18 @@ class AnimeONProvider : MainAPI() {
                 episodeSources.keys.sorted().forEach { epNum ->
                     val sources = episodeSources[epNum] ?: return@forEach
 
-                    val ashdiSource = sources.firstOrNull {
-                        it.playerName.contains("Ashdi", ignoreCase = true) && !it.videoUrl.isNullOrEmpty()
+                    // Спочатку беремо постер з API (без HTTP-запитів) — Moon завжди заповнює це поле
+                    var epPoster: String? = episodePosters[epNum]
+
+                    // getAshdiPoster робить HTTP-запит — викликаємо ТІЛЬКИ якщо постера з API немає.
+                    // Це трапляється лише для епізодів де є тільки Ashdi і немає Moon-джерела
+                    // (зазвичай кілька останніх епізодів), тому rate-limit не спрацює.
+                    if (epPoster.isNullOrEmpty()) {
+                        val ashdiSource = sources.firstOrNull {
+                            it.playerName.contains("Ashdi", ignoreCase = true) && !it.videoUrl.isNullOrEmpty()
+                        }
+                        if (ashdiSource != null) epPoster = getAshdiPoster(ashdiSource.videoUrl!!)
                     }
-                    var epPoster: String? = if (ashdiSource != null) getAshdiPoster(ashdiSource.videoUrl!!) else null
-                    if (epPoster.isNullOrEmpty()) epPoster = episodePosters[epNum]
 
                     val dataJson = Gson().toJson(sources)
                     episodes.add(newEpisode(dataJson) {
@@ -711,4 +711,4 @@ private fun extractIntFromString(string: String): Int? {
     if (value.value[0].toString() == "0") return value.value.drop(1).toIntOrNull()
     return value.value.toIntOrNull()
 }
-}
+} 
