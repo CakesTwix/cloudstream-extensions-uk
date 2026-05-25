@@ -122,6 +122,14 @@ class AnimeONProvider : MainAPI() {
         } catch (e: Exception) { null }
     }
 
+    private suspend fun fetchJsonWithRetry(url: String, retries: Int = 3): String? {
+        repeat(retries) {
+            val result = fetchJsonOrNull(url)
+            if (result != null) return result
+        }
+        return null
+    }
+
     private suspend fun resolveAnimeApiUrl(animeId: Int): String {
         val initial = fetchJsonOrNull("$apiUrl/$animeId") ?: return "$apiUrl/$apiUrl/$animeId"
         return try {
@@ -258,18 +266,28 @@ class AnimeONProvider : MainAPI() {
                     for (player in translation.player) {
                         val collected = mutableListOf<FundubEpisode>()
                         val seenIds = mutableSetOf<Int>()
-                        for (offset in listOf(-1, 0) + (100..11000 step 100).toList()) {
-                            val epUrl = "$mainUrl/api/player/$animeId/episodes?take=100&skip=$offset&playerId=${player.id}&translationId=$translationId"
-                            val epJson = fetchJsonOrNull(epUrl) ?: break
-                            val eps = try { Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
-                            if (eps.isNullOrEmpty()) {
-                                if (offset == -1) continue
-                                break
-                            }
-                            val newEps = eps.filter { seenIds.add(it.id) }
-                            collected.addAll(newEps)
-                            if (eps.size < 100) break
-                        }
+                        val baseUrl = "$mainUrl/api/player/$animeId/episodes?take=100&playerId=${player.id}&translationId=$translationId"
+
+val epJsonMinus1 = fetchJsonOrNull("$baseUrl&skip=-1")
+if (epJsonMinus1 != null) {
+    val eps = try { Gson().fromJson(epJsonMinus1, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
+    eps?.filter { it.episode <= 0 && seenIds.add(it.id) }?.let { collected.addAll(it) }
+}
+
+val maxSkip = if (player.episodesCount > 0)
+    (player.episodesCount / 100 + 1) * 100
+else 11000
+var skip = 0
+while (skip <= maxSkip) {
+    val epJson = fetchJsonOrNull("$baseUrl&skip=$skip") ?: break
+    val eps = try { Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
+    if (eps.isNullOrEmpty()) break
+    val newEps = eps.filter { seenIds.add(it.id) }
+    collected.addAll(newEps)
+    if (eps.size < 100) break
+    skip += 100
+} 
+                        
                         for (ep in collected) {
                             episodeSources.getOrPut(ep.episode) { mutableListOf() }.add(
                                 EpisodeSource(
@@ -470,20 +488,26 @@ class AnimeONProvider : MainAPI() {
                 for (player in translation.player) {
                     val collected = mutableListOf<FundubEpisode>()
                     val seenIds = mutableSetOf<Int>()
-
-                    for (offset in listOf(-1, 0) + (100..11000 step 100).toList()) {
-                        val epUrl = "$mainUrl/api/player/$animeId/episodes?take=100&skip=$offset&playerId=${player.id}&translationId=$translationId"
-                        val epJson = fetchJsonOrNull(epUrl) ?: break
+                    val baseUrl = "$mainUrl/api/player/$animeId/episodes?take=100&playerId=${player.id}&translationId=$translationId"
+                    val epJsonMinus1 = fetchJsonWithRetry("$baseUrl&skip=-1")
+                    if (epJsonMinus1 != null) {
+                        val eps = try { Gson().fromJson(epJsonMinus1, PlayerEpisodes::class.java).episodes } catch (e: Exception) { null }
+                        eps?.filter { it.episode <= 0 && seenIds.add(it.id) }?.let { collected.addAll(it) }
+                    }
+                    val maxSkip = if (player.episodesCount > 0)
+                        (player.episodesCount / 100 + 1) * 100
+                    else 11000
+                    var skip = 0
+                    while (skip <= maxSkip) {
+                        val epJson = fetchJsonWithRetry("$baseUrl&skip=$skip") ?: break
                         val eps = try {
                             Gson().fromJson(epJson, PlayerEpisodes::class.java).episodes
                         } catch (e: Exception) { null }
-                        if (eps.isNullOrEmpty()) {
-                            if (offset == -1) continue
-                            break
-                        }
+                        if (eps.isNullOrEmpty()) break
                         val newEps = eps.filter { seenIds.add(it.id) }
                         collected.addAll(newEps)
                         if (eps.size < 100) break
+                        skip += 100
                     }
 
                     val sourceName = "${translation.translation.name} (${player.name})"
