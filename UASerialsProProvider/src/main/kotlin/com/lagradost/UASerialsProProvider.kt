@@ -117,17 +117,21 @@ class UASerialsProProvider : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(
-            url = mainUrl,
-            data = mapOf(
-                "do" to "search",
-                "subaction" to "search",
-                "story" to query.replace(" ", "+")
-            )
-        ).document
+        val encodedQuery = java.net.URLEncoder.encode(query, "utf-8").replace("+", "%20")
+        val document = app.get("$mainUrl/search/$encodedQuery/").document
 
-        return document.select(animeSelector).map {
-            it.toSearchResponse()
+        return document.select(".uas-card").map {
+            val title = it.selectFirst(".uas-card__title")?.text()?.trim().toString()
+            val engTitle = it.selectFirst(".uas-card__orig")?.text()?.trim().toString()
+            val href = it.attr("href")
+            val rawPoster = it.selectFirst(".uas-card__img")?.attr("data-src")
+            val posterUrl = if (rawPoster?.startsWith("/") == true) "$mainUrl$rawPoster" else rawPoster
+
+            newAnimeSearchResponse(title, href, TvType.Anime) {
+                this.otherName = engTitle
+                this.posterUrl = posterUrl
+                addDubStatus(isDub = true)
+            }
         }
     }
 
