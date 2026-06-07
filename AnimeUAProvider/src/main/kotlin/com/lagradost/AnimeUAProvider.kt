@@ -1,13 +1,12 @@
 package com.lagradost
 
 import com.lagradost.models.PlayerJson
-import com.lagradost.models.Season
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import org.json.JSONArray
 import org.jsoup.nodes.Element
 
 class AnimeUAProvider : MainAPI() {
@@ -47,36 +46,6 @@ class AnimeUAProvider : MainAPI() {
     private val descriptionSelector = ".full-text"
     // private val ratingSelector = ".pmovie__subrating img"
     val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
-
-    private fun parsePlayerJson(raw: String): List<PlayerJson> {
-        val arr = JSONArray(raw)
-        return (0 until arr.length()).map { i ->
-            val obj = arr.getJSONObject(i)
-            val folderArr = obj.getJSONArray("folder")
-            val seasons = (0 until folderArr.length()).map { j ->
-                val seasonObj = folderArr.getJSONObject(j)
-                val epArr = seasonObj.getJSONArray("folder")
-                val episodes = (0 until epArr.length()).map { k ->
-                    val epObj = epArr.getJSONObject(k)
-                    com.lagradost.models.Episode(
-                        title = epObj.getString("title"),
-                        file = epObj.getString("file"),
-                        id = epObj.optString("id", ""),
-                        poster = epObj.optString("poster", ""),
-                        subtitle = epObj.optString("subtitle", ""),
-                    )
-                }
-                Season(
-                    title = seasonObj.getString("title"),
-                    folder = episodes,
-                )
-            }
-            PlayerJson(
-                title = obj.getString("title"),
-                folder = seasons,
-            )
-        }
-    }
 
     override suspend fun getMainPage(
         page: Int,
@@ -152,9 +121,9 @@ class AnimeUAProvider : MainAPI() {
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
             val episodes = mutableListOf<Episode>()
             val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groups?.get(1)?.value.toString()
-            runCatching { parsePlayerJson(playerRawJson) }.getOrNull()?.map { dubs ->
-                for(season in dubs.folder){
-                    for(episode in season.folder){
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
+                for(season in dubs.folder){                              // Seasons
+                    for(episode in season.folder){                       // Episodes
                         episodes.add(
                             newEpisode("${season.title}|${episode.title}|$playerUrl") {
                                 this.name = episode.title
@@ -213,11 +182,12 @@ class AnimeUAProvider : MainAPI() {
 
         val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script").html())?.groups?.get(1)?.value.toString()
 
-        runCatching { parsePlayerJson(playerRawJson) }.getOrNull()?.map { dubs ->
-            for(season in dubs.folder){
+        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
+            for(season in dubs.folder){                                // Seasons
                 if(season.title == dataList[0]){
-                    for(episode in season.folder){
+                    for(episode in season.folder){                     // Episodes
                         if(episode.title == dataList[1]){
+                            // Add as source
                             M3u8Helper.generateM3u8(
                                 source = dubs.title,
                                 streamUrl = episode.file,

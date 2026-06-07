@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 11
+version = 10
 
 dependencies {
     testImplementation(libs.junit)
