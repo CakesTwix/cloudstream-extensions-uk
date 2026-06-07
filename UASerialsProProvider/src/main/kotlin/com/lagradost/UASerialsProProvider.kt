@@ -134,7 +134,7 @@ class UASerialsProProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document = app.get(url, headers = mapOf("User-Agent" to USER_AGENT)).document
 
         val title = document.select(".short-title").text()
         val engTitle = document.select(".oname").text()
@@ -170,22 +170,59 @@ class UASerialsProProvider : MainAPI() {
             ),
             "297796CCB81D25512",
             false
-        ).replace("\\", "").substringBeforeLast("]") + "]"
+        ).replace("\\", "")
+        val lastBracket = decryptData.lastIndexOf("]")
+        val cleanJson = if (lastBracket != -1) decryptData.substring(0, lastBracket + 1) else decryptData
 
-        val seriesJson = Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)
-        val movieJson = Gson().fromJson<List<AESPlayerDecodedModel>>(decryptData, listAESModel)
+        val playerTabs = Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel)
+        val playerUrl = playerTabs.firstOrNull { it.tabName == "Плеєр" }?.url ?: playerTabs.firstOrNull()?.url
 
-        return if (seriesJson[0].seasons != null) {
+        val playerHtml = if (playerUrl != null) {
+            app.get(playerUrl, headers = mapOf("User-Agent" to USER_AGENT, "Referer" to mainUrl)).text
+        } else {
+            ""
+        }
+
+        val encodedFile = fileRegex.find(playerHtml)?.groups?.get(1)?.value ?: ""
+        val decodedFile = if (encodedFile.isNotBlank()) {
+            if (encodedFile.startsWith("http")) encodedFile
+            else Decoder.tortugaDecode(encodedFile) ?: ""
+        } else {
+            ""
+        }
+
+        val subRaw = subsRegex.find(playerHtml)?.groups?.get(1)?.value ?: ""
+        val subtitleUrl = when {
+            subRaw.startsWith("[") -> subRaw
+            subRaw.isNotBlank() -> Decoder.tortugaDecode(subRaw) ?: ""
+            else -> ""
+        }
+
+        val listTortugaSeasonModel = object : TypeToken<List<TortugaSeason>>() { }.type
+        val tortugaSeasons = try {
+            if (decodedFile.startsWith("[")) {
+                Gson().fromJson<List<TortugaSeason>>(decodedFile, listTortugaSeasonModel)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+        return if (tortugaSeasons != null) {
             val episodes = mutableListOf<Episode>()
 
-            seriesJson[0].seasons.forEachIndexed { seasonsIndex, season ->
-                season.episodes.forEachIndexed { episodesIndex, episode ->
+            tortugaSeasons.forEachIndexed { seasonsIndex, season ->
+                val seasonNum = season.season.toIntOrNull() ?: (seasonsIndex + 1)
+                season.folder.forEachIndexed { episodesIndex, episode ->
+                    val epNum = episode.number.toIntOrNull() ?: (episodesIndex + 1)
+                    val episodeData = "${episode.file}|${episode.subtitle ?: ""}"
                     episodes.add(
-                        newEpisode("$seasonsIndex|$episodesIndex|$url") {
+                        newEpisode(episodeData) {
                             this.name = episode.title
-                            this.season = seasonsIndex + 1
-                            this.episode = episodesIndex + 1
-                            this.data = "$seasonsIndex|$episodesIndex|$url"
+                            this.season = seasonNum
+                            this.episode = epNum
+                            this.data = episodeData
                         }
                     )
                 }
@@ -203,7 +240,7 @@ class UASerialsProProvider : MainAPI() {
                 addActors(actors)
             }
         } else {
-            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|${movieJson[0].url}") {
+            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|${playerTabs[0].url}") {
                 this.posterUrl = poster
                 this.score = Score.from10(rating)
                 this.year = year
@@ -224,8 +261,7 @@ class UASerialsProProvider : MainAPI() {
         val dataList = data.split("|")
 
         // Movie
-        if (dataList.size == 2) {
-            // Використовуємо .text щоб отримати весь HTML включно зі script без type=
+        if (dataList.size == 2 && !dataList[0].startsWith("http") && !dataList[0].startsWith("{")) {
             val html = app.get(
                 dataList[1],
                 headers = mapOf(
@@ -268,59 +304,41 @@ class UASerialsProProvider : MainAPI() {
             return true
         }
 
-        // Serials
-        val document = app.get(dataList[2]).document
-        val decryptData = cryptojsAESHandler(
-            Gson().fromJson(
-                document.select("div.fplayer player-control").attr("data-tag1"),
-                AesData::class.java,
-            ),
-            "297796CCB81D25512",
-            false
-        ).replace("\\", "").substringBeforeLast("]") + "]"
+        // Serial Episode
+        val fileStr = dataList[0]
+        val subtitleStr = if (dataList.size > 1) dataList[1] else ""
 
-        Gson().fromJson<List<DecodedJSON>>(decryptData, listDecodedJSONModel)[0]
-            .seasons[dataList[0].toInt()].episodes[dataList[1].toInt()].sounds.forEach { episode ->
+        if (fileStr.isBlank()) return false
 
-                val playerHtml = app.get(
-                    episode.url,
-                    headers = mapOf(
-                        "User-Agent" to USER_AGENT,
-                        "Referer" to mainUrl
-                    )
-                ).text
-
-                val m3u8Raw = fileRegex.find(playerHtml)?.groups?.get(1)?.value ?: ""
-                val m3u8Url = when {
-                    m3u8Raw.startsWith("http") -> m3u8Raw
-                    m3u8Raw.isNotBlank() -> Decoder.tortugaDecode(m3u8Raw) ?: ""
-                    else -> ""
+        fileStr.split(";").forEach { track ->
+            if (track.isNotBlank()) {
+                val m3u8Url = track.substringAfter("}")
+                val name = if (track.contains("{")) {
+                    track.substringAfter("{").substringBefore("}")
+                } else {
+                    "Плеєр"
                 }
 
-                if (m3u8Url.isBlank()) return@forEach
-
                 M3u8Helper.generateM3u8(
-                    source = episode.title,
+                    source = name,
                     streamUrl = m3u8Url,
                     referer = "https://tortuga.tw/",
                 ).dropLast(1).forEach(callback)
-
-                val subRaw = subsRegex.find(playerHtml)?.groups?.get(1)?.value ?: ""
-                val subtitleUrl = when {
-                    subRaw.startsWith("[") -> subRaw
-                    subRaw.isNotBlank() -> Decoder.tortugaDecode(subRaw) ?: ""
-                    else -> ""
-                }
-
-                if (subtitleUrl.isBlank()) return@forEach
-
-                subtitleCallback.invoke(
-                    newSubtitleFile(
-                        subtitleUrl.substringAfterLast("[").substringBefore("]"),
-                        subtitleUrl.substringAfter("]")
-                    )
-                )
             }
+        }
+
+        if (subtitleStr.isNotBlank()) {
+            subtitleStr.split(",").forEach { sub ->
+                if (sub.isNotBlank()) {
+                    val subName = sub.substringAfter("[").substringBefore("]")
+                    val subUrl = sub.substringAfter("]")
+                    subtitleCallback.invoke(
+                        newSubtitleFile(subName, subUrl)
+                    )
+                }
+            }
+        }
+
         return true
     }
 
@@ -363,6 +381,22 @@ class UASerialsProProvider : MainAPI() {
         @SerializedName("salt") val s: String,
         @SerializedName("iv") val iv: String,
         @SerializedName("iterations") val iterations: Int = 999,
+    )
+
+    data class TortugaSeason(
+        @SerializedName("title") val title: String,
+        @SerializedName("number") val number: String,
+        @SerializedName("season") val season: String,
+        @SerializedName("folder") val folder: List<TortugaEpisode>
+    )
+
+    data class TortugaEpisode(
+        @SerializedName("id") val id: String,
+        @SerializedName("title") val title: String,
+        @SerializedName("number") val number: String,
+        @SerializedName("file") val file: String,
+        @SerializedName("poster") val poster: String? = null,
+        @SerializedName("subtitle") val subtitle: String? = null
     )
 
     object Decoder {
