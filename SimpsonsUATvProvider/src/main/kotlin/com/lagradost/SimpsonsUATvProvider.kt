@@ -139,13 +139,18 @@ class SimpsonsUATvProvider : MainAPI() {
         return Regex("""(\d+)-seriya""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: fallback
     }
 
+    private fun cleanTitle(text: String): String {
+        return text
+            .replace(Regex("дивитися онлайн.*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("українською.*", RegexOption.IGNORE_CASE), "")
+            .trim()
+    }
+
     private fun sectionTitle(url: String, fallbackDoc: Document? = null): String {
         val slug = urlSlug(url)
         sectionNameMap[slug]?.let { return it }
         fallbackDoc?.selectFirst(".cat-nazva h1, h1")?.text()
-            ?.replace("дивитися онлайн українською мовою", "")
-            ?.replace("дивитися онлайн українською", "")
-            ?.trim()
+            ?.let { cleanTitle(it) }
             ?.takeIf { it.isNotBlank() }
             ?.let { return it }
         return capitalizeWord(slug.replace("-", " "))
@@ -168,28 +173,28 @@ class SimpsonsUATvProvider : MainAPI() {
 
     // Проксі для вертикальних постерів (серіали, каталоги, пошук)
     private fun convertToPortraitProxy(url: String?): String? {
-    if (url.isNullOrBlank()) return null
-    return try {
-        val encodedUrl = java.net.URLEncoder.encode(url, StandardCharsets.UTF_8.name())
-        // fit=fill — розтягує постер на весь фон 400x600 і повністю знищує смужки зверху/знизу
-        // output=webp — оптимізує вагу картинок для плавності додатка
-        "https://images.weserv.nl/?url=$encodedUrl&w=400&h=600&fit=fill&output=webp&q=80"
-    } catch (e: Exception) {
-        url
+        if (url.isNullOrBlank()) return null
+        return try {
+            val encodedUrl = java.net.URLEncoder.encode(url, StandardCharsets.UTF_8.name())
+            // fit=fill — розтягує постер на весь фон 400x600 і повністю знищує смужки зверху/знизу
+            // output=webp — оптимізує вагу картинок для плавності додатка
+            "https://images.weserv.nl/?url=$encodedUrl&w=400&h=600&fit=fill&output=webp&q=80"
+        } catch (e: Exception) {
+            url
+        }
     }
-}
 
     // Максимально оптимізований горизонтальний формат для серій (16:9, q=75 для економії трафіку та адаптивності)
     private fun convertToLandscapeProxy(url: String?): String? {
-    if (url.isNullOrBlank()) return null
-    return try {
-        val encodedUrl = java.net.URLEncoder.encode(url, StandardCharsets.UTF_8.name())
-        // fpy=0.12 — зміщує кадр ближче до верху (налаштовуйте під себе від 0.0 до 0.2)
-        "https://images.weserv.nl/?url=$encodedUrl&w=320&h=180&fit=crop&a=focal&fpx=0.5&fpy=0.20&output=webp&q=75"
-    } catch (e: Exception) {
-        url
+        if (url.isNullOrBlank()) return null
+        return try {
+            val encodedUrl = java.net.URLEncoder.encode(url, StandardCharsets.UTF_8.name())
+            // fpy=0.12 — зміщує кадр ближче до верху (налаштовуйте під себе від 0.0 до 0.2)
+            "https://images.weserv.nl/?url=$encodedUrl&w=320&h=180&fit=crop&a=focal&fpx=0.5&fpy=0.17&output=webp&q=75"
+        } catch (e: Exception) {
+            url
+        }
     }
-}
 
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse? {
@@ -199,7 +204,7 @@ class SimpsonsUATvProvider : MainAPI() {
             if (page == 1) {
                 try {
                     val doc = app.get(mainUrl, headers = headers()).document
-                    val updates = doc.select("div.ep_slider div.movie_item").take(25).mapNotNull { el ->
+                    val updates = doc.select("div.ep_slider div.movie_item").take(15).mapNotNull { el ->
                         val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
                         val posterUrl = extractImageUrl(el)
                         val title = getTitleFromComment(el) ?: "Нова серія"
@@ -220,7 +225,7 @@ class SimpsonsUATvProvider : MainAPI() {
         try {
             val catalogUrl = if (page == 1) request.data else "${request.data}page/$page/"
             val doc = app.get(catalogUrl, headers = headers()).document
-            val items = doc.select("div.movie_item").take(40).mapNotNull { el ->
+            val items = doc.select("div.movie_item").take(20).mapNotNull { el ->
                 val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
                 val posterUrl = extractImageUrl(el)
                 val slug = urlSlug(href)
@@ -274,11 +279,13 @@ class SimpsonsUATvProvider : MainAPI() {
                 val a = card.selectFirst("a") ?: return@forEach
                 val epUrl = a.attr("href").takeIf { it.isNotBlank() } ?: return@forEach
                 if (parseSeasonNumber(epUrl) > 0 && !epUrl.contains("-seriya")) return@forEach
-                
+
                 val epNum = parseEpisodeNumber(epUrl, into.count { it.season == seasonNum } + 1)
-                val rawName = a.selectFirst(".descr.nazva")?.text()?.trim()
-                    ?: a.selectFirst(".title, h2")?.text()?.trim()
-                    ?: "Серія $epNum"
+                val rawName = cleanTitle(
+                    a.selectFirst(".descr.nazva")?.text()?.trim()
+                        ?: a.selectFirst(".title, h2")?.text()?.trim()
+                        ?: "Серія $epNum"
+                )
                 val epDesc = a.selectFirst(".descr:not(.nazva)")?.text()?.trim()
                 val epPoster = extractImageUrl(card)
                 into.add(newEpisode(epUrl) {
@@ -304,8 +311,10 @@ class SimpsonsUATvProvider : MainAPI() {
                 if (item.href.endsWith(".html")) {
                     try {
                         val itemDoc = app.get(item.href, headers = headers()).document
-                        val rawName = itemDoc.selectFirst(".poster h2, h1")?.text()?.trim()
-                            ?: urlSlug(item.href).replace("-", " ")
+                        val rawName = cleanTitle(
+                            itemDoc.selectFirst(".poster h2, h1")?.text()?.trim()
+                                ?: urlSlug(item.href).replace("-", " ")
+                        )
                         val itemPoster = item.cardPoster
                             ?: itemDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
                         val itemDesc = itemDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
@@ -328,12 +337,10 @@ class SimpsonsUATvProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url, headers = headers()).document
 
-        val title = document.selectFirst(".poster h2, .cat-nazva h1, h1")?.text()
-            ?.replace(Regex("дивитися онлайн.*", RegexOption.IGNORE_CASE), "")
-            ?.trim()
-            ?: document.title()
-                .replace(Regex("дивитися онлайн.*", RegexOption.IGNORE_CASE), "")
-                .trim()
+        val title = cleanTitle(
+            document.selectFirst(".poster h2, .cat-nazva h1, h1")?.text()?.trim()
+                ?: document.title()
+        )
 
         val mainImgEl = document.selectFirst(".movie_item, div.story, .poster")
         val poster = extractImageUrl(mainImgEl)
@@ -341,9 +348,9 @@ class SimpsonsUATvProvider : MainAPI() {
 
         val episodes = mutableListOf<Episode>()
         val directCards = document.select("#dle-content .movie_item")
-        
-        val isSeasonPage = parseSeasonNumber(url) > 0 && directCards.any { card -> 
-            card.selectFirst("a")?.attr("href")?.contains("-seriya") == true 
+
+        val isSeasonPage = parseSeasonNumber(url) > 0 && directCards.any { card ->
+            card.selectFirst("a")?.attr("href")?.contains("-seriya") == true
         }
 
         if (isSeasonPage) {
@@ -353,16 +360,18 @@ class SimpsonsUATvProvider : MainAPI() {
                 val a = card.selectFirst("a") ?: return@forEach
                 val epUrl = a.attr("href").takeIf { it.isNotBlank() } ?: return@forEach
                 if (parseSeasonNumber(epUrl) > 0 && !epUrl.contains("-seriya")) return@forEach
-                
+
                 val epNum = parseEpisodeNumber(epUrl, epCounter)
                 if (epNum == epCounter) epCounter++
-                
-                val epName = a.selectFirst(".descr.nazva")?.text()?.trim()
-                    ?: a.selectFirst(".title, h2")?.text()?.trim()
-                    ?: "Серія $epNum"
+
+                val epName = cleanTitle(
+                    a.selectFirst(".descr.nazva")?.text()?.trim()
+                        ?: a.selectFirst(".title, h2")?.text()?.trim()
+                        ?: "Серія $epNum"
+                )
                 val epDesc = a.selectFirst(".descr:not(.nazva)")?.text()?.trim()
                 val epPoster = extractImageUrl(card)
-                
+
                 episodes.add(newEpisode(epUrl) {
                     this.name        = epName
                     this.season      = seasonNum
@@ -404,16 +413,18 @@ class SimpsonsUATvProvider : MainAPI() {
                         val a = card.selectFirst("a") ?: return@forEach
                         val epUrl = a.attr("href").takeIf { it.isNotBlank() } ?: return@forEach
                         if (parseSeasonNumber(epUrl) > 0 && !epUrl.contains("-seriya")) return@forEach
-                        
+
                         val epNum = parseEpisodeNumber(epUrl, epCounter)
                         if (epNum == epCounter) epCounter++
-                        
-                        val epName = a.selectFirst(".descr.nazva")?.text()?.trim()
-                            ?: a.selectFirst(".title, h2")?.text()?.trim()
-                            ?: "Серія $epNum"
+
+                        val epName = cleanTitle(
+                            a.selectFirst(".descr.nazva")?.text()?.trim()
+                                ?: a.selectFirst(".title, h2")?.text()?.trim()
+                                ?: "Серія $epNum"
+                        )
                         val epDesc = a.selectFirst(".descr:not(.nazva)")?.text()?.trim()
                         val epPoster = extractImageUrl(card)
-                        
+
                         episodes.add(newEpisode(epUrl) {
                             this.name        = epName
                             this.season      = seasonNum
@@ -433,8 +444,10 @@ class SimpsonsUATvProvider : MainAPI() {
                 directMovies.forEach { item ->
                     try {
                         val movieDoc = app.get(item.href, headers = headers()).document
-                        val movieTitle = movieDoc.selectFirst(".poster h2, h1")?.text()?.trim()
-                            ?: urlSlug(item.href).replace("-", " ")
+                        val movieTitle = cleanTitle(
+                            movieDoc.selectFirst(".poster h2, h1")?.text()?.trim()
+                                ?: urlSlug(item.href).replace("-", " ")
+                        )
                         val moviePoster = item.cardPoster
                             ?: movieDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
                         val movieDesc = movieDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
@@ -464,9 +477,9 @@ class SimpsonsUATvProvider : MainAPI() {
 
         if (episodes.isEmpty()) {
             episodes.add(newEpisode(url) {
-                this.name    = title
-                this.season  = 1
-                this.episode = 1
+                this.name      = title
+                this.season    = 1
+                this.episode   = 1
                 this.posterUrl = convertToLandscapeProxy(poster)
             })
         }
@@ -620,3 +633,4 @@ class SimpsonsUATvProvider : MainAPI() {
         return found
     }
 }
+           
