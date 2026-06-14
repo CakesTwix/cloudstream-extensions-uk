@@ -312,9 +312,16 @@ class UASerialsProProvider : MainAPI() {
 
         fileStr.split(";").forEach { track ->
             if (track.isNotBlank()) {
-                val m3u8Url = track.substringAfter("}")
-                val name = if (track.contains("{")) {
-                    track.substringAfter("{").substringBefore("}")
+                val subTailMatch = "\\(subtitle:(.*)\\)$".toRegex().find(track)
+                val cleanTrack = if (subTailMatch != null) {
+                    track.substring(0, subTailMatch.range.first)
+                } else {
+                    track
+                }
+
+                val m3u8Url = cleanTrack.substringAfter("}")
+                val name = if (cleanTrack.contains("{")) {
+                    cleanTrack.substringAfter("{").substringBefore("}")
                 } else {
                     "Плеєр"
                 }
@@ -324,6 +331,16 @@ class UASerialsProProvider : MainAPI() {
                     streamUrl = m3u8Url,
                     referer = "https://tortuga.tw/",
                 ).dropLast(1).forEach(callback)
+
+                subTailMatch?.groupValues?.get(1)?.takeIf { it.isNotBlank() }?.split(",")?.forEach { sub ->
+                    if (sub.isNotBlank()) {
+                        val subName = sub.substringAfter("[").substringBefore("]")
+                        val subUrl = sub.substringAfter("]")
+                        subtitleCallback.invoke(
+                            newSubtitleFile(subName, subUrl)
+                        )
+                    }
+                }
             }
         }
 
