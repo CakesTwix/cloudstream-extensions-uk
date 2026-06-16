@@ -67,6 +67,7 @@ class UASerialsProProvider : MainAPI() {
         "$mainUrl/cartoons/page/" to "Мультсеріали",
         "$mainUrl/fcartoon/page/" to "Мультфільми",
         "$mainUrl/anime/page/" to "Аніме",
+        "$mainUrl/exclusive/page/" to "Ексклюзив",
     )
 
     // Main Page
