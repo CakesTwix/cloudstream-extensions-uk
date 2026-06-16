@@ -63,10 +63,10 @@ class UASerialsProProvider : MainAPI() {
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/series/page/" to "Серіали",
+        "$mainUrl/films/page/" to "Фільми",
         "$mainUrl/cartoons/page/" to "Мультсеріали",
         "$mainUrl/fcartoon/page/" to "Мультфільми",
         "$mainUrl/anime/page/" to "Аніме",
-        "$mainUrl/films/page/" to "Фільми"
     )
 
     // Main Page
@@ -90,7 +90,12 @@ class UASerialsProProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val document = app.get(request.data + page).document
+        val url = if (page <= 1) {
+            request.data.removeSuffix("page/")
+        } else {
+            "${request.data}$page/"
+        }
+        val document = app.get(url).document
 
         val home = document.select(animeSelector).map {
             it.toSearchResponse()
@@ -488,4 +493,4 @@ class UASerialsProProvider : MainAPI() {
             return decoded?.let { reverseText(it) }
         }
     }
-}
+}  
