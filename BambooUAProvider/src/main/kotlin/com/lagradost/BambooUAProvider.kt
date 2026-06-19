@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
+import com.lagradost.cloudstream3.Score
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
@@ -51,19 +52,18 @@ class BambooUAProvider : MainAPI() {
         "$mainUrl/now/page/" to "Поточні",
     )
 
-    // Main Page
-    private val animeSelector = "li.slide-item"
-    private val titleSelector = ".block-description > h6"
-    private val hrefSelector = ".block-images .hover-buttons"
-    private val posterSelector = ".img-fluid"
+    // Main Page — оновлені селектори
+    private val animeSelector = "article.swiper-slide"
+    private val titleSelector = "h2.label-3"
+    private val hrefSelector = "a.link-title"
+    private val posterSelector = "div.poster img"
 
     // Load info
-    // private val titleLoadSelector = ".movie-detail .trending-info .trending-text"
     private val genresSelector = "span.full_cat a"
     private val yearSelector = ".trending-info .text-detail span.badge-danger"
-    // private val playerSelector = ".video-responsive > iframe"
-    // private val descriptionSelector = ".full-text"
-    // private val ratingSelector = ".pmovie__subrating img"
+
+    // Regex для витягування playlist JSON зі скрипту сторінки
+    private val playlistRegex = Regex("""const playlist = (\[.*?]);""", RegexOption.DOT_MATCHES_ALL)
 
     override suspend fun getMainPage(
         page: Int,
@@ -80,17 +80,19 @@ class BambooUAProvider : MainAPI() {
     private fun Element.toSearchResponse(): AnimeSearchResponse {
         val title = this.selectFirst(titleSelector)?.text()?.trim().toString()
         val href = this.selectFirst(hrefSelector)?.attr("href").toString()
-        val posterUrl = mainUrl + this.selectFirst(posterSelector)?.attr("src")
-
-
-        val sub = this.select(".Type_project_SUB").text().substringAfter(". ")
-        val dub = this.select(".Type_project_DUB").text().substringAfter(". ")
-        // Log.d("load-debug", dub)
-        return newAnimeSearchResponse(title, href, TvType.Anime) {
-            this.posterUrl = posterUrl
-            addDubStatus(dub.isNotEmpty(), sub.isNotEmpty(), dub.toIntOrNull(), sub.toIntOrNull())
+        val posterUrl = this.selectFirst(posterSelector)?.attr("src")?.let {
+            if (it.startsWith("http")) it else "$mainUrl$it"
         }
 
+        val subText = this.select(".caption-2").firstOrNull { it.text().contains("Суб.") }?.text() ?: ""
+        val dubText = this.select(".caption-2").firstOrNull { it.text().contains("Озв.") }?.text() ?: ""
+        val subCount = subText.filter { it.isDigit() }.toIntOrNull()
+        val dubCount = dubText.filter { it.isDigit() }.toIntOrNull()
+
+        return newAnimeSearchResponse(title, href, TvType.Anime) {
+            this.posterUrl = posterUrl
+            addDubStatus(dubCount != null, subCount != null, dubCount, subCount)
+        }
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
@@ -113,64 +115,57 @@ class BambooUAProvider : MainAPI() {
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
-        // Parse info
-        // val json = tryParseJson<JSONModel>(document.select("script[type*=json]").html())
+
+        // Parse metadata з JSON-LD
         val gJson = Gson().fromJson(document.select("script[type*=json]").html(), JSONModel::class.java)
-        // Log.d("load-debug-json", gJson.graph[0].name)
 
         val title = gJson.graph[0].name
-
-        val poster = gJson.graph[0].image[1]
+        val poster = document.selectFirst("meta[property=og:image]")?.attr("content")
+            ?: document.selectFirst("div.poster img")?.attr("src")
         val tags = document.select(genresSelector).map { it.text() }
         val year = document.select(yearSelector).text().toIntOrNull()
 
-        val tvType = with(tags){
-            when{
+        val tvType = with(tags) {
+            when {
                 contains("Аніме") -> TvType.Anime
                 contains("Кіно") -> TvType.Movie
                 else -> TvType.AsianDrama
             }
         }
         val description = gJson.graph[0].description
-        // val rating = document.select(ratingSelector).next().text().toRatingInt()
 
-        val recommendations = document.select(".favorites-slider li.slide-item").map {
+        val recommendations = document.select(".favorites-slider article.swiper-slide").map {
             it.toSearchResponse()
         }
 
         val subEpisodes = mutableListOf<Episode>()
         val dubEpisodes = mutableListOf<Episode>()
 
-        // Parse episodes (sub/dub)
-        document.select(".mt-4").forEach {
-            // Parse sub
-            if(it.select("h3.my-4").text() == "Субтитри"){
-                it.select("span.play_me").forEach{ episode ->
-                    subEpisodes.add(
-                        newEpisode(episode.attr("data-file")) {
-                            this.name = episode.attr("data-title")
-                            this.episode = episode.attr("data-title").replace("Серія ","").toIntOrNull()
-                            this.data = episode.attr("data-file")
-                        }
-                    )
-                }
-                // Parse dub
-            } else if(it.select("h3.my-4").text() == "Озвучення"){
-                it.select("span.play_me").forEach{ episode ->
-                    dubEpisodes.add(
-                        newEpisode(episode.attr("data-file")) {
-                            this.name = episode.attr("data-title")
-                            this.episode = episode.attr("data-title").replace("Серія ","").toIntOrNull()
-                            this.data = episode.attr("data-file")
-                        }
-                    )
+        // Витягуємо playlist JSON зі скрипту сторінки
+        val pageHtml = document.html()
+        val playlistJson = playlistRegex.find(pageHtml)?.groupValues?.get(1)
+
+        if (playlistJson != null) {
+            val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
+            playlist.forEach { group ->
+                val isDub = group.title.contains("Озвучення") || group.title.contains("Дубляж")
+                val isSub = group.title.contains("Субтитри")
+                group.folder.forEachIndexed { index, episode ->
+                    val ep = newEpisode(episode.file) {
+                        this.name = episode.title
+                        this.episode = index + 1
+                        this.data = episode.file
+                    }
+                    when {
+                        isDub -> dubEpisodes.add(ep)
+                        isSub -> subEpisodes.add(ep)
+                    }
                 }
             }
         }
 
         // Return to app
-        // Parse Episodes as Series
-        return if(tvType != TvType.Movie){
+        return if (tvType != TvType.Movie) {
             newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.year = year
@@ -180,13 +175,12 @@ class BambooUAProvider : MainAPI() {
                 this.addEpisodes(DubStatus.Dubbed, dubEpisodes)
                 this.addEpisodes(DubStatus.Subbed, subEpisodes)
             }
-        } else{
+        } else {
             newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                // this.score = Score.from10(rating)
                 this.recommendations = recommendations
             }
         }
@@ -199,28 +193,43 @@ class BambooUAProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // Movie
-        if(data.startsWith("https://bambooua.com")){
+        // Movie — data це URL сторінки
+        if (data.startsWith("https://bambooua.com")) {
             val document = app.get(data).document
-            document.select("span.mr-3").forEach {
-                // Log.d("load-debug", it.attr("data-file"))
-                M3u8Helper.generateM3u8(
-                    source = it.attr("data-title"),
-                    streamUrl = it.attr("data-file"),
-                    referer = "https://bambooua.com/"
-                ).forEach(callback)
+            val pageHtml = document.html()
+            val playlistJson = playlistRegex.find(pageHtml)?.groupValues?.get(1)
+            if (playlistJson != null) {
+                val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
+                playlist.forEach { group ->
+                    group.folder.forEach { episode ->
+                        M3u8Helper.generateM3u8(
+                            source = group.title,
+                            streamUrl = episode.file,
+                            referer = "$mainUrl/"
+                        ).forEach(callback)
+                    }
+                }
             }
             return true
         }
 
-        // Serial
+        // Serial — data це пряме m3u8 посилання
         M3u8Helper.generateM3u8(
-            source = "Bambooua",
+            source = "BambooUA",
             streamUrl = data,
-            referer = ""
+            referer = "$mainUrl/"
         ).forEach(callback)
 
         return true
     }
 
+    data class PlaylistGroup(
+        val title: String,
+        val folder: List<PlaylistEpisode>
+    )
+
+    data class PlaylistEpisode(
+        val title: String,
+        val file: String
+    )
 }
