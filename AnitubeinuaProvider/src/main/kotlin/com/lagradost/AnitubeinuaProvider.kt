@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.getExtractorApiFromName
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.extractors.csstExtractor
+import com.lagradost.extractors.MoonExtractor
 import com.lagradost.models.Ajax
 import com.lagradost.models.Link
 import com.lagradost.models.PlayerJson
@@ -253,6 +254,12 @@ class AnitubeinuaProvider : MainAPI() {
                                         }
                                     }
                         }
+                        it.urls.url.contains("moonanime.art") -> {
+                            val fixedUrl = if (it.urls.url.startsWith("//")) "https:${it.urls.url}" else it.urls.url
+                            MoonExtractor().getUrl(fixedUrl, "${it.urls.playerName} (${it.urls.name})") { link ->
+                                if (addedLinks.add(link.url)) callback(link)
+                            }
+                        }
                         it.urls.url.contains("https://www.udrop.com") -> {
                             val link = newExtractorLink(
                                 this.urls.url,
@@ -265,7 +272,8 @@ class AnitubeinuaProvider : MainAPI() {
                             }
                         }
                         it.urls.url.contains("https://csst.online/embed/") ||
-                                it.urls.url.contains("https://monstro.site/embed/") -> {
+                                it.urls.url.contains("https://monstro.site/embed/") ||
+                                it.urls.url.contains("https://monstro.online/embed/") -> {
                             csstExtractor().ParseUrl(it.urls.url).split(",").forEach { csstUrl ->
                                 val link = newExtractorLink(
                                     this.urls.url,
@@ -331,6 +339,12 @@ class AnitubeinuaProvider : MainAPI() {
                                                 }
                                             }
                                 }
+                                contains("moonanime.art") -> {
+                                    val fixedUrl = if (this.startsWith("//")) "https:$this" else this
+                                    MoonExtractor().getUrl(fixedUrl, dub.playerName) { link ->
+                                        if (addedLinks.add(link.url)) callback(link)
+                                    }
+                                }
                                 contains("https://www.udrop.com") -> {
                                     val link = newExtractorLink(
                                             dub.playerName,
@@ -342,7 +356,8 @@ class AnitubeinuaProvider : MainAPI() {
                                     }
                                 }
                                 contains("https://monstro.site/embed/") ||
-                                        contains("https://csst.online/embed/") -> {
+                                        contains("https://csst.online/embed/") ||
+                                        contains("https://monstro.online/embed/") -> {
                                     csstExtractor().ParseUrl(this).split(",").forEach {
                                         val link = newExtractorLink(
                                             dub.playerName,
@@ -427,8 +442,6 @@ class AnitubeinuaProvider : MainAPI() {
             val videoDataId = element.attr("data-id").trim()
             val episodeId = extractIntFromString(element.text())
             val fileUrl = element.attr("data-file").trim()
-
-            if (fileUrl.contains("moonanime.art")) return@forEach
 
             val segments = videoDataId.split("_")
             
