@@ -157,7 +157,8 @@ class UakinoProvider : MainAPI() {
         // Return to app
         // Parse Episodes as Series
         return if (tvType != TvType.Movie && tvType != TvType.AnimeMovie) {
-            val id = url.split("/").last().split("-").first()
+            val id = document.selectFirst("div.playlists-ajax")?.attr("data-news_id")
+                ?: url.split("/").last().split("-").first()
             val episodes =
                 app.get(
                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
@@ -276,30 +277,34 @@ class UakinoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
-        val playerResponse = app.get(url, referer = "$mainUrl/").document
-        playerResponse.select("script").forEach { script ->
-            val scriptData = script.data()
-            if (scriptData.contains("var player = new Playerjs({")) {
+        // Збираємо вміст усіх <script> (ashdi/tortuga більше не мають "var player = new Playerjs({")
+        val scriptData = app.get(url, referer = "$mainUrl/")
+            .document.select("script").joinToString("\n") { it.data() }
 
-                val m3uLink = fileRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
-                if (m3uLink.isNotEmpty()) {
-                    M3u8Helper.generateM3u8(
-                        source = sourceName,
-                        streamUrl = m3uLink,
-                        referer = "https://ashdi.vip/"
-                    ).dropLast(1).forEach(callback)
-                }
+        // Беремо .m3u8 (а якщо такого немає — перший file:)
+        val m3uLink = fileRegex.findAll(scriptData).map { it.groupValues[1] }
+            .firstOrNull { it.contains(".m3u8") }
+            ?: fileRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
 
-                val subtitleUrl = subsRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
-                if (subtitleUrl.isNotBlank()) {
-                    subtitleCallback.invoke(
-                        newSubtitleFile(
-                            subtitleUrl.substringAfterLast("[").substringBefore("]"),
-                            subtitleUrl.substringAfter("]")
-                        )
-                    )
-                }
-            }
+        if (m3uLink.isNotEmpty()) {
+            val playerReferer = if (url.contains("tortuga")) "https://tortuga.wtf/" else "https://ashdi.vip/"
+            val streams = M3u8Helper.generateM3u8(
+                source = sourceName,
+                streamUrl = m3uLink,
+                referer = playerReferer
+            )
+            val filtered = streams.dropLast(1)
+            (if (filtered.isNotEmpty()) filtered else streams).forEach(callback)
+        }
+
+        val subtitleUrl = subsRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
+        if (subtitleUrl.isNotBlank()) {
+            subtitleCallback.invoke(
+                newSubtitleFile(
+                    subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                    subtitleUrl.substringAfter("]")
+                )
+            )
         }
     }
 
