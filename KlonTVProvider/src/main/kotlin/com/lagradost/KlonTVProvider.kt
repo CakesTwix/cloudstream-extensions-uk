@@ -50,7 +50,8 @@ class KlonTVProvider : MainAPI() {
     private val recommendationsSelector = ".related-news__small-card"
     // private val ratingSelector = ".pmovie__subrating img"
 
-    val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
+    val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
 
     override suspend fun getMainPage(
         page: Int,
@@ -137,9 +138,7 @@ class KlonTVProvider : MainAPI() {
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
             val episodes = mutableListOf<Episode>()
-            val playerRawJson = app.get(playerUrl).document.select("script").html()
-                .substringAfterLast("file:\'")
-                .substringBefore("\',")
+            val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1) ?: ""
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for (season in dubs.folder) {                              // Seasons
@@ -198,11 +197,9 @@ class KlonTVProvider : MainAPI() {
                 referer = "https://tortuga.wtf/"
             ).dropLast(1).forEach(callback)
 
-            val subtitleUrl = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("subtitle: \"")
-                .substringBefore("\",")
+            val subtitleUrl = subtitleRegex.find(app.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
 
-            if (subtitleUrl.isNullOrBlank()) return true
+            if (subtitleUrl.isBlank()) return true
             subtitleCallback.invoke(
                 newSubtitleFile(
                     subtitleUrl.substringAfterLast("[").substringBefore("]"),

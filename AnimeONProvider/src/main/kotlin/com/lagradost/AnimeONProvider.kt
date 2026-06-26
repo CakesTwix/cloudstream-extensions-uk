@@ -29,6 +29,7 @@ class AnimeONProvider : MainAPI() {
     private val posterApi = "$mainUrl/api/uploads/images/%s"
     private val searchApi = "$mainUrl/api/anime?search="
     private val userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+    private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
 
     override val mainPage = mainPageOf(
         "$mainUrl/api/stats/anime/" to "Популярні аніме",
@@ -797,24 +798,17 @@ class AnimeONProvider : MainAPI() {
                 "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7"
             ), cacheTime = 0).text
 
-            val fileIndex = html.indexOf("file:'")
-            if (fileIndex != -1) {
-                val urlStart = fileIndex + 6
-                val urlEnd = html.indexOf('\'', urlStart)
-                if (urlEnd != -1) {
-                    val masterUrl = html.substring(urlStart, urlEnd)
-                    if (masterUrl.isNotEmpty() && masterUrl.endsWith(".m3u8")) {
-                        val streams = M3u8Helper.generateM3u8(
-                            source = sourceName,
-                            streamUrl = masterUrl,
-                            referer = "https://ashdi.vip/"
-                        )
-                        val filtered = streams.dropLast(1)
-                        val finalStreams = if (filtered.isNotEmpty()) filtered else streams
-                        finalStreams.forEach { link ->
-                            callback(fixMovieExtractorLink(link, sourceName))
-                        }
-                    }
+            val masterUrl = fileRegex.find(html)?.groupValues?.get(1) ?: ""
+            if (masterUrl.isNotEmpty() && masterUrl.endsWith(".m3u8")) {
+                val streams = M3u8Helper.generateM3u8(
+                    source = sourceName,
+                    streamUrl = masterUrl,
+                    referer = "https://ashdi.vip/"
+                )
+                val filtered = streams.dropLast(1)
+                val finalStreams = if (filtered.isNotEmpty()) filtered else streams
+                finalStreams.forEach { link ->
+                    callback(fixMovieExtractorLink(link, sourceName))
                 }
             }
         } catch (e: Exception) { }

@@ -74,6 +74,9 @@ class UAFlixProvider : MainAPI() {
 
     private val isHorizontal = true
 
+    private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
@@ -184,9 +187,7 @@ class UAFlixProvider : MainAPI() {
             }
 
         } else { // Player in site
-            val playerRawJson = app.get(playerUrl, referer = "https://uafix.net").document.select("script").html()
-                    .substringAfterLast("file:\'")
-                    .substringBefore("\',")
+            val playerRawJson = fileRegex.find(app.get(playerUrl, referer = "https://uafix.net").document.select("script").html())?.groupValues?.get(1) ?: ""
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
@@ -252,13 +253,9 @@ class UAFlixProvider : MainAPI() {
                         headers = mapOf(
                                 "Referer" to "https://uafix.net/",
                         )).document
-                val playerRawJson = playerDocument.select("script").html()
-                        .substringAfterLast("file:\"")
-                        .substringBefore("\",")
+                val playerRawJson = fileRegex.find(playerDocument.select("script").html())?.groupValues?.get(1) ?: ""
 
-                val subtitleString = playerDocument.select("script").html()
-                    .substringAfterLast("subtitle:\"")
-                    .substringBefore("\",")
+                val subtitleString = subtitleRegex.find(playerDocument.select("script").html())?.groupValues?.get(1) ?: ""
 
                 M3u8Helper.generateM3u8(
                         source = "UAFlix",
@@ -275,9 +272,7 @@ class UAFlixProvider : MainAPI() {
 
                 return true
             }
-            val playerRawJson = app.get(playerUrl, referer = "https://uafix.net").document.select("script").html()
-                    .substringAfterLast("file:\'")
-                    .substringBefore("\',")
+            val playerRawJson = fileRegex.find(app.get(playerUrl, referer = "https://uafix.net").document.select("script").html())?.groupValues?.get(1) ?: ""
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
                 for(season in dubs.folder){                                // Seasons
                     // Add as source
@@ -300,9 +295,7 @@ class UAFlixProvider : MainAPI() {
         }
 
 
-        val playerRawJson = app.get(dataList[2], referer = "https://uafix.net").document.select("script").html()
-                .substringAfterLast("file:\'")
-                .substringBefore("\',")
+        val playerRawJson = fileRegex.find(app.get(dataList[2], referer = "https://uafix.net").document.select("script").html())?.groupValues?.get(1) ?: ""
         tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
             for(season in dubs.folder){                                // Seasons
                 if(season.title == dataList[0]){

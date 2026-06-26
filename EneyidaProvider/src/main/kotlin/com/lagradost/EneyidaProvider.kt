@@ -24,6 +24,9 @@ class EneyidaProvider : MainAPI() {
         TvType.Anime,
     )
 
+    private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/films/page/" to "Фільми",
@@ -99,9 +102,7 @@ class EneyidaProvider : MainAPI() {
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries) {
             val episodes = mutableListOf<Episode>()
-            val playerRawJson = app.get(playerUrl).document.select("script").html()
-                .substringAfterLast("file: \'")
-                .substringBefore("\',")
+            val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1) ?: ""
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dub -> // Dubs
                 for (season in dub.folder) {                                     // Seasons
@@ -156,20 +157,16 @@ class EneyidaProvider : MainAPI() {
 
         // Its film, parse one m3u8
         if(dataList.size == 2){
-            val m3u8Url = app.get(dataList[1]).document.select("script").html()
-                .substringAfterLast("file: \"")
-                .substringBefore("\",")
+            val m3u8Url = fileRegex.find(app.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url.replace("https://", "http://"),
                 referer = "https://tortuga.wtf/"
             ).dropLast(1).forEach(callback)
 
-            val subtitleUrl = app.get(dataList[1]).document.select("script").html()
-                    .substringAfterLast("subtitle: \"")
-                    .substringBefore("\",")
+            val subtitleUrl = subtitleRegex.find(app.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
 
-            if(subtitleUrl.isNullOrBlank()) return true
+            if (subtitleUrl.isBlank()) return true
             subtitleCallback.invoke(
                 newSubtitleFile(
                     subtitleUrl.substringAfterLast("[").substringBefore("]"),
@@ -179,9 +176,7 @@ class EneyidaProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = app.get(dataList[2]).document.select("script").html()
-            .substringAfterLast("file: \'")
-            .substringBefore("\',")
+        val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script").html())?.groupValues?.get(1) ?: ""
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { level1Item ->
             val isSeasonFirst = level1Item.title.contains("сезон", ignoreCase = true)
