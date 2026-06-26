@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- ======== HEADER ======== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="CloudStream Sync"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/creds_btn"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp"
+                android:layout_marginEnd="8dp" />
+
+            <ImageView
+                android:id="@+id/save"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:padding="6dp" />
+        </LinearLayout>
+
+        <!-- ======== STATUS CARD ======== -->
+        <LinearLayout
+            android:id="@+id/status_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1AFFFFFF"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <View
+                    android:id="@+id/status_dot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="#F44336" />
+
+                <TextView
+                    android:id="@+id/status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Не підключено"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/server_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Натисніть налаштування, щоб увійти"
+                android:textSize="13sp"
+                android:textColor="#999999" />
+
+            <TextView
+                android:id="@+id/last_sync_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp"
+                android:textColor="#999999" />
+        </LinearLayout>
+
+        <!-- ======== GLOBAL TOGGLES ======== -->
+        <Switch
+            android:id="@+id/backup_device"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Відправляти на сервер"
+            android:textSize="15sp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+        <Switch
+            android:id="@+id/restore_device"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Отримувати з сервера"
+            android:textSize="15sp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+        <!-- ======== SYNC NOW ======== -->
+        <Button
+            android:id="@+id/sync_now_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Синхронізувати зараз"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- ======== CATEGORIES ======== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Що синхронізувати"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="↑ Бекап"
+                android:textSize="12sp"
+                android:textColor="#999999" />
+
+            <TextView
+                android:layout_width="80dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="↓ Отрим."
+                android:textSize="12sp"
+                android:textColor="#999999" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/categories_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <!-- ======== DEVICES ======== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Пристрої"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout
+            android:id="@+id/devices_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <!-- ======== DISCONNECT ======== -->
+        <Button
+            android:id="@+id/disconnect_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Відключити цей пристрій"
+            android:textColor="#F44336"
+            android:backgroundTint="#1AF44336"
+            android:layout_marginTop="16dp" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
