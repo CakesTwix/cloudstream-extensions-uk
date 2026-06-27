@@ -174,7 +174,7 @@ class UASerialsProProvider : MainAPI() {
                 document.select("div.fplayer player-control").attr("data-tag1"),
                 AesData::class.java,
             ),
-            "297796CCB81D25512",
+            "297796CCB81D255125",
             false
         ).replace("\\", "")
         val lastBracket = decryptData.lastIndexOf("]")
