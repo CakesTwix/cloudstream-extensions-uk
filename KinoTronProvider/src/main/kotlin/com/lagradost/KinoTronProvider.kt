@@ -38,7 +38,7 @@ class KinoTronProvider : MainAPI() {
         TvType.Anime
     )
 
-    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
+    val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
 
     // Sections
     override val mainPage = mainPageOf(
