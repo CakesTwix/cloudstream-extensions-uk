@@ -24,7 +24,7 @@ class EneyidaProvider : MainAPI() {
         TvType.Anime,
     )
 
-    private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    private val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
     private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
 
     // Sections
@@ -191,11 +191,11 @@ class EneyidaProvider : MainAPI() {
                 val sourceTitle = if (isSeasonFirst) season.title else dubTitle
 
                 season.folder
-                    .filter { it.title == dataList[1] && !it.file.isNullOrBlank() }
+                    .filter { it.title == dataList[1] && it.file.isNotBlank() }
                     .forEach { episode ->
                         M3u8Helper.generateM3u8(sourceTitle, episode.file, "https://tortuga.wtf/").dropLast(1).forEach(callback)
 
-                        episode.subtitle?.takeIf { it.isNotBlank() }?.let { subtitleRaw ->
+                        episode.subtitle.takeIf { it.isNotBlank() }?.let { subtitleRaw ->
                             subtitleRaw.indexOf(']').takeIf { it > 0 }?.let { endIndex ->
                                 subtitleCallback(
                                     newSubtitleFile(
