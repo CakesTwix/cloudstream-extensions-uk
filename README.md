@@ -20,7 +20,7 @@
 ## ⚙️ Інсталяція
 Скопіюйте посилання нижче і перейдіть в Додаток -> Параметри -> Розширення -> Додати репозиторій (можна не додавати свою назву, тільки посилання)
 ```
-https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/master/repo.json
+https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/refs/heads/master/repo.json
 ```
 або
 ```
@@ -39,7 +39,6 @@ cakes
 <!-- Support -->
 ## ✅ Підтримка
   - [Fediverse](https://shkey.cakestwix.com/@CakesTwix) aka @CakesTwix@shkey.cakestwix.com
-  - [Matrix-чат](https://matrix.to/#/#cakestwix:matrix.org)
   - [Телеграм-чат](https://t.me/cs3_ukraine)
 
 <!-- Contributing -->
@@ -52,8 +51,8 @@ cakes
 
 <!-- Developers -->
 ## ⭐️ Розробники
-  - [@CakesTwix](https://www.github.com/CakesTwix)
-
-<p align="center">
-	<br><a href="https://discord.gg/5Hus6fM"><img src="https://invidget.switchblade.xyz/5Hus6fM"/></a>
-</p>
+  - [@CakesTwix](https://codeberg.org/CakesTwix)
+  - [deleteBlack666](https://codeberg.org/deleteBlack666)
+  
+### Для розробників
+Pull Request приймаються тільки на боці codeberg.org/CakesTwix/cloudstream-extensions-uk, GitHub використовується як дзеркало!

@@ -3,6 +3,6 @@
     "description": "Cloudstream Ukraine Plugin Repository",
     "manifestVersion": 1,
     "pluginLists": [
-      "https://codeberg.org/CakesTwix/cloudstream-extensions-uk/raw/branch/builds/plugins.json"
+      "https://raw.githubusercontent.com/CakesTwix/cloudstream-extensions-uk/refs/heads/builds/plugins.json"
     ]
 }
