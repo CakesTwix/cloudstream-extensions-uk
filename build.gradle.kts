@@ -28,7 +28,8 @@ subprojects {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
         // you can modify it to use other git hosting services, like gitlab
         // setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/CakesTwix/cloudstream-extensions-uk")
-        setRepo("CakesTwix", "cloudstream-extensions-uk", "gitea-codeberg.org")
+        //setRepo("CakesTwix", "cloudstream-extensions-uk", "gitea-codeberg.org")
+        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/CakesTwix/cloudstream-extensions-uk")
         authors = listOf("CakesTwix")
     }
 
