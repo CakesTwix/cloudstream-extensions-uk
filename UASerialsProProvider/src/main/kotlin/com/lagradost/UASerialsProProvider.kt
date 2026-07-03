@@ -83,6 +83,7 @@ class UASerialsProProvider : MainAPI() {
     private val yearSelector = ".short-list a[href*=/year/]"
     private val descriptionSelector = ".full-text"
     private val ratingSelector = ".short-rate-in"
+    private val translationSelector = ".short-list li:contains(Переклад) span[data-popup]"
 
     private val listAESModel = object : TypeToken<List<AESPlayerDecodedModel>>() { }.type
     private val listDecodedJSONModel = object : TypeToken<List<DecodedJSON>>() { }.type
@@ -152,6 +153,11 @@ class UASerialsProProvider : MainAPI() {
 
         document.select(genresSelector).forEach { tags.add(it.text()) }
         document.select(actorsSelector).forEach { actors.add(it.text()) }
+
+        // Переклад зі сторінки — використовується як fallback для фільмів/мультфільмів
+        // якщо у плеєрі відсутня назва озвучки
+        val translation = document.selectFirst(translationSelector)
+            ?.text()?.trim()?.replace("|", "/") ?: ""
 
         val tvType = with(tags) {
             when {
@@ -246,7 +252,10 @@ class UASerialsProProvider : MainAPI() {
                 addActors(actors)
             }
         } else {
-            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|${playerTabs[0].url}") {
+            // Для фільмів/мультфільмів: якщо є переклад на сторінці — використовуємо його,
+            // інакше fallback на назву контенту
+            val sourceName = translation.ifBlank { title.replace("|", "") }
+            newMovieLoadResponse(title, url, TvType.Movie, "$sourceName|${playerTabs[0].url}") {
                 this.posterUrl = poster
                 this.score = Score.from10(rating)
                 this.year = year
@@ -427,25 +436,25 @@ class UASerialsProProvider : MainAPI() {
         // Tortuga player XOR декодер (tor.core.min.js #w + #_ функції)
         // Алгоритм: перший байт = сіль, далі XOR з (salt + 7*i + 13) % 256
         fun tortugaDecode(encoded: String): String? {
-    if (encoded.isBlank()) return encoded
-    return try {
-        val clean = encoded.trimEnd('=')
-        val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
-        if (decoded.isEmpty()) return encoded
+            if (encoded.isBlank()) return encoded
+            return try {
+                val clean = encoded.trimEnd('=')
+                val decoded = android.util.Base64.decode(clean, android.util.Base64.DEFAULT)
+                if (decoded.isEmpty()) return encoded
 
-        val salt = decoded[0].toInt() and 0xFF
-        
-        val resultBytes = ByteArray(decoded.size - 1)
+                val salt = decoded[0].toInt() and 0xFF
 
-        for (i in 1 until decoded.size) {
-            val key = (salt + 7 * (i - 1) + 13) % 256
-            resultBytes[i - 1] = ((decoded[i].toInt() and 0xFF) xor key).toByte()
-        }
+                val resultBytes = ByteArray(decoded.size - 1)
 
-        String(resultBytes, Charsets.UTF_8)
-    } catch (e: Exception) {
-        null
-    }
+                for (i in 1 until decoded.size) {
+                    val key = (salt + 7 * (i - 1) + 13) % 256
+                    resultBytes[i - 1] = ((decoded[i].toInt() and 0xFF) xor key).toByte()
+                }
+
+                String(resultBytes, Charsets.UTF_8)
+            } catch (e: Exception) {
+                null
+            }
         }
 
         fun torDecrypt(encoded: String): String {
@@ -494,4 +503,4 @@ class UASerialsProProvider : MainAPI() {
             return decoded?.let { reverseText(it) }
         }
     }
-}  
+}
