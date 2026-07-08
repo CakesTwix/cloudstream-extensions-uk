@@ -1,24 +1,23 @@
 package com.lagradost.models
 
-data class PlayerJson (
-
-	val title : String,
-	val season : Int,
-	val folder : List<Season>
+data class PlayerJson(
+    val title: String,
+    val folder: List<PlayerJson>? = null,
+    val file: String? = null,
+    val id: String? = null,
+    val poster: String? = null,
+    val subtitle: String? = null
 )
 
-data class Season (
-
-	val title : String,
-	val number: Int,
-	val folder : List<Episode>
+data class DubFolder(
+    val title: String,
+    val folder: List<EpisodeFolder>? = null
 )
 
-data class Episode (
-
-	val title : String,
-	val file : String,
-	val id : String,
-	val poster : String,
-	val subtitle : String,
+data class EpisodeFolder(
+    val title: String,
+    val file: String? = null,
+    val id: String? = null,
+    val poster: String? = null,
+    val subtitle: String? = null
 )
