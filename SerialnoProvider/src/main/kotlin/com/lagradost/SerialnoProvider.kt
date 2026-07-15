@@ -45,8 +45,7 @@ class SerialnoProvider : MainAPI() {
         "$mainUrl/series/page/" to "Серіали",
         "$mainUrl/cartoons/page/" to "Мультсеріали",
         "$mainUrl/mini-serials/page/" to "Міні-серіали",
-
-        )
+    )
 
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 

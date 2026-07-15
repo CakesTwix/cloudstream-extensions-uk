@@ -40,8 +40,8 @@ class DoramyWorldProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/dorama/page/" to "Дорами",
         "$mainUrl/film/page/" to "Фільми",
+        "$mainUrl/dorama/page/" to "Дорами",
         "$mainUrl/show/page/" to "Розважальні шоу",
     )
 

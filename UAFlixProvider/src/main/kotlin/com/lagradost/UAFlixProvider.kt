@@ -49,12 +49,12 @@ class UAFlixProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
+        "$mainUrl/film/page/" to "Фільми",
         "$mainUrl/serials/page/" to "Серіали",
-        "$mainUrl/serials/multseial/page/" to "Мультсеріали",
-        "$mainUrl/cartoons/page/" to "Мультфільми",
-        "$mainUrl/anime/page/" to "Аніме",
         "$mainUrl/dorama/page/" to "Дорами",
-        "$mainUrl/film/page/" to "Фільми"
+        "$mainUrl/cartoons/page/" to "Мультфільми",
+        "$mainUrl/serials/multseial/page/" to "Мультсеріали",
+        "$mainUrl/anime/page/" to "Аніме",
     )
 
     // Main Page

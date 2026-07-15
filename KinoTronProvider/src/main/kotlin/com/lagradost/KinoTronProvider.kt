@@ -47,8 +47,7 @@ class KinoTronProvider : MainAPI() {
         "$mainUrl/cartoons/page/" to "Мультфільми",
         "$mainUrl/cartoon-series/page/" to "Мультсеріали",
         "$mainUrl/anime/page/" to "Аніме",
-
-        )
+    )
 
     override suspend fun getMainPage(
         page: Int,
