@@ -44,8 +44,8 @@ class CikavaIdeyaProvider : MainAPI() {
     override val mainPage = mainPageOf(
         "$mainUrl/filmy/page/" to "Фільми",
         "$mainUrl/serialy/page/" to "Серіали",
-        "$mainUrl/arthaus/page/" to "Артхаус",
         "$mainUrl/cartoon/page/" to "Мультсеріали",
+        "$mainUrl/arthaus/page/" to "Артхаус",
     )
 
     override suspend fun getMainPage(

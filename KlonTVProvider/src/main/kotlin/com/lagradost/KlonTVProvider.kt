@@ -28,11 +28,11 @@ class KlonTVProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
+        "$mainUrl/filmy/page/" to "Фільми",
         "$mainUrl/serialy/page/" to "Серіали",
-        "$mainUrl/anime/page/" to "Аніме",
-        "$mainUrl/filmy/page/" to "Зарубіжні фільми",
         "$mainUrl/multfilmy/page/" to "Мультфільми",
         "$mainUrl/multserialy/page/" to "Мультсеріали",
+        "$mainUrl/anime/page/" to "Аніме",
     )
 
     // Main Page

@@ -41,10 +41,10 @@ class BambooUAProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/dorama/page/" to "Дорама",
+        "$mainUrl/cinema/page/" to "Фільми",
+        "$mainUrl/dorama/page/" to "Дорами",
         "$mainUrl/anime/page/" to "Аніме",
         "$mainUrl/lakorn/page/" to "Лакорн",
-        "$mainUrl/cinema/page/" to "Кіно",
         "$mainUrl/voice/page/" to "Озвучення",
         "$mainUrl/tv-show/page/" to "ТВ-шоу",
         "$mainUrl/done/page/" to "Завершені",

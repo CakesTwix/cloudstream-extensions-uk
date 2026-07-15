@@ -28,13 +28,12 @@ class UFDubProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/anime/page/" to "Аніме",
-        "$mainUrl/serial/page/" to "Серіали",
         "$mainUrl/film/page/" to "Фільми",
+        "$mainUrl/serial/page/" to "Серіали",
+        "$mainUrl/dorama/page/" to "Дорами",
         "$mainUrl/cartoon/page/" to "Мультфільми",
         "$mainUrl/cartoon-serial/page/" to "Мультсеріали",
-        "$mainUrl/dorama/page/" to "Дорами",
-
+        "$mainUrl/anime/page/" to "Аніме",
     )
 
     override suspend fun getMainPage(

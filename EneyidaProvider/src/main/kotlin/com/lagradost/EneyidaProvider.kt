@@ -60,9 +60,9 @@ class EneyidaProvider : MainAPI() {
     override val mainPage = mainPageOf(
         "$mainUrl/films/page/" to "Фільми",
         "$mainUrl/series/page/" to "Серіали",
-        "$mainUrl/anime/page/" to "Аніме",
         "$mainUrl/cartoon/page/" to "Мультфільми",
         "$mainUrl/cartoon-series/page/" to "Мультсеріали",
+        "$mainUrl/anime/page/" to "Аніме",
     )
 
     override suspend fun getMainPage(

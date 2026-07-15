@@ -26,12 +26,11 @@ class KinoVezhaProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/series/page/" to "Серіали",
         "$mainUrl/films/page/" to "Фільми",
+        "$mainUrl/series/page/" to "Серіали",
         "$mainUrl/cartoons/page/" to "Мультфільми",
         "$mainUrl/s-cartoons/page/" to "Мультсеріали",
-
-        )
+    )
 
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
