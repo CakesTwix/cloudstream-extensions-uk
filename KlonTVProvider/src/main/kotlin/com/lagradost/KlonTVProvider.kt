@@ -64,8 +64,8 @@ class KlonTVProvider : MainAPI() {
     private val recommendationsSelector = ".related-news__small-card"
     // private val ratingSelector = ".pmovie__subrating img"
 
-    val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
-    val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
+    val subtitleRegex = "subtitle\\s*:\\s*'([^']+)'".toRegex()
 
     private val bypassClient by lazy {
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
