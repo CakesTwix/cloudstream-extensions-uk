@@ -22,6 +22,7 @@ fun Project.android(configuration: BaseExtension.() -> Unit) = extensions.getByN
 subprojects {
     apply(plugin = "com.android.library")
     apply(plugin = "kotlin-android")
+
     apply(plugin = "com.lagradost.cloudstream3.gradle")
 
     cloudstream {
@@ -62,17 +63,11 @@ subprojects {
     }
 
     dependencies {
-        val cloudstream by configurations
         val implementation by configurations
         val libs = rootProject.libs
-        val apkTasks = listOf("deployWithAdb", "build", "makePluginsJson")
-        val useApk = gradle.startParameter.taskNames.any { taskName ->
-            apkTasks.any { apkTask ->
-                taskName.contains(apkTask, ignoreCase = true)
-            }
-        }
 
         // If the task is specifically to compile the app then use the stubs, otherwise use the library.
+        val cloudstream by configurations
         cloudstream(libs.cloudstream3)
 
         // these dependencies can include any of those which are added by the app,
@@ -80,6 +75,7 @@ subprojects {
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle
         implementation(kotlin("stdlib")) // adds standard kotlin features, like listOf, mapOf etc
         implementation(libs.nicehttp) // http library
+        implementation(libs.kotlinx.coroutines.core) // coroutines for fetchBypass
         implementation(libs.jsoup) // html parser
     }
 

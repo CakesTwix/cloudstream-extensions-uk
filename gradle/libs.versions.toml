@@ -4,6 +4,7 @@ cloudstream3 = "pre-release"
 cloudstreamapi = "0.1.6"
 recloudstream-gradle = "-SNAPSHOT"
 gson = "2.13.2"
+kotlinx-coroutines-core = "1.10.2"
 kotlinx-coroutines-test = "1.10.2"
 nicehttp = "0.4.11"
 jsoup = "1.22.1"
@@ -17,6 +18,7 @@ cloudstreamapi = { module = "com.github.Blatzar:CloudstreamApi", version.ref = "
 recloudstream-gradle = { module = "com.github.recloudstream:gradle", version.ref = "recloudstream-gradle" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines-core" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines-test" }
 nicehttp = { module = "com.github.Blatzar:NiceHttp", version.ref = "nicehttp" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
