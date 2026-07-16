@@ -1,0 +1,26 @@
+name: Pull Request
+
+on:
+  pull_request:
+    paths-ignore:
+      - "*.md"
+
+jobs:
+  pr:
+    runs-on: debian-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - name: Setup JDK 17
+        uses: https://github.com/actions/setup-java@v3
+        with:
+          java-version: 17
+          distribution: "temurin"
+
+      - name: Setup Android SDK
+        uses: https://github.com/android-actions/setup-android@v2
+
+      - name: Build Plugins
+        run: |
+          ./gradlew make makePluginsJson
