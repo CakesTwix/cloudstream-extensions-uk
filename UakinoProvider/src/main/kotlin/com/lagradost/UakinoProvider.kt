@@ -40,9 +40,9 @@ class UakinoProvider : MainAPI() {
             "$mainUrl/filmy/page/" to "Фільми",
             "$mainUrl/seriesss/page/" to "Серіали",
             "$mainUrl/seriesss/doramy/page/" to "Дорами",
-            "$mainUrl/animeukr/page/" to "Аніме",
             "$mainUrl/cartoon/page/" to "Мультфільми",
             "$mainUrl/cartoon/cartoonseries/page/" to "Мультсеріали",
+            "$mainUrl/animeukr/page/" to "Аніме",
         )
 
     val blackUrls = "(/news/)|(/franchise/)"
