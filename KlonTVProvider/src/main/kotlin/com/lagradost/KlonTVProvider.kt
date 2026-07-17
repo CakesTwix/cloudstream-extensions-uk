@@ -57,8 +57,6 @@ class KlonTVProvider : MainAPI() {
 
     // Load info
     private val titleLoadSelector = ".seo-h1__position"
-    private val genresSelector = ".table-info__link"
-    private val yearSelector = ".table-info__link a"
     private val playerSelector = "div.film-player iframe"
     private val descriptionSelector = ".info-clamp__hid"
     private val recommendationsSelector = ".related-news__small-card"
@@ -237,8 +235,15 @@ class KlonTVProvider : MainAPI() {
         val actors = titleJson.actor.map { it.name }
 
         // HTML
-        val tags = document.select(genresSelector).map { it.text() }
-        val year = document.selectFirst(yearSelector)?.text()?.toIntOrNull()
+        val tags = mutableListOf<String>()
+        var year: Int? = null
+        document.select(".table-info__item").forEach { item ->
+            val category = item.selectFirst(".table__category")?.text()?.trim() ?: ""
+            when {
+                category == "Рік:" -> year = item.selectFirst("a")?.text()?.toIntOrNull()
+                category == "Жанр:" -> tags.addAll(item.select("a").map { it.text() })
+            }
+        }
         val playerUrl = document.select(playerSelector).attr("data-src")
 
         var tvType = with(tags) {
