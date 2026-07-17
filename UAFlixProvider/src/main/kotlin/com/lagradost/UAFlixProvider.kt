@@ -3,8 +3,8 @@ package com.lagradost
 import com.lagradost.cloudstream3.AnimeSearchResponse
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
-import com.lagradost.cloudstream3.HomePageList
 import com.lagradost.cloudstream3.HomePageResponse
+import com.lagradost.cloudstream3.mainPage
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.MainAPI
@@ -49,12 +49,12 @@ class UAFlixProvider : MainAPI() {
 
     // Sections
     override val mainPage = mainPageOf(
-        "$mainUrl/film/page/" to "Фільми",
-        "$mainUrl/serials/page/" to "Серіали",
-        "$mainUrl/dorama/page/" to "Дорами",
-        "$mainUrl/cartoons/page/" to "Мультфільми",
-        "$mainUrl/serials/multseial/page/" to "Мультсеріали",
-        "$mainUrl/anime/page/" to "Аніме",
+        mainPage("$mainUrl/film/page/", "Фільми", horizontalImages = true),
+        mainPage("$mainUrl/serials/page/", "Серіали", horizontalImages = true),
+        mainPage("$mainUrl/dorama/page/", "Дорами", horizontalImages = true),
+        mainPage("$mainUrl/cartoons/page/", "Мультфільми", horizontalImages = true),
+        mainPage("$mainUrl/serials/multseial/page/", "Мультсеріали", horizontalImages = true),
+        mainPage("$mainUrl/anime/page/", "Аніме", horizontalImages = true),
     )
 
     // Main Page
@@ -71,8 +71,6 @@ class UAFlixProvider : MainAPI() {
     // private val playerSelector = "iframe"
     private val descriptionSelector = "div[id=serial-kratko]"
     private val ratingSelector = ".mediablock .rat-imdb"
-
-    private val isHorizontal = true
 
     private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
     private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
@@ -98,16 +96,7 @@ class UAFlixProvider : MainAPI() {
         val home = document.select(animeSelector).map {
             it.toSearchResponse()
         }
-        return newHomePageResponse(
-            listOf(
-                HomePageList(
-                    request.name,
-                    home,
-                    isHorizontalImages = isHorizontal
-                )
-            ),
-            hasNext = true
-        )
+        return newHomePageResponse(request, home)
     }
 
     private fun Element.toSearchResponse(): AnimeSearchResponse {
