@@ -81,7 +81,19 @@ class UAFlixProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val document = app.get(request.data + page).document
+        val baseUrl = request.data.replace("/page/", "/")
+        val sortParams = mapOf(
+            "xf_sort" to "get",
+            "xf_field" to "default",
+            "xf_value" to "date"
+        )
+
+        val document = if (page == 1) {
+            app.post(url = baseUrl, data = sortParams).document
+        } else {
+            app.post(url = baseUrl, data = sortParams)
+            app.get(request.data + page).document
+        }
 
         val home = document.select(animeSelector).map {
             it.toSearchResponse()
