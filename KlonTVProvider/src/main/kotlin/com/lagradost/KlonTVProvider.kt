@@ -7,21 +7,7 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.GeneralInfo
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.net.ServerSocket
-import java.net.URL
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.security.cert.X509Certificate
-import java.util.concurrent.TimeUnit
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class KlonTVProvider : MainAPI() {
@@ -64,120 +50,6 @@ class KlonTVProvider : MainAPI() {
 
     val fileRegex = "file\\s*:\\s*'([^']+)'".toRegex()
     val subtitleRegex = "subtitle\\s*:\\s*'([^']+)'".toRegex()
-
-    private val bypassClient by lazy {
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>?, authType: String?) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        })
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-        OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            .hostnameVerifier { _, _ -> true }
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .build()
-    }
-
-    private inner class VideoProxy(private val client: OkHttpClient) {
-        private var server: ServerSocket? = null
-        private val URI_RE = Regex("""URI="([^"]+)"""")
-
-        fun start() {
-            if (server != null) return
-            server = ServerSocket(0)
-            Thread {
-                while (server?.isClosed == false) {
-                    try {
-                        val socket = server!!.accept()
-                        Thread { handle(socket) }.also { it.isDaemon = true }.start()
-                    } catch (_: Exception) {}
-                }
-            }.also { it.isDaemon = true }.start()
-        }
-
-        private fun handle(socket: java.net.Socket) {
-            try {
-                val line = socket.inputStream.bufferedReader().readLine() ?: return
-                val path = line.substringAfter(" ").substringBefore(" ")
-                val encoded = path.removePrefix("/?url=")
-                val target = URLDecoder.decode(encoded, "UTF-8")
-
-                val req = Request.Builder().url(target)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0")
-                    .build()
-
-                val resp = client.newCall(req).execute()
-                val ct = resp.header("Content-Type") ?: "application/octet-stream"
-                val isM3u8 = ct.contains("mpegurl", true) || target.endsWith(".m3u8")
-
-                val os = socket.outputStream
-                os.write("HTTP/1.1 200 OK\r\nContent-Type: $ct\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n".toByteArray())
-
-                if (isM3u8) {
-                    val body = resp.body?.string() ?: ""
-                    os.write(rewriteM3u8(body, target))
-                } else {
-                    resp.body?.byteStream()?.copyTo(os)
-                }
-
-                os.flush()
-                resp.close()
-                socket.close()
-            } catch (_: Exception) {
-                try { socket.close() } catch (_: Exception) {}
-            }
-        }
-
-        private fun rewriteM3u8(content: String, baseUrl: String): ByteArray {
-            val base = URL(baseUrl)
-            val p = server!!.localPort
-            return content.lineSequence().joinToString("\n") { line ->
-                when {
-                    line.isBlank() -> line
-                    line.startsWith("#") -> URI_RE.replace(line) { m ->
-                        val uri = m.groupValues[1]
-                        val resolved = if (uri.startsWith("http")) uri else URL(base, uri).toString()
-                        "URI=\"http://127.0.0.1:$p/?url=${URLEncoder.encode(resolved, "UTF-8")}\""
-                    }
-                    else -> {
-                        val resolved = if (line.trim().startsWith("http")) line.trim() else URL(base, line.trim()).toString()
-                        "http://127.0.0.1:$p/?url=${URLEncoder.encode(resolved, "UTF-8")}"
-                    }
-                }
-            }.toByteArray(Charsets.UTF_8)
-        }
-
-        fun wrap(url: String): String {
-            val p = server!!.localPort
-            return "http://127.0.0.1:$p/?url=${URLEncoder.encode(url, "UTF-8")}"
-        }
-    }
-
-    private val videoProxy by lazy {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P)
-            VideoProxy(bypassClient).also { it.start() }
-        else null
-    }
-
-    private suspend fun fetchBypass(url: String, referer: String? = null): Document {
-        return withContext(Dispatchers.IO) {
-            val requestBuilder = Request.Builder().url(url)
-            referer?.let { requestBuilder.header("Referer", it) }
-            requestBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0")
-            val response = bypassClient.newCall(requestBuilder.build()).execute()
-            if (!response.isSuccessful) {
-                response.close()
-                throw Exception("HTTP ${response.code}: $url")
-            }
-            val html = response.body?.string() ?: ""
-            response.close()
-            Jsoup.parse(html)
-        }
-    }
 
     override suspend fun getMainPage(
         page: Int,
@@ -271,7 +143,7 @@ class KlonTVProvider : MainAPI() {
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
             val episodes = mutableListOf<Episode>()
-            val playerRawJson = fileRegex.find(fetchBypass(playerUrl).select("script").html())?.groupValues?.get(1) ?: ""
+            val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1) ?: ""
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for (season in dubs.folder) {                              // Seasons
@@ -322,15 +194,15 @@ class KlonTVProvider : MainAPI() {
         // Its film, parse one m3u8
         if (dataList.size == 2) {
             // TODO: Remove this hack
-            val m3u8Url = fileRegex.find(fetchBypass(dataList[1].replace("?multivoice", "")).select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
+            val m3u8Url = fileRegex.find(app.get(dataList[1].replace("?multivoice", "")).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
 
             M3u8Helper.generateM3u8(
                 source = dataList[0],
-                streamUrl = videoProxy?.wrap(m3u8Url) ?: m3u8Url,
+                streamUrl = m3u8Url,
                 referer = "https://tortuga.wtf/"
             ).dropLast(1).forEach(callback)
 
-            val subtitleUrl = subtitleRegex.find(fetchBypass(dataList[1]).select("script").html())?.groupValues?.get(1) ?: ""
+            val subtitleUrl = subtitleRegex.find(app.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
 
             if (subtitleUrl.isBlank()) return true
             subtitleCallback.invoke(
@@ -342,7 +214,7 @@ class KlonTVProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = fileRegex.find(fetchBypass(dataList[2]).select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
+        val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dub ->
             dub.folder.filter { it.title == dataList[0] }
@@ -351,7 +223,7 @@ class KlonTVProvider : MainAPI() {
                 .map {
                     M3u8Helper.generateM3u8(
                         source = dub.title,
-                        streamUrl = videoProxy?.wrap(it.file) ?: it.file,
+                        streamUrl = it.file,
                         referer = "https://tortuga.wtf/"
                     ).dropLast(1).forEach(callback)
 
