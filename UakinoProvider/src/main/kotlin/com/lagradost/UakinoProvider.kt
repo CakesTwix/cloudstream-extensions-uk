@@ -42,7 +42,11 @@ class UakinoProvider : MainAPI() {
             document
                 .select("div.owl-item, div.movie-item")
                 .filterNot { el ->
-                    el.select("a.movie-title, a.full-movie").attr("href").contains(Regex(blackUrls))
+                    val href = el.select("a.movie-title, a.full-movie").attr("href")
+                    val genre = el.select(".fi-label:contains(Жанр:) + .deck-value").text()
+                    href.contains(Regex(blackUrls)) ||
+                            (request.name == "Серіали" && (genre.contains("Дорами") || genre.contains("Мультсеріали"))) ||
+                            (request.name == "Мультфільми" && href.contains("/cartoonseries/"))
                 }
                 .map {
                     // Log.d("CakesTwix-Debug", it.select("a.movie-title, a.full-movie").attr("href"))
