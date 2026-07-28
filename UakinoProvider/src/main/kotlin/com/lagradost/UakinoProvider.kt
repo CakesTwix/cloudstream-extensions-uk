@@ -110,6 +110,8 @@ class UakinoProvider : MainAPI() {
         var year = 2023
         var actors = emptyList<String>()
         var rating = "0"
+        var contentRating: String? = null
+        var countries: String? = null
 
         document.select(".fi-item-s, .fi-item").forEach { metadata ->
             with(metadata.select(".fi-label").text()) {
@@ -117,13 +119,14 @@ class UakinoProvider : MainAPI() {
                     contains("Рік виходу:") -> year = metadata.select(".fi-desc").text().toInt()
                     contains("Жанр:") -> tags = metadata.select(".fi-desc").text().split(" , ")
                     contains("Актори:") -> actors = metadata.select(".fi-desc").text().split(", ")
+                    contains("Вік. рейтинг:") -> contentRating = metadata.select(".fi-desc").text().trim()
+                    contains("Країна:") -> countries = metadata.select(".fi-desc").text().trim()
                     contains("") -> {
                         if (!metadata.select(".fi-label").select("img").isEmpty()){
                             rating = metadata.select(".fi-desc").text().substringBefore("/")
                         }
                     }
                 }
-                // Log.d("CakesTwix-Debug", metadata.select(".fi-desc").text().substringBefore("/"))
             }
         }
 
@@ -150,6 +153,7 @@ class UakinoProvider : MainAPI() {
         }
 
         val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
+        val plot = if (!countries.isNullOrBlank()) "Країна: $countries. $description" else description
         val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
 
         // Add seasons to recommendations
@@ -194,9 +198,10 @@ class UakinoProvider : MainAPI() {
                 this.posterUrl = poster
                 this.engName = engTitle
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
                 this.score = Score.from10(rating)
+                this.contentRating = contentRating
                 addActors(actors)
                 addEpisodes(DubStatus.None, episodes.distinctBy { it.name })
                 this.recommendations = recommendations
@@ -206,9 +211,10 @@ class UakinoProvider : MainAPI() {
             newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
                 this.score = Score.from10(rating)
+                this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)
