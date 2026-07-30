@@ -117,6 +117,9 @@ class EneyidaProvider : MainAPI() {
         val playerUrl = document.select(".tabs_b.visible iframe").attr("src")
 
         val description = document.selectFirst(".full_content-desc p")?.text()?.trim()
+        val countries = fullInfo[2].select("a").joinToString { it.text() }
+        val contentRating = fullInfo[5].selectFirst("span[class^=age]")?.text()
+        val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
         val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text()
         val actors = fullInfo[4].select("a").map { it.text() }
@@ -233,9 +236,10 @@ class EneyidaProvider : MainAPI() {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = "$mainUrl$banner"
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
                 this.score = Score.from10(rating)
+                this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)
@@ -245,9 +249,10 @@ class EneyidaProvider : MainAPI() {
                 this.posterUrl = poster
                 this.backgroundPosterUrl = "$mainUrl$banner"
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
                 this.score = Score.from10(rating)
+                this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
                 addTrailer(trailer)
