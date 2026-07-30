@@ -45,9 +45,21 @@ class AnimeONProvider : MainAPI() {
     private val searchApi = "$mainUrl/api/anime?search="
     private val userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36"
 
+    private fun currentSeasonLabel(): String {
+        val cal = java.util.Calendar.getInstance()
+        val month = cal.get(java.util.Calendar.MONTH) + 1
+        val seasonUa = when (month) {
+            12, 1, 2  -> "зимового"
+            3, 4, 5   -> "весняного"
+            6, 7, 8   -> "літнього"
+            else      -> "осіннього"
+        }
+        return "Аніме ${seasonUa} сезону"
+    }
+
     override val mainPage = mainPageOf(
+        "$apiUrl/seasons" to currentSeasonLabel(),
         "$mainUrl/api/stats/anime/" to "Популярні аніме",
-        "$apiUrl/seasons" to "Аніме поточного сезону",
         "$apiUrl?pageSize=24&pageIndex=%d" to "Нове аніме на сайті",
     )
 
@@ -137,6 +149,16 @@ class AnimeONProvider : MainAPI() {
         val releaseDate: String?,
     )
 
+    private data class EpisodeInfo(
+        val id: Int? = null,
+        val episode: Int,
+        val title: String? = null,
+        val titleUa: String? = null,
+        val aired: String? = null,
+        val filler: Boolean? = null,
+        val recap: Boolean? = null,
+    )
+
     private fun fixMovieExtractorLink(link: ExtractorLink, sourceName: String): ExtractorLink {
         val cleanQuality = when {
             link.url.contains("/1080/") -> 1080
@@ -208,9 +230,30 @@ class AnimeONProvider : MainAPI() {
         }
     }
 
+    private suspend fun fetchEpisodeInfoMap(animeId: Int): Map<Int, String> {
+        val slugJson = fetchJsonOrNull("$apiUrl/$animeId") ?: return emptyMap()
+        return try {
+            val redirect = AppUtils.parseJson<RedirectResponse>(slugJson)
+            val slugOrId = if (redirect?.moved == true && !redirect.slug.isNullOrEmpty())
+                redirect.slug!! else animeId.toString()
+
+            val infoJson = fetchJsonOrNull("$mainUrl/api/anime/$slugOrId/episodes-info") ?: return emptyMap()
+            val list = AppUtils.parseJson<List<EpisodeInfo>>(infoJson)
+            list.associate { ep ->
+                ep.episode to (ep.titleUa?.takeIf { it.isNotBlank() } ?: ep.title?.takeIf { it.isNotBlank() } ?: "")
+            }.filter { it.value.isNotEmpty() }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
     private suspend fun getAshdiPoster(videoUrl: String?): String? {
-        if (videoUrl.isNullOrEmpty()) return null
-        if (!videoUrl.contains("ashdi.vip")) return null
+        if (videoUrl.isNullOrEmpty()) {
+            return null
+        }
+        if (!videoUrl.contains("ashdi.vip")) {
+            return null
+        }
         val url = if (videoUrl.contains("?")) videoUrl else "$videoUrl?player=animeon.club"
         return try {
             val html = app.get(url, headers = mapOf(
@@ -221,13 +264,49 @@ class AnimeONProvider : MainAPI() {
             val posterRegex = Regex("""poster:\s*["']((?:https?:)?//[^"']+)["']""")
             val raw = posterRegex.find(html)?.groupValues?.get(1)
             if (!raw.isNullOrEmpty()) {
-                return if (raw.startsWith("http")) raw else "https:$raw"
+                val result = if (raw.startsWith("http")) raw else "https:$raw"
+                return result
             }
 
             val screenRegex = Regex("""((?:https?:)?//[^"'\s]+screen\.jpg)""")
-            val screenMatch = screenRegex.find(html)?.groupValues?.get(1) ?: return null
-            if (screenMatch.startsWith("http")) screenMatch else "https:$screenMatch"
-        } catch (e: Exception) { null }
+            val screenMatch = screenRegex.find(html)?.groupValues?.get(1)
+            if (screenMatch != null) {
+                if (screenMatch.startsWith("http")) screenMatch else "https:$screenMatch"
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private suspend fun getMoonPoster(iframeUrl: String): String? {
+        val cleanUrl = if (iframeUrl.contains("player=")) {
+            iframeUrl
+        } else {
+            "$iframeUrl${if (iframeUrl.contains("?")) "&" else "?"}player=animeon.club"
+        }
+
+        return try {
+            val html = app.get(cleanUrl, headers = mapOf(
+                "User-Agent" to userAgent,
+                "Referer" to "$mainUrl/"
+            ), cacheTime = 0).text
+
+            val atobRegex = Regex("""atob\s*\(\s*["']([^"']+)["']\s*\)""")
+            val atobMatch = atobRegex.find(html)?.groupValues?.get(1)
+
+            if (!atobMatch.isNullOrEmpty()) {
+                val decodedJs = moonOuterDecode(atobMatch)
+
+                val posterRegex = Regex("""poster\s*:\s*["'](https?://[^"']+)["']""")
+                val posterMatch = posterRegex.find(decodedJs)?.groupValues?.get(1)
+
+                if (posterMatch != null) {
+                    posterMatch
+                } else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private suspend fun resolveMoonContent(contentUrl: String): String? {
@@ -261,10 +340,12 @@ class AnimeONProvider : MainAPI() {
             )
 
             val location = response.headers["location"] ?: response.headers["Location"]
-            if (!location.isNullOrEmpty()) return location
-
-            val body = response.text.trim()
-            if (body.startsWith("http")) body else null
+            if (!location.isNullOrEmpty()) {
+                location
+            } else {
+                val body = response.text.trim()
+                if (body.startsWith("http")) body else null
+            }
         } catch (e: Exception) {
             null
         }
@@ -356,6 +437,8 @@ class AnimeONProvider : MainAPI() {
             }
         }
 
+        val episodeInfoMap = fetchEpisodeInfoMap(animeId)
+
         val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
         val translationsJson = fetchJsonOrNull("$mainUrl/api/player/$animeId/translations")
 
@@ -401,25 +484,35 @@ class AnimeONProvider : MainAPI() {
                                     fileUrl = ep.fileUrl,
                                 )
                             )
-                            if (!ep.poster.isNullOrEmpty() && !episodePosters.containsKey(ep.episode)) {
-                                val restricted = ep.poster.contains("mooncdn.net")
-                                if (!restricted) {
-                                    episodePosters[ep.episode] = ep.poster
-                                }
+                            val poster = ep.poster
+                            if (!poster.isNullOrEmpty() && !poster.contains("mooncdn.space") && !episodePosters.containsKey(ep.episode)) {
+                                episodePosters[ep.episode] = poster
                             }
                         }
-                    }
-                }
+                    } 
+                } 
 
                 episodeSources.keys.sorted().forEach { epNum ->
                     val sources = episodeSources[epNum] ?: return@forEach
-                    var epPoster: String? = episodePosters[epNum]
+                    var epPoster = episodePosters[epNum]
 
                     if (epPoster.isNullOrEmpty()) {
                         val ashdiSource = sources.firstOrNull {
                             it.playerName.contains("Ashdi", ignoreCase = true) && !it.videoUrl.isNullOrEmpty()
                         }
-                        if (ashdiSource != null) epPoster = getAshdiPoster(ashdiSource.videoUrl!!)
+                        
+                        if (ashdiSource != null) {
+                            epPoster = getAshdiPoster(ashdiSource.videoUrl!!)
+                        } 
+                        
+                        if (epPoster.isNullOrEmpty()) {
+                            val moonSource = sources.firstOrNull {
+                                !it.videoUrl.isNullOrEmpty() && it.videoUrl.contains("moonanime.art")
+                            }
+                            if (moonSource != null) {
+                                epPoster = getMoonPoster(moonSource.videoUrl!!)
+                            }
+                        }
                     }
 
                     val dataJson = org.json.JSONArray().also { arr ->
@@ -433,16 +526,19 @@ class AnimeONProvider : MainAPI() {
                         }
                     }.toString()
 
+                    val episodeName = episodeInfoMap[epNum]?.takeIf { it.isNotBlank() }
+
                     episodes.add(
                         newEpisode(dataJson).apply {
-                            this.name = "Епізод $epNum"
+                            this.name = episodeName
                             this.episode = epNum
                             this.posterUrl = epPoster
                         }
                     )
                 }
 
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+            }
         }
 
         val franchise = buildFranchise(animeId)
@@ -569,7 +665,8 @@ class AnimeONProvider : MainAPI() {
                         }
                     }
                 }
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+            }
         }
 
         return foundAny
@@ -688,7 +785,8 @@ class AnimeONProvider : MainAPI() {
                                         }
                                     }
                                 }
-                            } catch (e: Exception) { }
+                            } catch (e: Exception) {
+                            }
                         }
                         continue
                     }
@@ -744,11 +842,13 @@ class AnimeONProvider : MainAPI() {
                                     }
                                 }
                             }
-                        } catch (e: Exception) { }
+                        } catch (e: Exception) {
+                        }
                     }
                 }
             }
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+        }
 
         return foundAny
     }
@@ -896,7 +996,8 @@ class AnimeONProvider : MainAPI() {
                     }
                 }
             }
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+        }
     }
 
     private fun moonDecrypt(encoded: String, key: String = "mAnK"): String {
@@ -915,21 +1016,18 @@ class AnimeONProvider : MainAPI() {
         return try {
             val raw = android.util.Base64.decode(base64Blob, android.util.Base64.DEFAULT)
             if (raw.size < 33) return ""
-
             val state0 = raw[0].toInt() and 0xFF
             val key = raw.sliceArray(1 until 33)
             val data = raw.sliceArray(33 until raw.size)
-
-            val result = StringBuilder()
+            val result = ByteArray(data.size)
             var state = state0
             for (i in data.indices) {
                 val d = data[i].toInt() and 0xFF
                 val k = key[i % 32].toInt() and 0xFF
-                val dec = d xor k xor state
-                result.append(dec.toChar())
+                result[i] = (d xor k xor state).toByte()
                 state = (d + k) and 0xFF
             }
-            result.toString()
+            String(result, Charsets.UTF_8)
         } catch (e: Exception) { "" }
     }
 
@@ -953,7 +1051,9 @@ class AnimeONProvider : MainAPI() {
                 "Sec-Fetch-Dest"            to "document",
                 "Upgrade-Insecure-Requests" to "1"
             ), cacheTime = 0).text
-        } catch (e: Exception) { "" }
+        } catch (e: Exception) {
+            ""
+        }
 
         if (html.isNotEmpty()) {
             val atobRegex = Regex("""atob\s*\(\s*["']([^"']+)["']\s*\)""")
@@ -962,7 +1062,6 @@ class AnimeONProvider : MainAPI() {
             if (!atobMatch.isNullOrEmpty()) {
                 val decodedJs = moonOuterDecode(atobMatch)
                 if (decodedJs.isNotEmpty()) {
-
                     val keyRegex = Regex("""var\s+k\s*=\s*["']([^"']+)["']""")
                     val xorKey = keyRegex.find(decodedJs)?.groupValues?.get(1)
 
@@ -1035,7 +1134,8 @@ class AnimeONProvider : MainAPI() {
                 }
             }
             if (qualityResults.isNotEmpty()) {
-                return Pair(qualityResults.joinToString("."), null)
+                val result = qualityResults.joinToString(".")
+                return Pair(result, null)
             }
         }
 
