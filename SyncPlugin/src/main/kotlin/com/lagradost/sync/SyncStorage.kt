@@ -17,11 +17,22 @@ object SyncStorage {
             setKey("CLOUDSYNC_V2_MIGRATED", value)
         }
 
-    fun getCategoryTimestamp(category: SyncCategory): Long =
-        getKey("CLOUDSYNC_TS_${category.key}") ?: 0L
+    fun getCategoryTimestamp(category: SyncCategory): Long {
+        val key = "CLOUDSYNC_TS_${category.key}"
+        val stored: Long = getKey(key) ?: 0L
+        val normalized = SyncTime.toEpochSeconds(stored)
+        if (stored != normalized) {
+            // Міграція з v1: нуль примусить одне повне отримання даних і
+            // відновить непарні ключі закладок, залишені старим злиттям.
+            setKey(key, 0L)
+            setCategoryHash(category, "")
+            return 0L
+        }
+        return normalized
+    }
 
     fun setCategoryTimestamp(category: SyncCategory, ts: Long) {
-        setKey("CLOUDSYNC_TS_${category.key}", ts)
+        setKey("CLOUDSYNC_TS_${category.key}", SyncTime.toEpochSeconds(ts))
     }
 
     fun getCategoryHash(category: SyncCategory): String =

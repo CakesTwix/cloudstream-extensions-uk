@@ -1,10 +1,12 @@
 @file:Suppress("UnstableApiUsage")
 
-version = 1
+version = 2
 
 dependencies {
     implementation(libs.gson)
     implementation("com.google.android.material:material:1.14.0")
+    testImplementation(libs.junit)
+    testImplementation(kotlin("test"))
 }
 
 cloudstream {
