@@ -35,6 +35,8 @@ class CloudSyncPlugin : Plugin() {
 
     private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
     private var registeredApp: android.app.Application? = null
+    // Зберігаємо той самий context, на якому зареєстровано слухачі:
+    // під час hot reload їх потрібно зняти з тих самих SharedPreferences.
     private var registeredContext: Context? = null
 
     private var pluginScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -48,6 +50,8 @@ class CloudSyncPlugin : Plugin() {
     private var restoringUntil = 0L
     private val RESTORE_GUARD_MS = 5_000L
 
+    // pullMutex відсікає повторний pull, а syncMutex не дає polling,
+    // lifecycle та відкладеному push одночасно змінювати локальний стан.
     private val pullMutex = Mutex()
     private val syncMutex = Mutex()
 
@@ -495,6 +499,8 @@ class CloudSyncPlugin : Plugin() {
                     }
                     if (creds.backupDevice) {
                         val m = SyncNetwork.fetchManifest()
+                        // Початковий push дозволено лише після успішної відповіді:
+                        // мережевий збій (m == null) не означає порожню хмару.
                         if (m != null && m.extensions == null && m.settings == null &&
                             m.bookmarks == null && m.resumeWatching == null && m.searchHistory == null
                         ) {
@@ -529,6 +535,8 @@ class CloudSyncPlugin : Plugin() {
             Log.e(TAG, "prefs listener register failed: ${e.message}")
         }
 
+        // Посилання на lambda потрібне, щоб зняти саме цей observer при
+        // hot reload і не накопичувати дублікати синхронізації.
         val observer: (Boolean) -> Unit = {
             if (!isRestoring && System.currentTimeMillis() > restoringUntil) {
                 markDirty(SyncCategory.BOOKMARKS)
@@ -584,7 +592,10 @@ class CloudSyncPlugin : Plugin() {
             override fun onActivitySaveInstanceState(
                 a: android.app.Activity,
                 o: android.os.Bundle,
-            ) {}
+            ) {
+                // Saved state належить CloudStream. Плагін не повинен видаляти
+                // fragment state: на TV це може ламати відновлення екрана.
+            }
             override fun onActivityDestroyed(a: android.app.Activity) {
                 if (a === this@CloudSyncPlugin.activity) this@CloudSyncPlugin.activity = null
             }
