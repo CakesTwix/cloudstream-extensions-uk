@@ -69,7 +69,7 @@ class UAFlixProvider : MainAPI() {
     // private val genresSelector = "li span:contains(Жанр:) a"
     // private val yearSelector = "a[href*=https://uaserials.pro/year/]"
     // private val playerSelector = "iframe"
-    private val descriptionSelector = "div[id=serial-kratko]"
+    private val descriptionSelector = "#fdesc"
     private val ratingSelector = ".mediablock .rat-imdb"
 
     private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
@@ -139,13 +139,28 @@ class UAFlixProvider : MainAPI() {
         val tags = mutableListOf<String>()
         val actors = mutableListOf<String>()
         var year = "f".toIntOrNull()
+        var contentRating = ""
+        var countries: String? = null
 
         document.select(".fcols4 .finfo li").forEach { menu ->
             with(menu){
                 when{
                     this.select("span")[0].text() == "Жанр:" -> menu.select("span[itemprop=genre]").map { tags.add(it.text()) }
                     this.select("span")[0].text() == "В ролях:" -> menu.select("span[itemprop=actor]").map { actors.add(it.text()) }
-                    this.select("span")[0].text() == "Рік виходу:" -> year = menu.select(".year").text().toIntOrNull()
+                    this.select("span")[0].text() == "Рік виходу:" -> {
+                        year = menu.select(".year").text().toIntOrNull()
+                        val text = menu.text()
+                        if (text.contains(" / ")) {
+                            contentRating = text.substringAfterLast(" / ").trim()
+                        }
+                    }
+                    this.select("span")[0].text() == "Ориг. назва:" -> {
+                        val text = menu.text()
+                        if (text.contains(" / ")) {
+                            contentRating = text.substringAfterLast(" / ").trim()
+                        }
+                    }
+                    this.select("span")[0].text() == "Країна:" -> countries = menu.selectFirst(".country")?.text()
                 }
             }
         }
@@ -161,6 +176,7 @@ class UAFlixProvider : MainAPI() {
             }
         }
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
+        val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val rating = document.select(ratingSelector).text()
 
         // Parse episodes
@@ -215,8 +231,9 @@ class UAFlixProvider : MainAPI() {
                 this.posterUrl = poster
                 this.engName = engTitle
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
+                this.contentRating = contentRating
                 this.score = Score.from10(rating)
                 addEpisodes(DubStatus.Dubbed, episodes.sortedBy { it.episode })
                 addActors(actors)
@@ -227,8 +244,9 @@ class UAFlixProvider : MainAPI() {
                 this.posterUrl = poster
                 this.name = title
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
+                this.contentRating = contentRating
                 this.score = Score.from10(rating)
                 addActors(actors)
             }

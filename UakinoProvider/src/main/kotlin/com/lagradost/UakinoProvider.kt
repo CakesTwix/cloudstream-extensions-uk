@@ -153,7 +153,7 @@ class UakinoProvider : MainAPI() {
         }
 
         val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
-        val plot = if (!countries.isNullOrBlank()) "Країна: $countries. $description" else description
+        val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
 
         // Add seasons to recommendations

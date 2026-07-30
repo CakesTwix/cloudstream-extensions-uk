@@ -83,6 +83,8 @@ class UASerialsProProvider : MainAPI() {
     private val yearSelector = ".short-list a[href*=/year/]"
     private val descriptionSelector = ".full-text"
     private val ratingSelector = ".short-rate-in"
+    private val countrySelector = ".short-list li:contains(Країна) a"
+    private val contentRatingSelector = ".short-agerating span"
     private val translationSelector = ".short-list li:contains(Переклад) span[data-popup]"
 
     private val listAESModel = object : TypeToken<List<AESPlayerDecodedModel>>() { }.type
@@ -169,7 +171,10 @@ class UASerialsProProvider : MainAPI() {
                 else -> TvType.TvSeries
             }
         }
+        val contentRating = document.selectFirst(contentRatingSelector)?.text()
+        val countries = document.select(countrySelector).map { it.text() }
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
+        val plot = if (countries.isNotEmpty()) "<b>Країна: ${countries.joinToString(", ")}.</b> $description" else description
 
         val recommendations = document.select(animeSelector).map {
             it.toSearchResponse()
@@ -245,8 +250,9 @@ class UASerialsProProvider : MainAPI() {
                 this.engName = engTitle
                 this.score = Score.from10(rating)
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
+                this.contentRating = contentRating
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addActors(actors)
@@ -259,8 +265,9 @@ class UASerialsProProvider : MainAPI() {
                 this.posterUrl = poster
                 this.score = Score.from10(rating)
                 this.year = year
-                this.plot = description
+                this.plot = plot
                 this.tags = tags
+                this.contentRating = contentRating
                 this.recommendations = recommendations
                 addActors(actors)
             }
