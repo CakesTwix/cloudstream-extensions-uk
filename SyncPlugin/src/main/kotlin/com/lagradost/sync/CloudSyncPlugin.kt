@@ -105,11 +105,15 @@ class CloudSyncPlugin : Plugin() {
                 try {
                     val creds = SyncStorage.creds
                     if (creds != null && creds.isLoggedIn() && creds.restoreDevice) {
+                        // FIXME: Якщо є локальні dirty-категорії, polling має
+                        // виконати merge, а не прямий pull із можливим перезаписом.
                         syncMutex.withLock { pullChangedCategories(context) }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "poll error: ${e.message}")
                 }
+                // TODO: Додати backoff і jitter після мережевих помилок, щоб
+                // багато пристроїв не опитували недоступний сервер одночасно.
             }
         }
     }

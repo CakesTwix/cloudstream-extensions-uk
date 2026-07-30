@@ -61,6 +61,8 @@ object SyncBackup {
 
     private fun String.isTransferable(): Boolean {
         val lower = this.lowercase()
+        // TODO: Замінити пошук підрядка на явні точні ключі та префікси,
+        // щоб схоже ім'я не виключило стороннє налаштування випадково.
         return !nonTransferableKeys.any { lower.contains(it.lowercase()) }
     }
 
@@ -185,6 +187,8 @@ object SyncBackup {
         val prefs = if (isSettings) context.getDefaultSharedPrefs() else context.getSharedPrefs()
         val editor = editor(context, isSettings)
 
+        // FIXME: Не видаляти локальні ключі, доки не підтверджено повноту
+        // payload. Часткова відповідь сервера не повинна виглядати як видалення.
         if (isDynamicCategory(category)) {
             val incomingKeys = mutableSetOf<String>()
             vars.bool?.keys?.let { incomingKeys.addAll(it) }

@@ -5,6 +5,8 @@ import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 
 object SyncStorage {
 
+    // TODO: Перед публічним використанням зберігати bearer-токен через
+    // Android Keystore/зашифроване сховище, а не загальний DataStore хоста.
     var creds: SyncCreds?
         get() = getKey("CLOUDSYNC_CREDS")
         set(value) {

@@ -321,6 +321,8 @@ class SyncSettings(private val plugin: CloudSyncPlugin) {
                     return@setPositiveButton
                 }
 
+                // TODO: Вимагати HTTPS, крім явно ввімкненого локального
+                // режиму налагодження, бо цей URL передає bearer-токен.
                 val deviceId = current.deviceId
                     ?: SyncNetwork.getDeviceId(packageName, context)
 
