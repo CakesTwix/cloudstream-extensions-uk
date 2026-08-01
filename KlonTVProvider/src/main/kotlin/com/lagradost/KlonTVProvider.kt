@@ -95,15 +95,18 @@ class KlonTVProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
         // Parse info
-        val titleJson = tryParseJson<GeneralInfo>(
-            document.selectFirst("script[type=application/ld+json]")?.html()
-        )!!
+        val rawTitleJson = document.selectFirst("script[type=application/ld+json]")?.html()
+        val titleJson = rawTitleJson
+            ?.takeIf(::hasJsonObjectShape)
+            ?.let { json -> runCatching { tryParseJson<GeneralInfo>(json) }.getOrNull() }
 
         // JSON
-        val title = titleJson.name
-        val poster = titleJson.image
-        val rating = titleJson.aggregateRating?.ratingValue.toString()
-        val actors = titleJson.actor.map { it.name }
+        val title = titleJson?.name?.takeIf { it.isNotBlank() }
+            ?: document.selectFirst(titleLoadSelector)?.text()?.trim().orEmpty()
+        val poster = titleJson?.image?.takeIf { it.isNotBlank() }
+            ?: fixUrl(document.selectFirst(posterSelector)?.attr("data-src").orEmpty())
+        val rating = titleJson?.aggregateRating?.ratingValue?.toString().orEmpty()
+        val actors = titleJson?.actor?.map { it.name }.orEmpty()
 
         // HTML
         val tags = mutableListOf<String>()
@@ -118,7 +121,7 @@ class KlonTVProvider : MainAPI() {
             }
         }
         val contentRating = document.selectFirst(".info-title__age-icon")?.text()?.trim()?.takeIf { it.isNotBlank() }
-        val playerUrl = document.select(playerSelector).attr("data-src")
+        val playerUrl = document.select(playerSelector).attr("data-src").trim()
 
         var tvType = with(tags) {
             when {
@@ -146,7 +149,11 @@ class KlonTVProvider : MainAPI() {
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
             val episodes = mutableListOf<Episode>()
-            val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1) ?: ""
+            val playerRawJson = if (playerUrl.isBlank()) {
+                ""
+            } else {
+                fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1).orEmpty()
+            }
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for (season in dubs.folder) {                              // Seasons
@@ -198,8 +205,13 @@ class KlonTVProvider : MainAPI() {
         val dataList = data.split("|")
         // Its film, parse one m3u8
         if (dataList.size == 2) {
+            if (dataList[1].isBlank()) return false
             // TODO: Remove this hack
-            val m3u8Url = fileRegex.find(app.get(dataList[1].replace("?multivoice", "")).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
+            val m3u8Url = fileRegex.find(
+                app.get(dataList[1].replace("?multivoice", ""))
+                    .document.select("script[type=text/javascript]").html()
+            )?.groups?.get(1)?.value.orEmpty()
+            if (m3u8Url.isBlank()) return false
 
             M3u8Helper.generateM3u8(
                 source = dataList[0],
@@ -219,7 +231,10 @@ class KlonTVProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script[type=text/javascript]").html())?.groups?.get(1)?.value.toString()
+        if (dataList.size < 3 || dataList[2].isBlank()) return false
+        val playerRawJson = fileRegex.find(
+            app.get(dataList[2]).document.select("script[type=text/javascript]").html()
+        )?.groups?.get(1)?.value.orEmpty()
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dub ->
             dub.folder.filter { it.title == dataList[0] }
