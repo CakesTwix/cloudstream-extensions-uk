@@ -89,4 +89,17 @@ class SyncPolicyTest {
         assertTrue(SyncPollPolicy.shouldMerge(hasDirtyCategories = true))
         assertFalse(SyncPollPolicy.shouldMerge(hasDirtyCategories = false))
     }
+
+    @Test
+    fun `malformed cloud backup is rejected instead of treated as empty`() {
+        assertTrue(SyncBackup.parseBackupFile("not-json").isFailure)
+        assertTrue(SyncBackup.parseBackupFile("{\"datastore\":{}}").isFailure)
+    }
+
+    @Test
+    fun `empty but valid cloud backup is accepted`() {
+        assertTrue(
+            SyncBackup.parseBackupFile("""{"datastore":{},"settings":{}}""").isSuccess
+        )
+    }
 }
