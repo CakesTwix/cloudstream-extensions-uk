@@ -73,4 +73,14 @@ class SyncPolicyTest {
         )
         assertEquals(0L, SyncKeyPath.extractTimestamp(null))
     }
+
+    @Test
+    fun `newer cloud value in seconds wins over local milliseconds`() {
+        assertTrue(
+            SyncTime.shouldRestore(
+                cloudTimestamp = 1_785_428_193L,
+                localTimestamp = 1_785_428_192_061L,
+            )
+        )
+    }
 }
