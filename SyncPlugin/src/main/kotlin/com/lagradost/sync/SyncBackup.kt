@@ -225,8 +225,8 @@ object SyncBackup {
         vars.string?.forEach { (k, v) ->
             if (k.isTransferable() && isKeyRestoreEnabled(category, creds)) {
                 val localVal = prefs.getString(k, null)
-                val cloudTs = extractTimestamp(v)
-                val localTs = extractTimestamp(localVal)
+                val cloudTs = SyncKeyPath.extractTimestamp(v)
+                val localTs = SyncKeyPath.extractTimestamp(localVal)
                 if (localVal == null || (cloudTs == 0L && localTs == 0L) || cloudTs > localTs) {
                     editor.setKeyRaw(k, v)
                 }

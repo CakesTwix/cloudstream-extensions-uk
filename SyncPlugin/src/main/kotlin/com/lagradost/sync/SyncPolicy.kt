@@ -77,7 +77,8 @@ object SyncKeyPath {
         return 0L
     }
 
-    private fun extractTimestamp(json: String?): Long {
+    /** Читає timestamp із JSON-значення, яке зберігається у SharedPreferences. */
+    fun extractTimestamp(json: String?): Long {
         if (json == null) return 0L
         return try {
             "\"updateTime\":\\s*(\\d+)".toRegex().find(json)?.groupValues?.get(1)?.toLong()

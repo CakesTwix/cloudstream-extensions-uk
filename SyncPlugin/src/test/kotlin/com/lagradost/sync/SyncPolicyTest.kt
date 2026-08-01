@@ -64,4 +64,13 @@ class SyncPolicyTest {
             SyncKeyPath.itemId("0/result_resume_watching_2/1879154550"),
         )
     }
+
+    @Test
+    fun `shared timestamp parser reads restore metadata`() {
+        assertEquals(
+            1_785_428_192_061L,
+            SyncKeyPath.extractTimestamp("""{"updateTime":1785428192061}"""),
+        )
+        assertEquals(0L, SyncKeyPath.extractTimestamp(null))
+    }
 }
