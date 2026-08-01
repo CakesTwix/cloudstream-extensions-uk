@@ -25,6 +25,16 @@ object SyncTime {
         force: Boolean = false,
     ): Boolean =
         force || toEpochSeconds(cloudTimestamp.toLong()) > toEpochSeconds(localTimestamp)
+
+    /** Порівнює timestamp значень SharedPreferences у спільних одиницях. */
+    fun shouldRestore(cloudTimestamp: Long, localTimestamp: Long): Boolean =
+        (cloudTimestamp == 0L && localTimestamp == 0L) ||
+            toEpochSeconds(cloudTimestamp) > toEpochSeconds(localTimestamp)
+}
+
+/** Вибирає безпечнішу дію polling, якщо локальні зміни ще не відправлені. */
+object SyncPollPolicy {
+    fun shouldMerge(hasDirtyCategories: Boolean): Boolean = hasDirtyCategories
 }
 
 /**

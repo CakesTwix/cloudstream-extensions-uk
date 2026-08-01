@@ -73,4 +73,33 @@ class SyncPolicyTest {
         )
         assertEquals(0L, SyncKeyPath.extractTimestamp(null))
     }
+
+    @Test
+    fun `newer cloud value in seconds wins over local milliseconds`() {
+        assertTrue(
+            SyncTime.shouldRestore(
+                cloudTimestamp = 1_785_428_193L,
+                localTimestamp = 1_785_428_192_061L,
+            )
+        )
+    }
+
+    @Test
+    fun `polling merges when a category has local changes`() {
+        assertTrue(SyncPollPolicy.shouldMerge(hasDirtyCategories = true))
+        assertFalse(SyncPollPolicy.shouldMerge(hasDirtyCategories = false))
+    }
+
+    @Test
+    fun `malformed cloud backup is rejected instead of treated as empty`() {
+        assertTrue(SyncBackup.parseBackupFile("not-json").isFailure)
+        assertTrue(SyncBackup.parseBackupFile("{\"datastore\":{}}").isFailure)
+    }
+
+    @Test
+    fun `empty but valid cloud backup is accepted`() {
+        assertTrue(
+            SyncBackup.parseBackupFile("""{"datastore":{},"settings":{}}""").isSuccess
+        )
+    }
 }

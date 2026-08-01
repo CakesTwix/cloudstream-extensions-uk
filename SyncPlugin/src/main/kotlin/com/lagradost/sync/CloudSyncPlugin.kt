@@ -109,9 +109,13 @@ class CloudSyncPlugin : Plugin() {
                 try {
                     val creds = SyncStorage.creds
                     if (creds != null && creds.isLoggedIn() && creds.restoreDevice) {
-                        // FIXME: Якщо є локальні dirty-категорії, polling має
-                        // виконати merge, а не прямий pull із можливим перезаписом.
-                        syncMutex.withLock { pullChangedCategories(context) }
+                        syncMutex.withLock {
+                            if (SyncPollPolicy.shouldMerge(hasDirtyCategories())) {
+                                mergeAndSyncAllCategoriesLocked(context)
+                            } else {
+                                pullChangedCategories(context)
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "poll error: ${e.message}")
@@ -339,19 +343,31 @@ class CloudSyncPlugin : Plugin() {
             }
             try {
                 val cloudPayload = cloudPayloads[category]
-                val cloudBackup =
-                    if (cloudPayload != null && cloudPayload.data.isNotBlank()) {
-                        try { Gson().fromJson(cloudPayload.data, BackupFile::class.java) } catch (_: Exception) { null }
-                    } else null
+                val cloudMeta = manifest.getMeta(category)
+                if (cloudPayload == null && cloudMeta != null &&
+                    cloudMeta.hash == SyncStorage.getCategoryHash(category)
+                ) {
+                    continue
+                }
+                val cloudBackup = if (cloudPayload != null) {
+                    val parsed = SyncBackup.parseBackupFile(cloudPayload.data)
+                    if (parsed.isFailure) {
+                        if (currentDirtyCategories.contains(category)) {
+                            synchronized(dirtyCategoriesLock) { dirtyCategories.add(category) }
+                        }
+                        Log.e(TAG, "merge skipped ${category.key}: invalid cloud payload")
+                        continue
+                    }
+                    parsed.getOrThrow()
+                } else null
                 val localBackup = SyncBackup.getBackupForCategory(appContext, category, resumeWatching)
                 val isLocalEmpty = localBackup == null || SyncBackup.run { localBackup.datastore.isEmpty() && localBackup.settings.isEmpty() }
                 val isCloudEmpty = cloudBackup == null || SyncBackup.run { cloudBackup.datastore.isEmpty() && cloudBackup.settings.isEmpty() }
 
                 if (isLocalEmpty) {
                     if (!isCloudEmpty && isRestore) {
-                        val cloudMeta = manifest?.getMeta(category)
                         val cloudHash = cloudMeta?.hash ?: ""
-                        if (cloudHash != SyncStorage.getCategoryHash(category) && cloudBackup != null) {
+                        if (cloudHash != SyncStorage.getCategoryHash(category)) {
                             isRestoring = true
                             try {
                                 restoreAndReload(appContext, category, cloudBackup)
@@ -370,7 +386,7 @@ class CloudSyncPlugin : Plugin() {
                     if (isBackup) {
                         val data = localBackup.toJsonSorted()
                         val hash = SyncBackup.computeHash(data)
-                        if (hash != (manifest?.getMeta(category)?.hash ?: "")) {
+                        if (hash != (cloudMeta?.hash ?: "")) {
                             categoriesToPush[category] = data to hash
                         }
                     }
@@ -384,7 +400,7 @@ class CloudSyncPlugin : Plugin() {
                         val data = mergedBackup.toJsonSorted()
                         val hash = SyncBackup.computeHash(data)
                         val liveLocalHash = SyncBackup.computeHash(localBackup.toJsonSorted())
-                        val cloudHash = manifest.getMeta(category)?.hash ?: ""
+                        val cloudHash = cloudMeta?.hash ?: ""
 
                         if (hash != liveLocalHash && isRestore) {
                             isRestoring = true
@@ -396,7 +412,7 @@ class CloudSyncPlugin : Plugin() {
                                 withContext(Dispatchers.Main) { isRestoring = false }
                             }
                             SyncStorage.setCategoryHash(category, hash)
-                            manifest.getMeta(category)?.let {
+                            cloudMeta?.let {
                                 SyncStorage.setCategoryTimestamp(category, it.ts.toLong())
                             }
                             SyncStorage.setCategorySyncedKeys(category, SyncBackup.getBackupFileKeys(mergedBackup))
@@ -405,7 +421,7 @@ class CloudSyncPlugin : Plugin() {
                             categoriesToPush[category] = data to hash
                         } else if (cloudHash.isNotEmpty() && SyncStorage.getCategoryHash(category) != cloudHash) {
                             SyncStorage.setCategoryHash(category, cloudHash)
-                            manifest.getMeta(category)?.let { SyncStorage.setCategoryTimestamp(category, it.ts.toLong()) }
+                            cloudMeta?.let { SyncStorage.setCategoryTimestamp(category, it.ts.toLong()) }
                         }
                     }
                 }

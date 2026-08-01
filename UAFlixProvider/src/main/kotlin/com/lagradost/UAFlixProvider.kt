@@ -143,25 +143,24 @@ class UAFlixProvider : MainAPI() {
         var countries: String? = null
 
         document.select(".fcols4 .finfo li").forEach { menu ->
-            with(menu){
-                when{
-                    this.select("span")[0].text() == "Жанр:" -> menu.select("span[itemprop=genre]").map { tags.add(it.text()) }
-                    this.select("span")[0].text() == "В ролях:" -> menu.select("span[itemprop=actor]").map { actors.add(it.text()) }
-                    this.select("span")[0].text() == "Рік виходу:" -> {
-                        year = menu.select(".year").text().toIntOrNull()
-                        val text = menu.text()
-                        if (text.contains(" / ")) {
-                            contentRating = text.substringAfterLast(" / ").trim()
-                        }
+            val label = menu.select("span").firstOrNull()?.text() ?: return@forEach
+            when (label) {
+                "Жанр:" -> menu.select("span[itemprop=genre]").forEach { tags.add(it.text()) }
+                "В ролях:" -> menu.select("span[itemprop=actor]").forEach { actors.add(it.text()) }
+                "Рік виходу:" -> {
+                    year = menu.select(".year").text().toIntOrNull()
+                    val text = menu.text()
+                    if (text.contains(" / ")) {
+                        contentRating = text.substringAfterLast(" / ").trim()
                     }
-                    this.select("span")[0].text() == "Ориг. назва:" -> {
-                        val text = menu.text()
-                        if (text.contains(" / ")) {
-                            contentRating = text.substringAfterLast(" / ").trim()
-                        }
-                    }
-                    this.select("span")[0].text() == "Країна:" -> countries = menu.selectFirst(".country")?.text()
                 }
+                "Ориг. назва:" -> {
+                    val text = menu.text()
+                    if (text.contains(" / ")) {
+                        contentRating = text.substringAfterLast(" / ").trim()
+                    }
+                }
+                "Країна:" -> countries = menu.selectFirst(".country")?.text()
             }
         }
 
@@ -194,8 +193,9 @@ class UAFlixProvider : MainAPI() {
                     episodes.add(
                         newEpisode(video_item.select(".vi-img").attr("href")) {
                             this.name = video_item.select(".vi-rate").text()
-                            this.season = extractIntsFromString(video_item.select(".vi-title").text())[0].value.toIntOrNull()
-                            this.episode = extractIntsFromString(video_item.select(".vi-title").text())[1].value.toIntOrNull()
+                            val numbers = extractIntsFromString(video_item.select(".vi-title").text())
+                            this.season = numbers.getOrNull(0)?.value?.toIntOrNull()
+                            this.episode = numbers.getOrNull(1)?.value?.toIntOrNull()
                             this.posterUrl = fixUrl(video_item.select(".img-resp-h img").attr("data-src"))
                             this.data = video_item.select(".vi-img").attr("href")
                         }
@@ -209,11 +209,13 @@ class UAFlixProvider : MainAPI() {
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
                 for(season in dubs.folder){                              // Seasons
                     for(episode in season.folder){                       // Episodes
+                        val (seasonNumber, episodeNumber) =
+                            parseEpisodeNumbers(season.title, episode.title)
                         episodes.add(
                             newEpisode("${season.title}, ${episode.title}, $playerUrl") {
                                 this.name = episode.title
-                                this.season = season.title.replace(" Сезон ","").toIntOrNull()
-                                this.episode = season.title.replace(" Серія ","").toIntOrNull()
+                                this.season = seasonNumber
+                                this.episode = episodeNumber
                                 this.posterUrl = episode.poster
                                 this.data = "${season.title}, ${episode.title}, $playerUrl"
                             }
@@ -323,7 +325,7 @@ class UAFlixProvider : MainAPI() {
                             // Add as source
                             M3u8Helper.generateM3u8(
                                     source = dubs.title,
-                                    streamUrl = episode.file.replace("https://", "http://"),
+                                    streamUrl = episode.file,
                                     referer = "https://tortuga.wtf/"
                             ).dropLast(1).forEach(callback)
                         }
@@ -338,4 +340,10 @@ class UAFlixProvider : MainAPI() {
     private fun extractIntsFromString(string: String): List<MatchResult> {
         return Regex("(\\d+)").findAll(string).toList()
     }
+}
+
+internal fun parseEpisodeNumbers(seasonTitle: String, episodeTitle: String): Pair<Int?, Int?> {
+    val numberRegex = Regex("\\d+")
+    return numberRegex.find(seasonTitle)?.value?.toIntOrNull() to
+        numberRegex.find(episodeTitle)?.value?.toIntOrNull()
 }
