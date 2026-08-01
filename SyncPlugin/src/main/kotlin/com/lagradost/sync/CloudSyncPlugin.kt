@@ -109,9 +109,13 @@ class CloudSyncPlugin : Plugin() {
                 try {
                     val creds = SyncStorage.creds
                     if (creds != null && creds.isLoggedIn() && creds.restoreDevice) {
-                        // FIXME: Якщо є локальні dirty-категорії, polling має
-                        // виконати merge, а не прямий pull із можливим перезаписом.
-                        syncMutex.withLock { pullChangedCategories(context) }
+                        syncMutex.withLock {
+                            if (SyncPollPolicy.shouldMerge(hasDirtyCategories())) {
+                                mergeAndSyncAllCategoriesLocked(context)
+                            } else {
+                                pullChangedCategories(context)
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "poll error: ${e.message}")

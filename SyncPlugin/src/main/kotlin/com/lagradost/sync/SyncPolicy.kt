@@ -32,6 +32,11 @@ object SyncTime {
             toEpochSeconds(cloudTimestamp) > toEpochSeconds(localTimestamp)
 }
 
+/** Вибирає безпечнішу дію polling, якщо локальні зміни ще не відправлені. */
+object SyncPollPolicy {
+    fun shouldMerge(hasDirtyCategories: Boolean): Boolean = hasDirtyCategories
+}
+
 /**
  * CloudStream додає перед шляхом ключа номер акаунта:
  * `0/result_watch_state/123`. Старий парсер очікував шлях без `0/`.
