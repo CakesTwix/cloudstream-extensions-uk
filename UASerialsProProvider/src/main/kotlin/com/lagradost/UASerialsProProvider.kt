@@ -151,7 +151,7 @@ class UASerialsProProvider : MainAPI() {
         val tags = mutableListOf<String>()
         val actors = mutableListOf<String>()
         val year = document.selectFirst(yearSelector)?.text()?.toIntOrNull()
-        val rating = document.selectFirst(ratingSelector)!!.text()
+        val rating = document.selectFirst(ratingSelector)?.text().orEmpty()
 
         document.select(genresSelector).forEach { tags.add(it.text()) }
         document.select(actorsSelector).forEach { actors.add(it.text()) }
@@ -191,8 +191,11 @@ class UASerialsProProvider : MainAPI() {
         val lastBracket = decryptData.lastIndexOf("]")
         val cleanJson = if (lastBracket != -1) decryptData.substring(0, lastBracket + 1) else decryptData
 
-        val playerTabs = Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel)
-        val playerUrl = playerTabs.firstOrNull { it.tabName == "Плеєр" }?.url ?: playerTabs.firstOrNull()?.url
+        val playerTabs = Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel).orEmpty()
+        val playerUrl = firstAvailablePlayerUrl(
+            listOfNotNull(playerTabs.firstOrNull { it.tabName == "Плеєр" }?.url) +
+                playerTabs.map { it.url }
+        )
 
         val playerHtml = if (playerUrl != null) {
             app.get(playerUrl, headers = mapOf("User-Agent" to USER_AGENT, "Referer" to mainUrl)).text
@@ -261,7 +264,7 @@ class UASerialsProProvider : MainAPI() {
             // Для фільмів/мультфільмів: якщо є переклад на сторінці — використовуємо його,
             // інакше fallback на назву контенту
             val sourceName = translation.ifBlank { title.replace("|", "") }
-            newMovieLoadResponse(title, url, TvType.Movie, "$sourceName|${playerTabs[0].url}") {
+            newMovieLoadResponse(title, url, TvType.Movie, "$sourceName|${playerUrl.orEmpty()}") {
                 this.posterUrl = poster
                 this.score = Score.from10(rating)
                 this.year = year
@@ -284,6 +287,7 @@ class UASerialsProProvider : MainAPI() {
 
         // Movie
         if (dataList.size == 2 && !dataList[0].startsWith("http") && !dataList[0].startsWith("{")) {
+            if (dataList[1].isBlank()) return false
             val html = app.get(
                 dataList[1],
                 headers = mapOf(
@@ -511,3 +515,6 @@ class UASerialsProProvider : MainAPI() {
         }
     }
 }
+
+internal fun firstAvailablePlayerUrl(urls: List<String>): String? =
+    urls.firstOrNull { it.isNotBlank() }
