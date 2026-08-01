@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import java.net.URL
 import java.util.*
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class UakinoProvider : MainAPI() {
@@ -36,8 +37,27 @@ class UakinoProvider : MainAPI() {
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
     val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
+    private fun Document.isDetailPage(): Boolean =
+        selectFirst("h1 span.solototle, div.film-poster, div.playlists-ajax") != null
+
+    private val UA = "Mozilla/5.0 (Linux; Android 15; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Mobile Safari/537.36"
+    private fun headers(referer: String = mainUrl) = mapOf(
+        "User-Agent" to UA,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer" to referer,
+    )
+    private val ajaxHeaders = mapOf(
+        "Referer" to mainUrl,
+        "X-Requested-With" to "XMLHttpRequest",
+        "User-Agent" to UA,
+    )
+
+    private suspend fun fetchDetail(url: String): Document? =
+        app.get(url, headers = headers()).document.takeIf { it.isDetailPage() }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get(request.data + page).document
+        val document = app.get(request.data + page, headers = headers()).document
         val home =
             document
                 .select("div.owl-item, div.movie-item")
@@ -65,7 +85,7 @@ class UakinoProvider : MainAPI() {
 
     private suspend fun Element.getSeasonInfo(): SearchResponse {
         // Log.d("CakesTwix-Debug", "getSeasonInfo: ${this.attr("href")}")
-        val document = app.get(this.attr("href")).document
+        val document = app.get(this.attr("href"), headers = headers()).document
         val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
         val poster = mainUrl + document.selectFirst("div.film-poster img")?.attr("src").toString()
 
@@ -81,13 +101,13 @@ class UakinoProvider : MainAPI() {
             app.post(
                 url = "$mainUrl/ua/",
                 data =
-                mapOf(
-                    "do" to "search",
-                    "subaction" to "search",
-                    "story" to query.replace(" ", "+")
-                )
-            )
-                .document
+                    mapOf(
+                        "do" to "search",
+                        "subaction" to "search",
+                        "story" to query.replace(" ", "+")
+                    ),
+                headers = headers()
+            ).document
 
         return document
             .select("div.movie-item.short-item")
@@ -99,7 +119,9 @@ class UakinoProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document =
+            fetchDetail(url)
+                ?: throw Exception("Не вдалося завантажити сторінку: $url")
 
         // Parse info
         val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
@@ -170,11 +192,7 @@ class UakinoProvider : MainAPI() {
             val episodes =
                 app.get(
                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
-                        headers = mapOf(
-                            "Referer" to mainUrl,
-                            "X-Requested-With" to "XMLHttpRequest",
-                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
-                )
+                    headers = ajaxHeaders
                 )
                     .parsedSafe<Responses>()
                     ?.response
@@ -240,11 +258,7 @@ class UakinoProvider : MainAPI() {
         }
 
         // 2. Робимо запит до API
-        val responseGet = app.get(requestUrl, headers = mapOf(
-            "Referer" to mainUrl,
-            "X-Requested-With" to "XMLHttpRequest",
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; rv:126.0) Gecko/20100101 Firefox/126.0",
-        )).parsedSafe<Responses>()
+        val responseGet = app.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
 
         if (responseGet?.success == true && responseGet.response != null) {
             // Логіка для серіалів
@@ -269,12 +283,14 @@ class UakinoProvider : MainAPI() {
             }
         } else {
             // Логіка для фільмів (або якщо AJAX не повернув успіх)
-            val filmDoc = app.get(dataList[0]).document
-            val iframeUrl = filmDoc.selectFirst("iframe#pre")?.attr("src")
+            val filmDoc = fetchDetail(dataList[0])
+            val iframeUrl = filmDoc?.selectFirst("iframe#pre")?.attr("src")
 
             if (iframeUrl != null) {
                 val title = filmDoc.selectFirst("h1 span.solototle")?.text()?.trim() ?: "Movie"
                 extractPlayerJs(iframeUrl, title, callback, subtitleCallback)
+            } else {
+                return false
             }
         }
 
@@ -287,7 +303,7 @@ class UakinoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
-        val scriptData = app.get(url, referer = "$mainUrl/").document
+        val scriptData = app.get(url, headers = headers()).document
             .select("script").joinToString("\n") { it.data() }
 
         val m3uLink = fileRegex.findAll(scriptData).map { it.groupValues[1] }
