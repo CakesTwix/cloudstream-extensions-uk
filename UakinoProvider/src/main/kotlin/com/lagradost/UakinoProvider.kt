@@ -138,7 +138,9 @@ class UakinoProvider : MainAPI() {
         document.select(".fi-item-s, .fi-item").forEach { metadata ->
             with(metadata.select(".fi-label").text()) {
                 when {
-                    contains("Рік виходу:") -> year = metadata.select(".fi-desc").text().toInt()
+                    contains("Рік виходу:") -> {
+                        year = parseUakinoYear(metadata.select(".fi-desc").text(), year)
+                    }
                     contains("Жанр:") -> tags = metadata.select(".fi-desc").text().split(" , ")
                     contains("Актори:") -> actors = metadata.select(".fi-desc").text().split(", ")
                     contains("Вік. рейтинг:") -> contentRating = metadata.select(".fi-desc").text().trim()
@@ -247,22 +249,23 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val dataList = data.split(",")
+        val parsedData = parseUakinoEpisodeData(data)
 
         // 1. Визначаємо URL для запиту та назву епізоду (якщо є)
-        val (requestUrl, targetEpisode) = if (dataList.size == 1) {
+        val (requestUrl, targetEpisode) = if (parsedData.episodeName == null) {
             val id = data.split("/").last().split("-").first()
             "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}" to null
         } else {
-            dataList[0] to dataList[1]
+            parsedData.requestUrl to parsedData.episodeName
         }
+        if (requestUrl.isBlank()) return false
 
         // 2. Робимо запит до API
         val responseGet = app.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
 
-        if (responseGet?.success == true && responseGet.response != null) {
+        if (responseGet?.success == true) {
             // Логіка для серіалів
-            val document = Jsoup.parse(responseGet.response!!)
+            val document = Jsoup.parse(responseGet.response)
             val selector = if (targetEpisode != null) {
                 "div.playlists-videos li:contains($targetEpisode)"
             } else {
@@ -273,17 +276,14 @@ class UakinoProvider : MainAPI() {
                 // Якщо шукаємо конкретну серію, перевіряємо точний збіг тексту
                 if (targetEpisode != null && eps.text() != targetEpisode) return@forEach
 
-                var href = eps.attr("data-file")
-                if (href.isNotEmpty() && !href.contains("https://")) {
-                    href = "https:$href"
-                }
+                val href = normalizeUakinoPlayerUrl(eps.attr("data-file").trim())
                 val dub = eps.attr("data-voice")
 
                 extractPlayerJs(href, dub, callback, subtitleCallback)
             }
         } else {
             // Логіка для фільмів (або якщо AJAX не повернув успіх)
-            val filmDoc = fetchDetail(dataList[0])
+            val filmDoc = fetchDetail(requestUrl)
             val iframeUrl = filmDoc?.selectFirst("iframe#pre")?.attr("src")
 
             if (iframeUrl != null) {
@@ -303,6 +303,7 @@ class UakinoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
+        if (url.isBlank()) return
         val scriptData = app.get(url, headers = headers()).document
             .select("script").joinToString("\n") { it.data() }
 
