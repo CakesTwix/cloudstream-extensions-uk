@@ -83,4 +83,10 @@ class SyncPolicyTest {
             )
         )
     }
+
+    @Test
+    fun `polling merges when a category has local changes`() {
+        assertTrue(SyncPollPolicy.shouldMerge(hasDirtyCategories = true))
+        assertFalse(SyncPollPolicy.shouldMerge(hasDirtyCategories = false))
+    }
 }
