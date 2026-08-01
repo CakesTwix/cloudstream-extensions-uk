@@ -57,6 +57,9 @@ object SyncNetwork {
     // Manifest
     // ------------------------------------------------------------------- //
 
+    // FIXME: null зараз означає і відсутні облікові дані, і HTTP-помилку,
+    // і збій мережі/десеріалізації. Повернути типізований результат, щоб
+    // викликач не сприйняв недоступну хмару як порожню.
     suspend fun fetchManifest(): SyncManifest? {
         val creds = SyncStorage.creds ?: return null
         if (!creds.isLoggedIn()) return null
@@ -73,6 +76,8 @@ object SyncNetwork {
     // Categories
     // ------------------------------------------------------------------- //
 
+    // FIXME: Розрізняти «категорії немає» та «категорію не вдалося отримати»;
+    // це важливо перед будь-яким видаленням локальних динамічних ключів.
     suspend fun fetchCategory(category: SyncCategory): SyncCategoryPayload? {
         val creds = SyncStorage.creds ?: return null
         if (!creds.isLoggedIn()) return null

@@ -61,6 +61,8 @@ object SyncBackup {
 
     private fun String.isTransferable(): Boolean {
         val lower = this.lowercase()
+        // TODO: Замінити пошук підрядка на явні точні ключі та префікси,
+        // щоб схоже ім'я не виключило стороннє налаштування випадково.
         return !nonTransferableKeys.any { lower.contains(it.lowercase()) }
     }
 
@@ -185,6 +187,8 @@ object SyncBackup {
         val prefs = if (isSettings) context.getDefaultSharedPrefs() else context.getSharedPrefs()
         val editor = editor(context, isSettings)
 
+        // FIXME: Не видаляти локальні ключі, доки не підтверджено повноту
+        // payload. Часткова відповідь сервера не повинна виглядати як видалення.
         if (isDynamicCategory(category)) {
             val incomingKeys = mutableSetOf<String>()
             vars.bool?.keys?.let { incomingKeys.addAll(it) }
@@ -221,8 +225,8 @@ object SyncBackup {
         vars.string?.forEach { (k, v) ->
             if (k.isTransferable() && isKeyRestoreEnabled(category, creds)) {
                 val localVal = prefs.getString(k, null)
-                val cloudTs = extractTimestamp(v)
-                val localTs = extractTimestamp(localVal)
+                val cloudTs = SyncKeyPath.extractTimestamp(v)
+                val localTs = SyncKeyPath.extractTimestamp(localVal)
                 if (localVal == null || (cloudTs == 0L && localTs == 0L) || cloudTs > localTs) {
                     editor.setKeyRaw(k, v)
                 }
@@ -244,6 +248,8 @@ object SyncBackup {
     ): BackupFile? {
         if (local == null) return cloud
         if (cloud == null) return local
+        // FIXME: Закладки надалі слід зливати як атомарні пари
+        // result_watch_state + result_watch_state_data, а не як незалежні мапи.
         val sampleKey = local.datastore.string?.keys?.firstOrNull()
             ?: local.settings.string?.keys?.firstOrNull()
             ?: local.datastore.bool?.keys?.firstOrNull()
@@ -416,60 +422,11 @@ object SyncBackup {
             category == SyncCategory.RESUME_WATCHING ||
             category == SyncCategory.SEARCH_HISTORY
 
-    private fun extractIdFromKey(key: String): Int? {
-        val lower = key.lowercase()
-        return when {
-            lower.contains("download_header_cache") -> key.split("/").getOrNull(1)?.toIntOrNull()
-            lower.contains("video_pos_dur") -> key.split("/").getOrNull(2)?.toIntOrNull()
-            lower.contains("result_season") -> key.split("/").getOrNull(2)?.toIntOrNull()
-            lower.contains("result_dub") -> key.split("/").getOrNull(2)?.toIntOrNull()
-            lower.contains("result_episode") -> key.split("/").getOrNull(2)?.toIntOrNull()
-            lower.contains("result_favorites_state_data") -> key.split("/").getOrNull(1)?.toIntOrNull()
-            lower.contains("result_watch_state") -> key.split("/").getOrNull(1)?.toIntOrNull()
-            lower.contains("result_resume_watching") -> key.split("/").getOrNull(1)?.toIntOrNull()
-            else -> null
-        }
-    }
-
     private fun getSpecificKeyTimestamp(
         key: String,
         category: SyncCategory,
         stringMap: Map<String, String>?,
-    ): Long {
-        if (stringMap == null) return 0L
-        stringMap[key]?.let { extractTimestamp(it)?.takeIf { ts -> ts > 0L } }?.let { return it }
-        val id = extractIdFromKey(key) ?: return 0L
-        val relatedKeys = when (category) {
-            SyncCategory.BOOKMARKS -> listOf("result_favorites_state_data/$id")
-            SyncCategory.RESUME_WATCHING -> listOf("result_resume_watching/$id", "video_pos_dur/$id")
-            else -> emptyList()
-        }
-        for (relKey in relatedKeys) {
-            val ts = extractTimestamp(stringMap[relKey])
-            if (ts > 0L) return ts
-        }
-        if (category == SyncCategory.RESUME_WATCHING) {
-            stringMap.forEach { (k, v) ->
-                if (k.contains("video_pos_dur") && k.contains("/$id")) {
-                    val ts = extractTimestamp(v)
-                    if (ts > 0L) return ts
-                }
-            }
-        }
-        return 0L
-    }
-
-    private fun extractTimestamp(json: String?): Long {
-        if (json == null) return 0L
-        return try {
-            "\"updateTime\":\\s*(\\d+)".toRegex().find(json)?.let { it.groupValues[1].toLong() }
-                ?: "\"latestUpdatedTime\":\\s*(\\d+)".toRegex().find(json)?.let { it.groupValues[1].toLong() }
-                ?: "\"searchedAt\":\\s*(\\d+)".toRegex().find(json)?.let { it.groupValues[1].toLong() }
-                ?: 0L
-        } catch (_: Exception) {
-            0L
-        }
-    }
+    ): Long = SyncKeyPath.itemTimestamp(key, category, stringMap)
 
     fun BackupVars.isEmpty(): Boolean =
         bool.isNullOrEmpty() && int.isNullOrEmpty() && string.isNullOrEmpty() &&

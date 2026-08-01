@@ -35,6 +35,9 @@ class CloudSyncPlugin : Plugin() {
 
     private var lifecycleCallbacks: android.app.Application.ActivityLifecycleCallbacks? = null
     private var registeredApp: android.app.Application? = null
+    // Зберігаємо той самий context, на якому зареєстровано слухачі:
+    // під час hot reload їх потрібно зняти з тих самих SharedPreferences.
+    private var registeredContext: Context? = null
 
     private var pluginScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -47,11 +50,14 @@ class CloudSyncPlugin : Plugin() {
     private var restoringUntil = 0L
     private val RESTORE_GUARD_MS = 5_000L
 
+    // pullMutex відсікає повторний pull, а syncMutex не дає polling,
+    // lifecycle та відкладеному push одночасно змінювати локальний стан.
     private val pullMutex = Mutex()
     private val syncMutex = Mutex()
 
     private var dataPrefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var defaultPrefsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    private var bookmarkObserver: ((Boolean) -> Unit)? = null
     private var pushJob: Job? = null
     private var pollJob: Job? = null
 
@@ -76,6 +82,9 @@ class CloudSyncPlugin : Plugin() {
         }
     }
 
+    private fun hasDirtyCategories(): Boolean =
+        synchronized(dirtyCategoriesLock) { dirtyCategories.isNotEmpty() }
+
     // --- Debounced push ---
 
     private fun scheduleDebouncedPush() {
@@ -86,7 +95,7 @@ class CloudSyncPlugin : Plugin() {
         pushJob?.cancel()
         pushJob = pluginScope.launch {
             delay(PUSH_DEBOUNCE_MS.milliseconds)
-            syncMutex.withLock { mergeAndSyncAllCategories(ctx) }
+            mergeAndSyncAllCategories(ctx)
         }
     }
 
@@ -100,11 +109,15 @@ class CloudSyncPlugin : Plugin() {
                 try {
                     val creds = SyncStorage.creds
                     if (creds != null && creds.isLoggedIn() && creds.restoreDevice) {
+                        // FIXME: Якщо є локальні dirty-категорії, polling має
+                        // виконати merge, а не прямий pull із можливим перезаписом.
                         syncMutex.withLock { pullChangedCategories(context) }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "poll error: ${e.message}")
                 }
+                // TODO: Додати backoff і jitter після мережевих помилок, щоб
+                // багато пристроїв не опитували недоступний сервер одночасно.
             }
         }
     }
@@ -128,7 +141,7 @@ class CloudSyncPlugin : Plugin() {
                 if (!creds.isRestoreEnabled(category)) continue
                 val cloudMeta = manifest.getMeta(category) ?: continue
                 val localTs = SyncStorage.getCategoryTimestamp(category)
-                if (!force && cloudMeta.ts.toLong() <= localTs) continue
+                if (!SyncTime.shouldFetch(cloudMeta.ts, localTs, force)) continue
                 categoriesToFetch.add(category to cloudMeta)
             }
             Log.d(TAG, "pullChangedCategories: will fetch ${categoriesToFetch.size} categories: ${categoriesToFetch.map { it.first.key }}")
@@ -229,7 +242,7 @@ class CloudSyncPlugin : Plugin() {
         if (categoryData.isNotEmpty()) {
             val pushed = SyncNetwork.pushCategories(categoryData)
             Log.d(TAG, "Pushed ${pushed.size}/${categoryData.size} categories: ${pushed.map { it.key }}")
-            updateLocalState(pushed, categoryData, System.currentTimeMillis())
+            updateLocalState(pushed, categoryData, SyncTime.nowEpochSeconds())
         }
     }
 
@@ -240,6 +253,8 @@ class CloudSyncPlugin : Plugin() {
     ) {
         for (category in pushed) {
             val hash = categoryData[category]?.second ?: ""
+            // TODO: Після розширення Sync API брати часову мітку з відповіді
+            // сервера, а не з годинника пристрою.
             SyncStorage.setCategoryTimestamp(category, now)
             SyncStorage.setCategoryHash(category, hash)
             try {
@@ -254,32 +269,54 @@ class CloudSyncPlugin : Plugin() {
     // --- Merge + sync (push & pull together) ---
 
     suspend fun mergeAndSyncAllCategories(context: Context) {
+        syncMutex.withLock {
+            mergeAndSyncAllCategoriesLocked(context)
+        }
+    }
+
+    private suspend fun mergeAndSyncAllCategoriesLocked(context: Context) {
         val appContext = context.applicationContext
         val creds = SyncStorage.creds ?: return
         if (!creds.isLoggedIn()) return
 
-        val currentDirtyCategories = dirtyCategories.toSet()
-        consumeDirtyCategories()
+        val currentDirtyCategories = consumeDirtyCategories()
 
         val manifest = SyncNetwork.fetchManifest()
+        if (manifest == null) {
+            // Мережева помилка не означає порожню хмару. Зберігаємо локальні
+            // зміни й повторимо спробу після наступної lifecycle/prefs події.
+            synchronized(dirtyCategoriesLock) {
+                dirtyCategories.addAll(currentDirtyCategories)
+            }
+            Log.e(TAG, "merge aborted: manifest unavailable")
+            return
+        }
         val resumeWatching = try { getResumeWatching() } catch (e: Exception) { Log.e(TAG, "getResumeWatching failed: ${e.message}"); null }
         val enabledCategories = SyncCategory.entries.filter {
             creds.isBackupEnabled(it) || creds.isRestoreEnabled(it)
         }
 
+        val failedFetchCategories =
+            java.util.Collections.synchronizedSet(mutableSetOf<SyncCategory>())
         val cloudPayloads = coroutineScope {
             enabledCategories.map { category ->
                 async(Dispatchers.IO) {
                     try {
-                        val cloudMeta = manifest?.getMeta(category)
+                        val cloudMeta = manifest.getMeta(category)
                         val localHash = SyncStorage.getCategoryHash(category)
                         if (cloudMeta != null && cloudMeta.hash.isNotEmpty() && cloudMeta.hash == localHash) {
                             category to null
                         } else {
-                            category to SyncNetwork.fetchCategory(category)
+                            val payload =
+                                if (cloudMeta == null) null else SyncNetwork.fetchCategory(category)
+                            if (cloudMeta != null && payload == null) {
+                                failedFetchCategories.add(category)
+                            }
+                            category to payload
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "fetch ${category.key}: ${e.message}")
+                        failedFetchCategories.add(category)
                         category to null
                     }
                 }
@@ -293,6 +330,13 @@ class CloudSyncPlugin : Plugin() {
             val isBackup = creds.isBackupEnabled(category)
             val isRestore = creds.isRestoreEnabled(category)
             if (!isBackup && !isRestore) continue
+            if (failedFetchCategories.contains(category)) {
+                if (currentDirtyCategories.contains(category)) {
+                    synchronized(dirtyCategoriesLock) { dirtyCategories.add(category) }
+                }
+                Log.e(TAG, "merge skipped ${category.key}: cloud payload unavailable")
+                continue
+            }
             try {
                 val cloudPayload = cloudPayloads[category]
                 val cloudBackup =
@@ -332,14 +376,15 @@ class CloudSyncPlugin : Plugin() {
                     }
                 } else {
                     val localCategoryTs = SyncStorage.getCategoryTimestamp(category)
-                    val cloudPayloadTs = (cloudPayload?.ts ?: 0.0).toLong()
+                    val cloudPayloadTs =
+                        SyncTime.toEpochSeconds((cloudPayload?.ts ?: 0.0).toLong())
                     val isLocallyDirty = currentDirtyCategories.contains(category)
                     val mergedBackup = SyncBackup.mergeBackupFiles(localBackup, cloudBackup, localCategoryTs, cloudPayloadTs, isLocallyDirty)
                     if (mergedBackup != null) {
                         val data = mergedBackup.toJsonSorted()
                         val hash = SyncBackup.computeHash(data)
                         val liveLocalHash = SyncBackup.computeHash(localBackup.toJsonSorted())
-                        val cloudHash = manifest?.getMeta(category)?.hash ?: ""
+                        val cloudHash = manifest.getMeta(category)?.hash ?: ""
 
                         if (hash != liveLocalHash && isRestore) {
                             isRestoring = true
@@ -351,7 +396,7 @@ class CloudSyncPlugin : Plugin() {
                                 withContext(Dispatchers.Main) { isRestoring = false }
                             }
                             SyncStorage.setCategoryHash(category, hash)
-                            manifest?.getMeta(category)?.let {
+                            manifest.getMeta(category)?.let {
                                 SyncStorage.setCategoryTimestamp(category, it.ts.toLong())
                             }
                             SyncStorage.setCategorySyncedKeys(category, SyncBackup.getBackupFileKeys(mergedBackup))
@@ -360,7 +405,7 @@ class CloudSyncPlugin : Plugin() {
                             categoriesToPush[category] = data to hash
                         } else if (cloudHash.isNotEmpty() && SyncStorage.getCategoryHash(category) != cloudHash) {
                             SyncStorage.setCategoryHash(category, cloudHash)
-                            manifest?.getMeta(category)?.let { SyncStorage.setCategoryTimestamp(category, it.ts.toLong()) }
+                            manifest.getMeta(category)?.let { SyncStorage.setCategoryTimestamp(category, it.ts.toLong()) }
                         }
                     }
                 }
@@ -372,7 +417,7 @@ class CloudSyncPlugin : Plugin() {
         if (categoriesToPush.isNotEmpty()) {
             val pushed = SyncNetwork.pushCategories(categoriesToPush)
             Log.d(TAG, "Batch pushed ${pushed.size}/${categoriesToPush.size}")
-            updateLocalState(pushed, categoriesToPush, System.currentTimeMillis())
+            updateLocalState(pushed, categoriesToPush, SyncTime.nowEpochSeconds())
             val failed = categoriesToPush.keys - pushed
             if (failed.isNotEmpty()) {
                 synchronized(dirtyCategoriesLock) { dirtyCategories.addAll(failed) }
@@ -389,22 +434,37 @@ class CloudSyncPlugin : Plugin() {
         pollJob?.cancel()
         pluginScope.cancel()
         try {
-            dataPrefsListener?.let { CloudStreamApp.context?.getSharedPrefs()?.unregisterOnSharedPreferenceChangeListener(it) }
-            defaultPrefsListener?.let { CloudStreamApp.context?.getDefaultSharedPrefs()?.unregisterOnSharedPreferenceChangeListener(it) }
+            dataPrefsListener?.let {
+                registeredContext?.getSharedPrefs()?.unregisterOnSharedPreferenceChangeListener(it)
+            }
+            defaultPrefsListener?.let {
+                registeredContext?.getDefaultSharedPrefs()
+                    ?.unregisterOnSharedPreferenceChangeListener(it)
+            }
+            bookmarkObserver?.let { MainActivity.bookmarksUpdatedEvent -= it }
         } catch (_: Exception) {
         }
         dataPrefsListener = null
         defaultPrefsListener = null
+        bookmarkObserver = null
         lifecycleCallbacks?.let { registeredApp?.unregisterActivityLifecycleCallbacks(it) }
         lifecycleCallbacks = null
         registeredApp = null
+        registeredContext = null
         activity = null
+    }
+
+    override fun beforeUnload() {
+        // TODO: Додати інструментальний тест гарячого перезавантаження,
+        // коли в CI буде Android SDK.
+        cleanup()
     }
 
     override fun load(context: Context) {
         cleanup()
         pluginScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         activity = context as? AppCompatActivity
+        registeredContext = context.applicationContext
         registerMainAPI(CloudSyncProvider(this))
 
         openSettings = { ctx ->
@@ -415,7 +475,8 @@ class CloudSyncPlugin : Plugin() {
         }
 
         val creds = SyncStorage.creds
-        // Diagnostic: dump SharedPreferences keys and their category classifications
+        // TODO: Перед стабільним релізом прибрати повні ключі налаштувань із
+        // журналу або залишити їх лише за окремим прапорцем налагодження.
         val allKeys = context.getSharedPrefs().all.keys + context.getDefaultSharedPrefs().all.keys
         val classified = allKeys.mapNotNull { key ->
             val cat = SyncBackup.classifyKey(key)
@@ -432,13 +493,15 @@ class CloudSyncPlugin : Plugin() {
             pluginScope.launch {
                 try {
                     if (creds.restoreDevice) {
-                        if (pullChangedCategories(context)) {
+                        if (syncMutex.withLock { pullChangedCategories(context) }) {
                             withContext(Dispatchers.Main) { showToast("Синхронізовано з сервера") }
                         }
                     }
                     if (creds.backupDevice) {
                         val m = SyncNetwork.fetchManifest()
-                        if (m == null || m.extensions == null && m.settings == null &&
+                        // Початковий push дозволено лише після успішної відповіді:
+                        // мережевий збій (m == null) не означає порожню хмару.
+                        if (m != null && m.extensions == null && m.settings == null &&
                             m.bookmarks == null && m.resumeWatching == null && m.searchHistory == null
                         ) {
                             Log.d(TAG, "No cloud data — initial push")
@@ -472,12 +535,16 @@ class CloudSyncPlugin : Plugin() {
             Log.e(TAG, "prefs listener register failed: ${e.message}")
         }
 
-        try {
-            MainActivity.bookmarksUpdatedEvent += { _: Boolean ->
-                if (!isRestoring && System.currentTimeMillis() > restoringUntil) {
-                    markDirty(SyncCategory.BOOKMARKS)
-                }
+        // Посилання на lambda потрібне, щоб зняти саме цей observer при
+        // hot reload і не накопичувати дублікати синхронізації.
+        val observer: (Boolean) -> Unit = {
+            if (!isRestoring && System.currentTimeMillis() > restoringUntil) {
+                markDirty(SyncCategory.BOOKMARKS)
             }
+        }
+        bookmarkObserver = observer
+        try {
+            MainActivity.bookmarksUpdatedEvent += observer
         } catch (_: Throwable) {
         }
 
@@ -490,11 +557,10 @@ class CloudSyncPlugin : Plugin() {
                         try {
                             val c = SyncStorage.creds
                             if (c != null && c.isLoggedIn()) {
-                                if (c.restoreDevice) {
-                                    pullChangedCategories(a)
-                                }
-                                if (c.backupDevice && dirtyCategories.isNotEmpty()) {
-                                    pushAllCategories(a)
+                                if (c.backupDevice && hasDirtyCategories()) {
+                                    mergeAndSyncAllCategories(a)
+                                } else if (c.restoreDevice) {
+                                    syncMutex.withLock { pullChangedCategories(a) }
                                 }
                             }
                         } catch (_: Exception) {
@@ -511,9 +577,11 @@ class CloudSyncPlugin : Plugin() {
                     pluginScope.launch {
                         try {
                             val c = SyncStorage.creds
-                            if (c != null && c.isLoggedIn() && c.backupDevice) {
-                                pushAllCategories(a.applicationContext)
-                                Log.d(TAG, "Sync on exit: pushed categories")
+                            if (c != null && c.isLoggedIn() && c.backupDevice &&
+                                hasDirtyCategories()
+                            ) {
+                                mergeAndSyncAllCategories(a.applicationContext)
+                                Log.d(TAG, "Sync on exit: merged dirty categories")
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Sync on exit failed: ${e.message}")
@@ -521,11 +589,12 @@ class CloudSyncPlugin : Plugin() {
                     }
                 }
             }
-            override fun onActivitySaveInstanceState(a: android.app.Activity, o: android.os.Bundle) {
-                if (a.javaClass.name == "com.lagradost.cloudstream3.MainActivity") {
-                    o.remove("android:support:fragments")
-                    o.remove("android:support:fragments:state")
-                }
+            override fun onActivitySaveInstanceState(
+                a: android.app.Activity,
+                o: android.os.Bundle,
+            ) {
+                // Saved state належить CloudStream. Плагін не повинен видаляти
+                // fragment state: на TV це може ламати відновлення екрана.
             }
             override fun onActivityDestroyed(a: android.app.Activity) {
                 if (a === this@CloudSyncPlugin.activity) this@CloudSyncPlugin.activity = null
