@@ -25,6 +25,11 @@ object SyncTime {
         force: Boolean = false,
     ): Boolean =
         force || toEpochSeconds(cloudTimestamp.toLong()) > toEpochSeconds(localTimestamp)
+
+    /** Порівнює timestamp значень SharedPreferences у спільних одиницях. */
+    fun shouldRestore(cloudTimestamp: Long, localTimestamp: Long): Boolean =
+        (cloudTimestamp == 0L && localTimestamp == 0L) ||
+            toEpochSeconds(cloudTimestamp) > toEpochSeconds(localTimestamp)
 }
 
 /**

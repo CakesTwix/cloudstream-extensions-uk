@@ -227,7 +227,7 @@ object SyncBackup {
                 val localVal = prefs.getString(k, null)
                 val cloudTs = SyncKeyPath.extractTimestamp(v)
                 val localTs = SyncKeyPath.extractTimestamp(localVal)
-                if (localVal == null || (cloudTs == 0L && localTs == 0L) || cloudTs > localTs) {
+                if (localVal == null || SyncTime.shouldRestore(cloudTs, localTs)) {
                     editor.setKeyRaw(k, v)
                 }
             }
