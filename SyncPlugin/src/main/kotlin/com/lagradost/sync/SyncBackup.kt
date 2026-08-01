@@ -101,6 +101,20 @@ object SyncBackup {
         MessageDigest.getInstance("MD5").digest(data.toByteArray())
             .joinToString("") { "%02x".format(it) }
 
+    /** Перевіряє структуру cloud backup до будь-якого merge або restore. */
+    fun parseBackupFile(raw: String): Result<BackupFile> = runCatching {
+        require(raw.isNotBlank()) { "Cloud backup is empty" }
+        val root = syncGson.fromJson(raw, JsonObject::class.java)
+        require(
+            root != null &&
+                root.get("datastore")?.isJsonObject == true &&
+                root.get("settings")?.isJsonObject == true
+        ) { "Cloud backup has invalid sections" }
+        val backup: BackupFile? = syncGson.fromJson(root, BackupFile::class.java)
+        requireNotNull(backup) { "Cloud backup is null" }
+        backup
+    }
+
     @Suppress("UNCHECKED_CAST")
     fun getBackupForCategory(
         context: Context,
