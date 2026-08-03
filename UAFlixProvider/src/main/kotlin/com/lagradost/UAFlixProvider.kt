@@ -29,6 +29,7 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
+import okhttp3.FormBody
 import org.jsoup.nodes.Element
 
 class UAFlixProvider : MainAPI() {
@@ -80,22 +81,35 @@ class UAFlixProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val baseUrl = request.data.replace("/page/", "/")
-        val sortParams = mapOf(
-            "xf_sort" to "get",
-            "xf_field" to "default",
-            "xf_value" to "date"
-        )
+        // Date sort by default; in Серіали also hide anime via the site's xfsort
+        // filter. The filter needs duplicate xf_field/xf_value keys, so a raw
+        // FormBody is used instead of a Map.
+        val postBody = FormBody.Builder()
+            .add("xf_sort", "get")
+            .add("xf_field", "default")
+            .add("xf_value", "date")
+            .apply {
+                if (request.name == "Серіали") {
+                    add("xf_field", "-janr")
+                    add("xf_value", "аніме")
+                }
+            }
+            .build()
 
         val document = if (page == 1) {
-            app.post(url = baseUrl, data = sortParams).document
+            app.post(url = baseUrl, requestBody = postBody).document
         } else {
-            app.post(url = baseUrl, data = sortParams)
+            app.post(url = baseUrl, requestBody = postBody)
             app.get(request.data + page).document
         }
 
-        val home = document.select(animeSelector).map {
-            it.toSearchResponse()
-        }
+        val home = document
+            .select(animeSelector)
+            .filterNot {
+                request.name == "Мультфільми" &&
+                    it.selectFirst("$hrefSelector,.sres-wrap")?.attr("href").toString().contains("/serials/")
+            }
+            .map { it.toSearchResponse() }
         return newHomePageResponse(request, home)
     }
 
