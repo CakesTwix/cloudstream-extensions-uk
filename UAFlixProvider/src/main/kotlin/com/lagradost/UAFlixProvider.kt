@@ -29,6 +29,7 @@ import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
+import com.lagradost.nicehttp.Session
 import okhttp3.FormBody
 import org.jsoup.nodes.Element
 
@@ -61,29 +62,26 @@ class UAFlixProvider : MainAPI() {
     // Main Page
     private val animeSelector = ".video-item"
     private val titleSelector = ".vi-img"
-    // private val engTitleSelector = "div.th-title-oname.truncate"
     private val hrefSelector = titleSelector
     private val posterSelector = ".img-resp-h img"
 
     // Load info
-    // private val titleLoadSelector = ".page__subcol-main h1"
-    // private val genresSelector = "li span:contains(Жанр:) a"
-    // private val yearSelector = "a[href*=https://uaserials.pro/year/]"
-    // private val playerSelector = "iframe"
     private val descriptionSelector = "#fdesc"
     private val ratingSelector = ".mediablock .rat-imdb"
 
     private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
     private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
 
+    // Cookies are kept here so the xfsort filter survives pagination.
+    private val session by lazy { Session(app.baseClient) }
+
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
         val baseUrl = request.data.replace("/page/", "/")
-        // Date sort by default; in Серіали also hide anime via the site's xfsort
-        // filter. The filter needs duplicate xf_field/xf_value keys, so a raw
-        // FormBody is used instead of a Map.
+        // Date sort by default; in Серіали also hide anime via the site's xfsort filter.
+        // The filter needs duplicate xf_field/xf_value keys, so a raw FormBody is used instead of a Map.
         val postBody = FormBody.Builder()
             .add("xf_sort", "get")
             .add("xf_field", "default")
@@ -96,12 +94,11 @@ class UAFlixProvider : MainAPI() {
             }
             .build()
 
-        val document = if (page == 1) {
-            app.post(url = baseUrl, requestBody = postBody).document
-        } else {
-            app.post(url = baseUrl, requestBody = postBody)
-            app.get(request.data + page).document
-        }
+        // The site's xfsort filter lives in a server-side PHP session (PHPSESSID cookie).
+        // The shared `app` client keeps no cookies, so a dedicated Session persists the cookie;
+        // the filter is re-applied via POST before every page GET, since CS3 loads sections concurrently
+        session.post(url = baseUrl, requestBody = postBody)
+        val document = session.get(request.data + page).document
 
         val home = document
             .select(animeSelector)
@@ -115,12 +112,10 @@ class UAFlixProvider : MainAPI() {
 
     private fun Element.toSearchResponse(): AnimeSearchResponse {
         val title = this.selectFirst("$titleSelector,.sres-img img")?.attr("alt")?.trim().toString()
-        // val engTitle = this.selectFirst(engTitleSelector)?.text()?.trim().toString()
         val href = this.selectFirst("$hrefSelector,.sres-wrap")?.attr("href").toString()
         val posterUrl = fixUrl(this.select("$posterSelector,.sres-img img").attr("src"))
 
         return newAnimeSearchResponse(title, href, TvType.Anime) {
-            // this.otherName = engTitle
             this.posterUrl = posterUrl
             addDubStatus(isDub = true)
         }
