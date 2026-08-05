@@ -151,16 +151,17 @@ class BambooUAProvider : MainAPI() {
         if (playlistJson != null) {
             val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
             playlist.forEach { group ->
-                val isDub = group.title.contains("Озвучення") || group.title.contains("Дубляж")
-                val isSub = group.title.contains("Субтитри")
+                val isDub = isBambooDubGroup(group.title)
+                val isSub = isBambooSubtitleGroup(group.title)
                 // Службовий ролик підтримки не є епізодом і не повинен потрапляти в каталог.
-                group.folder
+                group.folder.orEmpty()
                     .filterNot { isBambooSponsorVideo(it.file) }
                     .forEachIndexed { index, episode ->
-                    val ep = newEpisode(episode.file) {
-                        this.name = episode.title
+                    val file = episode.file ?: return@forEachIndexed
+                    val ep = newEpisode(file) {
+                        this.name = episode.title.orEmpty()
                         this.episode = index + 1
-                        this.data = episode.file
+                        this.data = file
                     }
                     when {
                         isDub -> dubEpisodes.add(ep)
@@ -209,12 +210,13 @@ class BambooUAProvider : MainAPI() {
             if (playlistJson != null) {
                 val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
                 playlist.forEach { group ->
-                    group.folder
+                    group.folder.orEmpty()
                         .filterNot { isBambooSponsorVideo(it.file) }
                         .forEach { episode ->
+                        val file = episode.file ?: return@forEach
                         M3u8Helper.generateM3u8(
-                            source = group.title,
-                            streamUrl = episode.file,
+                            source = group.title.orEmpty().ifBlank { "BambooUA" },
+                            streamUrl = file,
                             referer = "$mainUrl/"
                         ).forEach(callback)
                     }
@@ -236,19 +238,28 @@ class BambooUAProvider : MainAPI() {
     }
 
     data class PlaylistGroup(
-        val title: String,
-        val folder: List<PlaylistEpisode>
+        val title: String? = null,
+        val folder: List<PlaylistEpisode>? = emptyList()
     )
 
     data class PlaylistEpisode(
-        val title: String,
-        val file: String
+        val title: String? = null,
+        val file: String? = null
     )
 }
 
 /** Відкидає службовий sponsor-ролик, який сайт додає до playlist перед контентом. */
 internal fun isBambooSponsorVideo(url: String?): Boolean =
     url?.contains("be_sponsors.mp4", ignoreCase = true) == true
+
+/** Безпечно класифікує групу озвучення, навіть якщо сайт віддав null title. */
+internal fun isBambooDubGroup(title: String?): Boolean =
+    title?.contains("Озвучення", ignoreCase = true) == true ||
+        title?.contains("Дубляж", ignoreCase = true) == true
+
+/** Безпечно класифікує групу субтитрів, навіть якщо сайт віддав null title. */
+internal fun isBambooSubtitleGroup(title: String?): Boolean =
+    title?.contains("Субтитри", ignoreCase = true) == true
 
 /** Витягує лише URL із вкладки, назва якої явно містить «Трейлер». */
 internal fun extractBambooTrailer(document: Document): String? {
