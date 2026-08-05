@@ -1,5 +1,6 @@
 package com.lagradost
 
+import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -74,6 +75,48 @@ class CikavaParsingTest {
         ).selectFirst(".th-item")!!
 
         assertTrue(isCikavaDeleted(item))
+    }
+
+    @Test
+    fun `detail page removal notice is detected before building a response`() {
+        val document = Jsoup.parse(
+            "<div class='fmessage'>Видалено на прохання правовласника. Шукайте на інших сайтах.</div>"
+        )
+
+        assertTrue(isCikavaDeleted(document))
+    }
+
+    @Test
+    fun `comment mentioning removal does not hide an available detail page`() {
+        val document = Jsoup.parse(
+            "<div class='comments'>Користувач пише: матеріал видалено на іншому сайті.</div>"
+        )
+
+        assertFalse(isCikavaDeleted(document))
+    }
+
+    @Test
+    fun `empty primary player is unavailable even when trailer exists`() {
+        assertFalse(hasCikavaPlayableMaterial(JSONObject()))
+        assertFalse(hasCikavaPlayableMaterial(JSONObject("{\"Player1\":{}}")))
+        assertTrue(
+            hasCikavaPlayableMaterial(
+                JSONObject("{\"Player1\":\"https://video.example/main\"}")
+            )
+        )
+    }
+
+    @Test
+    fun `empty switches object is detected on a trailer-only page`() {
+        val document = Jsoup.parse(
+            """
+            <script>switches = Object({});</script>
+            <div id="Player1"><iframe src=""></iframe></div>
+            <div id="Player3"><iframe src="https://www.youtube.com/embed/example"></iframe></div>
+            """.trimIndent()
+        )
+
+        assertFalse(hasCikavaPlayableMaterial(parseCikavaPlayerJson(document)))
     }
 
     @Test

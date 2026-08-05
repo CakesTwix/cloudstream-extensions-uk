@@ -1,5 +1,7 @@
 package com.lagradost
 
+import org.json.JSONArray
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -46,11 +48,41 @@ internal fun parseCikavaSubtitle(raw: String): CikavaSubtitle? {
  */
 internal fun isCikavaDeleted(item: Element): Boolean {
     val qualityMarker = item.select(".fquality").text()
-    val itemText = item.text()
+    val itemText = if (item is Document) {
+        item.select(".fquality, .fmessage").text()
+    } else {
+        item.text()
+    }
     return qualityMarker.contains("ВИДАЛЕНО", ignoreCase = true) ||
         itemText.contains("Озвучення ставимо на пауз", ignoreCase = true) ||
         itemText.contains("Видалено на прохання правовласника", ignoreCase = true)
 }
+
+/**
+ * Читає об'єкт `switches = Object(...)`, який містить основні плеєри Cikava.
+ * Порожній або пошкоджений об'єкт означає, що сторінка не має матеріалу для перегляду.
+ */
+internal fun parseCikavaPlayerJson(document: Document): JSONObject {
+    val script = document.select("script")
+        .firstOrNull { it.html().contains("switches = Object") }
+        ?.html()
+        ?: return JSONObject()
+    val jsonStart = script.indexOf("Object(") + "Object(".length
+    val jsonEnd = script.lastIndexOf(");")
+    if (jsonStart < "Object(".length || jsonEnd <= jsonStart) return JSONObject()
+    return runCatching { JSONObject(script.substring(jsonStart, jsonEnd)) }
+        .getOrDefault(JSONObject())
+}
+
+private fun hasCikavaValue(value: Any?): Boolean = when (value) {
+    is String -> value.isNotBlank()
+    is JSONObject -> value.keys().asSequence().any { key -> hasCikavaValue(value.opt(key)) }
+    is JSONArray -> (0 until value.length()).any { index -> hasCikavaValue(value.opt(index)) }
+    else -> false
+}
+
+internal fun hasCikavaPlayableMaterial(playerJson: JSONObject): Boolean =
+    hasCikavaValue(playerJson.opt("Player1"))
 
 /** Витягує trailer iframe за індексом вкладки «Трейлер». */
 internal fun extractCikavaTrailer(document: Document): String? {
