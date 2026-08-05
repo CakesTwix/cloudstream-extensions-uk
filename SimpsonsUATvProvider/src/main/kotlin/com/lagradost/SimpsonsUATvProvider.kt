@@ -104,6 +104,7 @@ class SimpsonsUATvProvider : MainAPI() {
         "youtube.com",
         "tiktok.com",
         "x.com/",
+        "/blog/",
         "franecki.net",
         "franeski.net",
         "javascript:"
@@ -124,12 +125,17 @@ class SimpsonsUATvProvider : MainAPI() {
         return null
     }
 
-    private fun isValidContentUrl(href: String): Boolean {
+    internal fun isValidContentUrl(href: String): Boolean {
         if (!href.startsWith("http")) return false
         return ignoredUrlPatterns.none { href.contains(it) }
     }
 
-    private fun urlSlug(url: String) = url.removeSuffix("/").substringAfterLast("/")
+    internal fun urlSlug(url: String) = url.removeSuffix("/").substringAfterLast("/")
+
+    internal fun fallbackTitle(url: String): String {
+        val slug = urlSlug(url)
+        return titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+    }
 
     private fun parseSeasonNumber(url: String): Int {
         return Regex("""sezon-(\d+)""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: -1
@@ -228,8 +234,7 @@ class SimpsonsUATvProvider : MainAPI() {
             val items = doc.select("div.movie_item").take(20).mapNotNull { el ->
                 val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
                 val posterUrl = extractImageUrl(el)
-                val slug = urlSlug(href)
-                val title = titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+                val title = fallbackTitle(href)
                 newAnimeSearchResponse(title, href, TvType.Cartoon) {
                     this.posterUrl = convertToPortraitProxy(posterUrl)
                     this.posterHeaders = mapOf("Referer" to mainUrl)
@@ -255,8 +260,7 @@ class SimpsonsUATvProvider : MainAPI() {
             val posterUrl = extractImageUrl(el)
             var title = getTitleFromComment(el)
             if (title.isNullOrBlank()) {
-                val slug = urlSlug(href)
-                title = titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+                title = fallbackTitle(href)
             }
             newAnimeSearchResponse(title, href, TvType.Cartoon) {
                 this.posterUrl = convertToPortraitProxy(posterUrl)
@@ -633,4 +637,3 @@ class SimpsonsUATvProvider : MainAPI() {
         return found
     }
 }
-           
