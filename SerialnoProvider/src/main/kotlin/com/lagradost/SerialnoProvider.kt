@@ -4,6 +4,7 @@ import android.util.Log
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -21,6 +22,7 @@ import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -112,6 +114,15 @@ class SerialnoProvider : MainAPI() {
         val description = document.select(".full-text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = document.selectFirst(".th-voice")?.text()
+        val trailerUrl = extractSerialnoTrailer(document)
+        val trailer = if (trailerUrl?.contains("tortuga.tw/vod", ignoreCase = true) == true) {
+            val trailerHtml = runCatching {
+                app.get(trailerUrl, headers = mapOf("Referer" to "$mainUrl/")).text
+            }.getOrDefault("")
+            resolveSerialnoTrailerUrl(trailerUrl, trailerHtml)
+        } else {
+            trailerUrl
+        }
         // Parse episodes
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("src")
@@ -141,6 +152,13 @@ class SerialnoProvider : MainAPI() {
             this.plot = description
             this.tags = tags
             this.score = Score.from10(rating)
+            trailer?.let {
+                addTrailer(
+                    it,
+                    referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                    addRaw = it.contains(".m3u8", ignoreCase = true),
+                )
+            }
         }
     }
 
@@ -248,4 +266,41 @@ class SerialnoProvider : MainAPI() {
             }
         }
     }
+}
+
+/** Знаходить iframe трейлера за порядком вкладок Serialno. */
+internal fun extractSerialnoTrailer(document: Document): String? {
+    val trailerIndex = document
+        .select(".tabs-sel span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    val iframe = document
+        .select(".video-box")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
+        ?: return null
+    val rawUrl = iframe.attr("src").ifBlank { iframe.attr("data-src") }.trim()
+    return rawUrl.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+}
+
+/** Розшифровує сторінку Tortuga-трейлера до прямого URL відео. */
+internal fun resolveSerialnoTrailerUrl(
+    trailerUrl: String?,
+    trailerPageHtml: String,
+    decode: (String) -> String? = { SerialnoProvider.Decoder.decodeAndReverse(it) },
+): String? {
+    val normalized = trailerUrl?.trim()?.takeIf { it.startsWith("http") } ?: return null
+    if (!normalized.contains("tortuga.tw/vod", ignoreCase = true)) return normalized
+
+    val encodedFile = Regex("file\\s*:\\s*[\\\"']([^\\\",']+?)[\\\"']")
+        .find(trailerPageHtml)
+        ?.groups
+        ?.get(1)
+        ?.value
+        ?.trim()
+        ?: return null
+
+    val decoded = if (encodedFile.startsWith("http", ignoreCase = true)) encodedFile else decode(encodedFile)
+    return decoded?.trim()?.takeIf { it.startsWith("http", ignoreCase = true) }
 }
