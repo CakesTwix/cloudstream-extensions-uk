@@ -74,7 +74,7 @@ class UAFlixProvider : MainAPI() {
     private val ratingSelector = ".mediablock .rat-imdb"
 
     private val fileRegex = "file\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
-    private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
+    private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]*)['\"]".toRegex()
 
     override suspend fun getMainPage(
         page: Int,
@@ -298,31 +298,27 @@ class UAFlixProvider : MainAPI() {
                         referer = "https://tortuga.wtf/"
                 ).dropLast(1).forEach(callback)
 
-                subtitleCallback.invoke(
-                    newSubtitleFile(
-                        subtitleString.substringAfterLast("[").substringBefore("]"),
-                        subtitleString.substringAfter("]").dropLast(1)
-                    )
-                )
+                parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
+                    subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                }
 
                 return true
             }
             val playerRawJson = fileRegex.find(app.get(playerUrl, referer = "https://uafix.net").document.select("script").html())?.groupValues?.get(1) ?: ""
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
                 for(season in dubs.folder){                                // Seasons
+                    val episode = season.folder.firstOrNull() ?: continue
+                    if (episode.file.isBlank()) continue
                     // Add as source
                     M3u8Helper.generateM3u8(
                             source = dubs.title,
-                            streamUrl = dubs.folder[0].folder[0].file,
+                            streamUrl = episode.file,
                             referer = "https://tortuga.wtf/"
                     ).dropLast(1).forEach(callback)
 
-                    subtitleCallback.invoke(
-                        newSubtitleFile(
-                            dubs.folder[0].folder[0].subtitle.substringAfterLast("[").substringBefore("]"),
-                            dubs.folder[0].folder[0].subtitle.substringAfter("]").dropLast(1)
-                        )
-                    )
+                    parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                        subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                    }
                 }
             }
 
@@ -342,6 +338,10 @@ class UAFlixProvider : MainAPI() {
                                     streamUrl = episode.file,
                                     referer = "https://tortuga.wtf/"
                             ).dropLast(1).forEach(callback)
+
+                            parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                                subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                            }
                         }
                     }
                 }
