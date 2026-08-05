@@ -4,9 +4,15 @@ import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KinoTronTrailerParsingTest {
+    @Test
+    fun `ashdi serial player identifies a series even when site label is movie`() {
+        assertTrue(isKinoTronSeriesPlayerUrl("https://ashdi.vip/serial/6669"))
+    }
+
     @Test
     fun `youtube який продубльований у Player1 не є основним відео`() {
         assertFalse(
