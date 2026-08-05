@@ -9,6 +9,12 @@ import org.junit.Test
 
 class BambooTrailerParsingTest {
     @Test
+    fun `playlist group without title is safely ignored`() {
+        assertFalse(isBambooDubGroup(null))
+        assertFalse(isBambooSubtitleGroup(null))
+    }
+
+    @Test
     fun `службове sponsor відео відкидається`() {
         assertTrue(isBambooSponsorVideo("/uploades/be_sponsors.mp4"))
         assertFalse(isBambooSponsorVideo("https://ongoing3.bambooua.com/films/demo/index.m3u8"))
