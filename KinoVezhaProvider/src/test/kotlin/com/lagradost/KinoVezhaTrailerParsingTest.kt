@@ -3,9 +3,29 @@ package com.lagradost
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KinoVezhaTrailerParsingTest {
+    @Test
+    fun `мультсеріал визначається як серіал`() {
+        assertTrue(isKinoVezhaSeries(listOf("Канада", "Мультсеріал")))
+    }
+
+    @Test
+    fun `episode file очищується від порожнього суфікса субтитрів`() {
+        val parsed = parseKinoVezhaEpisodeFile(
+            "{ПлюсПлюс}https://calypso.tortuga.tw/hls/serials/paw.patrol/s01/paw.patrol.s01e01.plusplus.dub_99824/hls/index.m3u8(subtitle:)",
+        )
+
+        assertEquals("ПлюсПлюс", parsed?.source)
+        assertEquals(
+            "https://calypso.tortuga.tw/hls/serials/paw.patrol/s01/paw.patrol.s01e01.plusplus.dub_99824/hls/index.m3u8",
+            parsed?.streamUrl,
+        )
+        assertNull(parsed?.subtitle)
+    }
+
     @Test
     fun `trailer вкладка знаходить окремий iframe`() {
         val document = Jsoup.parse(
