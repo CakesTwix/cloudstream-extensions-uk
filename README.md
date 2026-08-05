@@ -52,6 +52,7 @@ cakes
 <!-- Developers -->
 ## ⭐️ Розробники
   - [@CakesTwix](https://codeberg.org/CakesTwix)
+  - [@Sommelier](https://codeberg.org/Sommelier)
   - [deleteBlack666](https://codeberg.org/deleteBlack666)
   
 ### Для розробників

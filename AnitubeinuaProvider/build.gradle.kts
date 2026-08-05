@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 20
+version = 21
 
 dependencies {
     testImplementation(libs.junit)
@@ -23,6 +23,7 @@ cloudstream {
     status = 3 // will be 3 if unspecified
     tvTypes = listOf(
         "Anime",
+        "AnimeMovie",
     )
 
     iconUrl = "https://www.google.com/s2/favicons?domain=anitube.in.ua&sz=%size%"

@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 11
+version = 12
 
 dependencies {
     testImplementation(libs.junit)
@@ -23,6 +23,9 @@ cloudstream {
     status = 1 // will be 3 if unspecified
     tvTypes = listOf(
         "Anime",
+        "AnimeMovie",
+        "AsianDrama",
+        "Cartoon",
         "TvSeries",
         "Movie",
     )

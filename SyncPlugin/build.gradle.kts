@@ -13,7 +13,8 @@ cloudstream {
     description = "Синхронізація CloudStream між пристроями (закладки, продовження перегляду, налаштування, пошук, розширення). Працює з власним сервером CloudStream Sync Server."
     authors = listOf("CakesTwix")
     status = 1
-    tvTypes = listOf("All")
+    // Плагін не є медіапровайдером, тому він має бути у фільтрі «Інші».
+    tvTypes = listOf("Others")
     requiresResources = true
     language = "uk"
 }
