@@ -1,11 +1,13 @@
 package com.lagradost
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Document
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -93,6 +95,15 @@ class KinoVezhaProvider : MainAPI() {
         // Parse episodes
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select(".video-responsive > iframe").attr("src")
+        val trailerUrl = extractKinoVezhaTrailer(document)
+        val trailer = if (trailerUrl?.contains("tortuga.tw/vod", ignoreCase = true) == true) {
+            val trailerHtml = runCatching {
+                app.get(trailerUrl, headers = mapOf("Referer" to mainUrl)).text
+            }.getOrDefault("")
+            resolveKinoVezhaTrailerUrl(trailerUrl, trailerHtml)
+        } else {
+            trailerUrl
+        }
 
         // Return to app
         // Parse Episodes as Series
@@ -120,6 +131,13 @@ class KinoVezhaProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$playerUrl|${title.replace("|", "")}") {
@@ -128,6 +146,13 @@ class KinoVezhaProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         }
     }
@@ -247,4 +272,41 @@ class KinoVezhaProvider : MainAPI() {
             }
         }
     }
+}
+
+/** Знаходить iframe лише в контенті вкладки, підписаної «Трейлер». */
+internal fun extractKinoVezhaTrailer(document: Document): String? {
+    val trailerIndex = document
+        .select(".tabs-block__select--player span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    return document
+        .select(".tabs-block__content.video-inside")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], video[src], source[src]")
+        ?.attr("src")
+        ?.trim()
+        ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+}
+
+/** Розшифровує сторінку Tortuga-трейлера до прямого HLS URL. */
+internal fun resolveKinoVezhaTrailerUrl(
+    trailerUrl: String?,
+    trailerPageHtml: String,
+    decode: (String) -> String? = { KinoVezhaProvider.Decoder.decodeAndReverse(it) },
+): String? {
+    val normalized = trailerUrl?.trim()?.takeIf { it.startsWith("http") } ?: return null
+    if (!normalized.contains("tortuga.tw/vod", ignoreCase = true)) return normalized
+
+    val encodedFile = Regex("file\\s*:\\s*[\\\"']([^\\\",']+?)[\\\"']")
+        .find(trailerPageHtml)
+        ?.groups
+        ?.get(1)
+        ?.value
+        ?.trim()
+        ?: return null
+
+    val decoded = if (encodedFile.startsWith("http", ignoreCase = true)) encodedFile else decode(encodedFile)
+    return decoded?.trim()?.takeIf { it.startsWith("http", ignoreCase = true) }
 }
