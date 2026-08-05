@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.mainPage
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -191,6 +192,7 @@ class UAFlixProvider : MainAPI() {
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val rating = document.select(ratingSelector).text()
+        val trailer = extractUAFlixTrailer(document)
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
@@ -253,6 +255,7 @@ class UAFlixProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 addEpisodes(DubStatus.Dubbed, episodes.sortedBy { it.episode })
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
 
@@ -265,6 +268,7 @@ class UAFlixProvider : MainAPI() {
                 this.contentRating = contentRating
                 this.score = Score.from10(rating)
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         }
     }

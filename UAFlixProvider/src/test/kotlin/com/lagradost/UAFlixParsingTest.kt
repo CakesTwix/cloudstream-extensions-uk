@@ -3,6 +3,7 @@ package com.lagradost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.jsoup.Jsoup
 
 class UAFlixParsingTest {
     @Test
@@ -27,5 +28,34 @@ class UAFlixParsingTest {
         assertNull(parseUAFlixSubtitle(""))
         assertNull(parseUAFlixSubtitle("[Українські]"))
         assertNull(parseUAFlixSubtitle("[Українські]not-a-url"))
+    }
+
+    @Test
+    fun `trailer is read from the dedicated UAFlix button`() {
+        val document = Jsoup.parse(
+            """
+            <div class="video-box"><iframe src="https://zetvideo.net/player/123"></iframe></div>
+            <div class="fbtn to-trailer" data-src="https://www.youtube.com/embed/BXGZMnI8rFA">
+                Дивитись трейлер
+            </div>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "https://www.youtube.com/embed/BXGZMnI8rFA",
+            extractUAFlixTrailer(document),
+        )
+    }
+
+    @Test
+    fun `trailer parser does not use the main player when trailer is absent`() {
+        val document = Jsoup.parse(
+            """
+            <div class="video-box"><iframe src="https://zetvideo.net/player/123"></iframe></div>
+            <div class="fbtn">Дивитись онлайн</div>
+            """.trimIndent()
+        )
+
+        assertNull(extractUAFlixTrailer(document))
     }
 }
