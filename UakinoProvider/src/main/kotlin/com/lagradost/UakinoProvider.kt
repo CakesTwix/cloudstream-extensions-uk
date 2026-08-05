@@ -309,11 +309,12 @@ class UakinoProvider : MainAPI() {
         val scriptData = app.get(url, headers = headers()).document
             .select("script").joinToString("\n") { it.data() }
 
-        val m3uLink = fileRegex.findAll(scriptData).map { it.groupValues[1] }
+        val rawFile = fileRegex.findAll(scriptData).map { it.groupValues[1] }
             .firstOrNull { it.contains(".m3u8") }
             ?: fileRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
+        val m3uLink = resolveUakinoStreamUrl(rawFile)
 
-        if (m3uLink.isNotEmpty()) {
+        if (!m3uLink.isNullOrBlank()) {
             val playerReferer = URL(url).let { "${it.protocol}://${it.host}/" }
             val streams = M3u8Helper.generateM3u8(
                 source = sourceName,
