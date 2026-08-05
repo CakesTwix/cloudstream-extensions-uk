@@ -3,6 +3,7 @@ package com.lagradost
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -53,7 +54,7 @@ class CikavaIdeyaProvider : MainAPI() {
     ): HomePageResponse {
         val document = app.get(request.data + page).document
 
-        val home = document.select(".th-item").map {
+        val home = document.select(".th-item").filterNot(::isCikavaDeleted).map {
             it.toSearchResponse()
         }
 
@@ -93,7 +94,7 @@ class CikavaIdeyaProvider : MainAPI() {
                     "story" to query.replace(" ", "+")))
                 .document
 
-        return document.select(".th-item").map { it.toSearchResponse() }
+        return document.select(".th-item").filterNot(::isCikavaDeleted).map { it.toSearchResponse() }
     }
 
     // Detailed information
@@ -110,11 +111,11 @@ class CikavaIdeyaProvider : MainAPI() {
 
         val tvType = if (tags.contains("Фільми") or tags.contains("Артхаус")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".fdesc")?.text()?.trim()
-        // val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
+        val trailer = extractCikavaTrailer(document)
         val rating = document.select(".likes").text().dropLast(1)
         // val actors = fullInfo[4].select("a").map { it.text() }
 
-        val recommendations = document.select(".th-rel").map {
+        val recommendations = document.select(".th-rel").filterNot(::isCikavaDeleted).map {
             it.toSearchResponse()
         }
 
@@ -166,7 +167,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
-                // addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, playerJson.getString("Player1")) {
@@ -178,7 +179,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
-                // addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         }
     }

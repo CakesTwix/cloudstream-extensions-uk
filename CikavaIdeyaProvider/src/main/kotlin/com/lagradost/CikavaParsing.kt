@@ -1,5 +1,8 @@
 package com.lagradost
 
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+
 internal data class CikavaSubtitle(
     val language: String,
     val url: String,
@@ -35,4 +38,36 @@ internal fun parseCikavaSubtitle(raw: String): CikavaSubtitle? {
         return null
     }
     return CikavaSubtitle(language, url)
+}
+
+/**
+ * Визначає недоступний матеріал за маркером каталогу або повідомленням про видалення.
+ * Такі записи не повинні потрапляти у пошук чи каталоги.
+ */
+internal fun isCikavaDeleted(item: Element): Boolean {
+    val qualityMarker = item.select(".fquality").text()
+    val itemText = item.text()
+    return qualityMarker.contains("ВИДАЛЕНО", ignoreCase = true) ||
+        itemText.contains("Озвучення ставимо на пауз", ignoreCase = true) ||
+        itemText.contains("Видалено на прохання правовласника", ignoreCase = true)
+}
+
+/** Витягує trailer iframe за індексом вкладки «Трейлер». */
+internal fun extractCikavaTrailer(document: Document): String? {
+    val trailerIndex = document
+        .select(".tabs-sel span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    val iframe = document
+        .select(".tabs-b.video-box")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
+        ?: return null
+    val rawUrl = iframe.attr("src").ifBlank { iframe.attr("data-src") }.trim()
+    return when {
+        rawUrl.startsWith("//") -> "https:$rawUrl"
+        rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
+        else -> null
+    }
 }
