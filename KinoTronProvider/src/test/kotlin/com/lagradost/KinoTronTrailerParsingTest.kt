@@ -1,0 +1,41 @@
+package com.lagradost
+
+import org.jsoup.Jsoup
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class KinoTronTrailerParsingTest {
+    @Test
+    fun `явний trailer-box має пріоритет над основним плеєром`() {
+        val document = Jsoup.parse(
+            """
+            <div class="tabs-sel"><span>Онлайн</span><span>Трейлер</span></div>
+            <div class="tabs-b video-box"><iframe data-src="https://player.example/main"></iframe></div>
+            <div class="tabs-b video-box"><iframe data-src="https://player.example/second"></iframe></div>
+            <div class="video-box hidden trailer-box">
+                <iframe data-src="https://www.youtube.com/embed/odQikoUL21I"></iframe>
+            </div>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "https://www.youtube.com/embed/odQikoUL21I",
+            extractKinoTronTrailer(document),
+        )
+    }
+
+    @Test
+    fun `відсутній трейлер повертає null`() {
+        assertNull(
+            extractKinoTronTrailer(
+                Jsoup.parse(
+                    """
+                    <div class="tabs-sel"><span>Онлайн</span></div>
+                    <div class="tabs-b video-box"><iframe data-src="https://player.example/main"></iframe></div>
+                    """.trimIndent()
+                )
+            )
+        )
+    }
+}

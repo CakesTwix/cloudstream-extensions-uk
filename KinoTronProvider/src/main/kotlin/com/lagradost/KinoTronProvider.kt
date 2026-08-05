@@ -3,6 +3,7 @@ package com.lagradost
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -20,6 +21,7 @@ import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.PlayerJson
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class KinoTronProvider : MainAPI() {
@@ -118,6 +120,7 @@ class KinoTronProvider : MainAPI() {
         // Parse episodes
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("data-src")
+        val trailer = extractKinoTronTrailer(document)
         if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
         // Log.d("load-debug", playerUrl)
         // Return to app
@@ -146,6 +149,7 @@ class KinoTronProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|$playerUrl") {
@@ -154,6 +158,7 @@ class KinoTronProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let { addTrailer(it) }
             }
         }
     }
@@ -201,4 +206,36 @@ class KinoTronProvider : MainAPI() {
         }
         return true
     }
+}
+
+/** Витягує трейлер із явного trailer-box або відповідного табу KinoTron. */
+internal fun extractKinoTronTrailer(document: Document): String? {
+    fun normalize(raw: String): String? {
+        val value = raw.trim()
+        return when {
+            value.startsWith("//") -> "https:$value"
+            value.startsWith("http://") || value.startsWith("https://") -> value
+            else -> null
+        }
+    }
+
+    val explicitTrailer = document
+        .select(".trailer-box iframe[src], .trailer-box iframe[data-src], .trailer-box video[src], .trailer-box source[src]")
+        .asSequence()
+        .map { it.attr("src").ifBlank { it.attr("data-src") } }
+        .mapNotNull(::normalize)
+        .firstOrNull()
+    if (explicitTrailer != null) return explicitTrailer
+
+    val trailerIndex = document
+        .select(".tabs-sel span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    val iframe = document
+        .select(".tabs-b.video-box")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
+        ?: return null
+    return normalize(iframe.attr("src").ifBlank { iframe.attr("data-src") })
 }
