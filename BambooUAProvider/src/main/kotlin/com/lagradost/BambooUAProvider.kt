@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -23,6 +24,7 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class BambooUAProvider : MainAPI() {
@@ -137,6 +139,7 @@ class BambooUAProvider : MainAPI() {
         val recommendations = document.select(".favorites-slider article.swiper-slide").map {
             it.toSearchResponse()
         }
+        val trailer = extractBambooTrailer(document)
 
         val subEpisodes = mutableListOf<Episode>()
         val dubEpisodes = mutableListOf<Episode>()
@@ -174,6 +177,7 @@ class BambooUAProvider : MainAPI() {
                 this.recommendations = recommendations
                 this.addEpisodes(DubStatus.Dubbed, dubEpisodes)
                 this.addEpisodes(DubStatus.Subbed, subEpisodes)
+                trailer?.let { addTrailer(it, addRaw = it.contains(".m3u8", ignoreCase = true)) }
             }
         } else {
             newMovieLoadResponse(title, url, tvType, url) {
@@ -182,6 +186,7 @@ class BambooUAProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.recommendations = recommendations
+                trailer?.let { addTrailer(it, addRaw = it.contains(".m3u8", ignoreCase = true)) }
             }
         }
     }
@@ -232,4 +237,35 @@ class BambooUAProvider : MainAPI() {
         val title: String,
         val file: String
     )
+}
+
+/** Витягує лише URL із вкладки, назва якої явно містить «Трейлер». */
+internal fun extractBambooTrailer(document: Document): String? {
+    val trailerTab = document
+        .select(".player-footer_tabs a[href]")
+        .firstOrNull { it.text().contains("трейлер", ignoreCase = true) }
+        ?: return null
+
+    val targetId = trailerTab.attr("href").trim().removePrefix("#")
+    if (targetId.isBlank()) return null
+
+    val target = document.getElementById(targetId) ?: return null
+    val urls = sequence {
+        yieldAll(target.select("source[src], video[src], iframe[src]").map { element -> element.attr("src") })
+        yieldAll(target.select("a[href]").map { it.attr("href") })
+    }.mapNotNull(::normalizeBambooTrailerUrl).toList()
+
+    return urls.firstOrNull { it.contains("youtube.com", ignoreCase = true) || it.contains("youtu.be", ignoreCase = true) }
+        ?: urls.firstOrNull { it.contains(".m3u8", ignoreCase = true) || it.contains(".mp4", ignoreCase = true) }
+}
+
+private fun normalizeBambooTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
+    }
 }
