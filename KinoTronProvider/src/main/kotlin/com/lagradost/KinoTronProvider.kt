@@ -124,6 +124,11 @@ class KinoTronProvider : MainAPI() {
         // Якщо Player1 містить лише той самий YouTube-трейлер, матеріалу для перегляду немає.
         if (!isKinoTronPlayableMainPlayer(playerUrl, trailer)) return null
         if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
+        // Ashdi явно розділяє фільми та серіали адресами /vod/ і /serial/.
+        // Деякі сторінки KinoTron мають неточний fsubtitle, тому довіряємо плеєру.
+        if (tvType == TvType.Movie && isKinoTronSeriesPlayerUrl(playerUrl)) {
+            tvType = TvType.TvSeries
+        }
         // Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
@@ -219,6 +224,10 @@ internal fun isKinoTronPlayableMainPlayer(playerUrl: String?, trailerUrl: String
         player.contains("youtu.be", ignoreCase = true)
     return !isYoutube && !duplicateTrailer
 }
+
+/** Визначає серіальний Ashdi-плеєр незалежно від підпису сторінки KinoTron. */
+internal fun isKinoTronSeriesPlayerUrl(playerUrl: String?): Boolean =
+    playerUrl?.contains("/serial/", ignoreCase = true) == true
 
 /** Витягує трейлер із явного trailer-box або відповідного табу KinoTron. */
 internal fun extractKinoTronTrailer(document: Document): String? {
