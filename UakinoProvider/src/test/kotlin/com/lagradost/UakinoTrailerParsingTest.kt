@@ -41,4 +41,31 @@ class UakinoTrailerParsingTest {
 
         assertNull(extractUakinoTrailer(document))
     }
+
+    @Test
+    fun `трейлер береться з schema org link itemprop`() {
+        val document = Jsoup.parse(
+            """
+            <div itemscope itemtype="https://schema.org/Movie">
+                <link itemprop="video" value="https://ashdi.vip/vod/96531">
+                <link itemprop="trailer" value="https://www.youtube.com/embed/VJsPZvs4yrA">
+                <ul class="tabs">
+                    <li>UA #1</li>
+                    <li>Трейлер</li>
+                </ul>
+                <div class="box full-text visible">
+                    <iframe id="pre" src="https://ashdi.vip/vod/96531"></iframe>
+                </div>
+                <div class="box full-text" id="overroll">
+                    <iframe id="pre" src="https://www.youtube.com/embed/VJsPZvs4yrA"></iframe>
+                </div>
+            </div>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "https://www.youtube.com/embed/VJsPZvs4yrA",
+            extractUakinoTrailer(document),
+        )
+    }
 }

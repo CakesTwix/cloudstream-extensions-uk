@@ -104,6 +104,7 @@ class SimpsonsUATvProvider : MainAPI() {
         "youtube.com",
         "tiktok.com",
         "x.com/",
+        "/blog/",
         "franecki.net",
         "franeski.net",
         "javascript:"
@@ -124,12 +125,40 @@ class SimpsonsUATvProvider : MainAPI() {
         return null
     }
 
-    private fun isValidContentUrl(href: String): Boolean {
-        if (!href.startsWith("http")) return false
-        return ignoredUrlPatterns.none { href.contains(it) }
+    internal fun isValidContentUrl(href: String): Boolean {
+        if (href.isBlank() || (!href.startsWith("http") && !href.startsWith("/"))) return false
+        return ignoredUrlPatterns.none { href.contains(it, ignoreCase = true) }
     }
 
-    private fun urlSlug(url: String) = url.removeSuffix("/").substringAfterLast("/")
+    internal fun urlSlug(url: String) = url.removeSuffix("/").substringAfterLast("/")
+
+    internal fun fallbackTitle(url: String): String {
+        val slug = urlSlug(url)
+            .substringBefore("?")
+            .substringBeforeLast(".")
+            .replace(Regex("^\\d+[-_]"), "")
+        return titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+    }
+
+    private fun Element.toModernUpdateResponse(): SearchResponse? {
+        val href = attr("href")
+            .takeIf { isValidContentUrl(it) }
+            ?.let { fixUrl(it) }
+            ?: return null
+        val showTitle = selectFirst(".su-card-show")?.text()?.trim()
+        val episodeTitle = selectFirst(".su-card-name")?.text()?.trim()
+        val title = listOfNotNull(showTitle, episodeTitle)
+            .filter { it.isNotBlank() }
+            .joinToString(" — ")
+            .takeIf { it.isNotBlank() }
+            ?: fallbackTitle(href)
+        val posterUrl = extractImageUrl(this)
+
+        return newAnimeSearchResponse(title, href, TvType.Cartoon) {
+            this.posterUrl = convertToPortraitProxy(posterUrl)
+            this.posterHeaders = mapOf("Referer" to mainUrl)
+        }
+    }
 
     private fun parseSeasonNumber(url: String): Int {
         return Regex("""sezon-(\d+)""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: -1
@@ -204,13 +233,23 @@ class SimpsonsUATvProvider : MainAPI() {
             if (page == 1) {
                 try {
                     val doc = app.get(mainUrl, headers = headers()).document
-                    val updates = doc.select("div.ep_slider div.movie_item").take(15).mapNotNull { el ->
-                        val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
-                        val posterUrl = extractImageUrl(el)
-                        val title = getTitleFromComment(el) ?: "Нова серія"
-                        newAnimeSearchResponse(title, href, TvType.Cartoon) {
-                            this.posterUrl = convertToPortraitProxy(posterUrl)
-                            this.posterHeaders = mapOf("Referer" to mainUrl)
+                    val modernUpdates = doc.select("div.su-updates-grid a.su-card")
+                        .take(15)
+                        .mapNotNull { it.toModernUpdateResponse() }
+                    val updates = if (modernUpdates.isNotEmpty()) {
+                        modernUpdates
+                    } else {
+                        doc.select("div.ep_slider div.movie_item").take(15).mapNotNull { el ->
+                            val href = el.selectFirst("a")?.attr("href")
+                                ?.takeIf { isValidContentUrl(it) }
+                                ?.let { fixUrl(it) }
+                                ?: return@mapNotNull null
+                            val posterUrl = extractImageUrl(el)
+                            val title = getTitleFromComment(el) ?: fallbackTitle(href)
+                            newAnimeSearchResponse(title, href, TvType.Cartoon) {
+                                this.posterUrl = convertToPortraitProxy(posterUrl)
+                                this.posterHeaders = mapOf("Referer" to mainUrl)
+                            }
                         }
                     }
                     if (updates.isNotEmpty())
@@ -225,11 +264,13 @@ class SimpsonsUATvProvider : MainAPI() {
         try {
             val catalogUrl = if (page == 1) request.data else "${request.data}page/$page/"
             val doc = app.get(catalogUrl, headers = headers()).document
-            val items = doc.select("div.movie_item").take(20).mapNotNull { el ->
-                val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+            val items = doc.select("#dle-content div.movie_item").take(20).mapNotNull { el ->
+                val href = el.selectFirst("a")?.attr("href")
+                    ?.takeIf { isValidContentUrl(it) }
+                    ?.let { fixUrl(it) }
+                    ?: return@mapNotNull null
                 val posterUrl = extractImageUrl(el)
-                val slug = urlSlug(href)
-                val title = titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+                val title = fallbackTitle(href)
                 newAnimeSearchResponse(title, href, TvType.Cartoon) {
                     this.posterUrl = convertToPortraitProxy(posterUrl)
                     this.posterHeaders = mapOf("Referer" to mainUrl)
@@ -250,13 +291,15 @@ class SimpsonsUATvProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val encodedQuery = java.net.URLEncoder.encode(query, StandardCharsets.UTF_8.name())
         val document = app.get("$mainUrl/?s=$encodedQuery", headers = headers()).document
-        return document.select("div.movie_item").mapNotNull { el ->
-            val href = el.selectFirst("a")?.attr("href") ?: return@mapNotNull null
+        return document.select("#dle-content div.movie_item").mapNotNull { el ->
+            val href = el.selectFirst("a")?.attr("href")
+                ?.takeIf { isValidContentUrl(it) }
+                ?.let { fixUrl(it) }
+                ?: return@mapNotNull null
             val posterUrl = extractImageUrl(el)
             var title = getTitleFromComment(el)
             if (title.isNullOrBlank()) {
-                val slug = urlSlug(href)
-                title = titleMap[slug] ?: capitalizeWord(slug.replace("-", " "))
+                title = fallbackTitle(href)
             }
             newAnimeSearchResponse(title, href, TvType.Cartoon) {
                 this.posterUrl = convertToPortraitProxy(posterUrl)
@@ -633,4 +676,3 @@ class SimpsonsUATvProvider : MainAPI() {
         return found
     }
 }
-           

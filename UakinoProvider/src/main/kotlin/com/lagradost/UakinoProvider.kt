@@ -348,6 +348,25 @@ class UakinoProvider : MainAPI() {
  * використовувати як універсальний fallback.
  */
 internal fun extractUakinoTrailer(document: Document): String? {
+    // На частині сторінок Uakino трейлер позначений лише schema.org-метаданими.
+    // Наприклад, мультфільм «Німона» містить <link itemprop="trailer" value="...">,
+    // а сама вкладка не має data-* атрибутів, за якими працював старий пошук.
+    val schemaTrailerUrls = document.select("[itemprop]")
+        .filter { element ->
+            element.attr("itemprop")
+                .split(Regex("\\s+"))
+                .any { it.equals("trailer", ignoreCase = true) }
+        }
+        .flatMap { element ->
+            listOf("value", "content", "href", "src", "data-src")
+                .map { attribute -> element.attr(attribute) }
+        }
+        .mapNotNull(::normalizeUakinoTrailerUrl)
+        .toList()
+
+    schemaTrailerUrls.firstOrNull(::isUakinoYoutubeUrl)?.let { return it }
+    schemaTrailerUrls.firstOrNull()?.let { return it }
+
     val trailerElements = document.select("*").filter { element ->
         listOf("id", "class", "data-tab", "data-target", "data-content", "data-tab-content")
             .any { attribute -> element.attr(attribute).contains("trailer", ignoreCase = true) }
