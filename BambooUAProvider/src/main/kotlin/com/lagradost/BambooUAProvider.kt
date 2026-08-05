@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -23,6 +24,7 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class BambooUAProvider : MainAPI() {
@@ -137,6 +139,7 @@ class BambooUAProvider : MainAPI() {
         val recommendations = document.select(".favorites-slider article.swiper-slide").map {
             it.toSearchResponse()
         }
+        val trailer = extractBambooTrailer(document)
 
         val subEpisodes = mutableListOf<Episode>()
         val dubEpisodes = mutableListOf<Episode>()
@@ -148,13 +151,17 @@ class BambooUAProvider : MainAPI() {
         if (playlistJson != null) {
             val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
             playlist.forEach { group ->
-                val isDub = group.title.contains("Озвучення") || group.title.contains("Дубляж")
-                val isSub = group.title.contains("Субтитри")
-                group.folder.forEachIndexed { index, episode ->
-                    val ep = newEpisode(episode.file) {
-                        this.name = episode.title
+                val isDub = isBambooDubGroup(group.title)
+                val isSub = isBambooSubtitleGroup(group.title)
+                // Службовий ролик підтримки не є епізодом і не повинен потрапляти в каталог.
+                group.folder.orEmpty()
+                    .filterNot { isBambooSponsorVideo(it.file) }
+                    .forEachIndexed { index, episode ->
+                    val file = episode.file ?: return@forEachIndexed
+                    val ep = newEpisode(file) {
+                        this.name = episode.title.orEmpty()
                         this.episode = index + 1
-                        this.data = episode.file
+                        this.data = file
                     }
                     when {
                         isDub -> dubEpisodes.add(ep)
@@ -174,6 +181,7 @@ class BambooUAProvider : MainAPI() {
                 this.recommendations = recommendations
                 this.addEpisodes(DubStatus.Dubbed, dubEpisodes)
                 this.addEpisodes(DubStatus.Subbed, subEpisodes)
+                trailer?.let { addTrailer(it, addRaw = it.contains(".m3u8", ignoreCase = true)) }
             }
         } else {
             newMovieLoadResponse(title, url, tvType, url) {
@@ -182,6 +190,7 @@ class BambooUAProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.recommendations = recommendations
+                trailer?.let { addTrailer(it, addRaw = it.contains(".m3u8", ignoreCase = true)) }
             }
         }
     }
@@ -201,10 +210,10 @@ class BambooUAProvider : MainAPI() {
             if (playlistJson != null) {
                 val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
                 playlist.forEach { group ->
-                    group.folder.forEach { episode ->
+                    bambooPlaylistFiles(group).forEach { file ->
                         M3u8Helper.generateM3u8(
-                            source = group.title,
-                            streamUrl = episode.file,
+                            source = group.title.orEmpty().ifBlank { "BambooUA" },
+                            streamUrl = file,
                             referer = "$mainUrl/"
                         ).forEach(callback)
                     }
@@ -214,6 +223,8 @@ class BambooUAProvider : MainAPI() {
         }
 
         // Serial — data це пряме m3u8 посилання
+        if (isBambooSponsorVideo(data)) return false
+
         M3u8Helper.generateM3u8(
             source = "BambooUA",
             streamUrl = data,
@@ -224,12 +235,65 @@ class BambooUAProvider : MainAPI() {
     }
 
     data class PlaylistGroup(
-        val title: String,
-        val folder: List<PlaylistEpisode>
+        val title: String? = null,
+        val folder: List<PlaylistEpisode>? = emptyList(),
+        val file: String? = null
     )
 
     data class PlaylistEpisode(
-        val title: String,
-        val file: String
+        val title: String? = null,
+        val file: String? = null
     )
+}
+
+/** Відкидає службовий sponsor-ролик, який сайт додає до playlist перед контентом. */
+internal fun isBambooSponsorVideo(url: String?): Boolean =
+    url?.contains("be_sponsors.mp4", ignoreCase = true) == true
+
+/** Безпечно класифікує групу озвучення, навіть якщо сайт віддав null title. */
+internal fun isBambooDubGroup(title: String?): Boolean =
+    title?.contains("Озвучення", ignoreCase = true) == true ||
+        title?.contains("Дубляж", ignoreCase = true) == true
+
+/** Безпечно класифікує групу субтитрів, навіть якщо сайт віддав null title. */
+internal fun isBambooSubtitleGroup(title: String?): Boolean =
+    title?.contains("Субтитри", ignoreCase = true) == true
+
+/** Повертає і прямий movie file, і файли вкладених епізодів. */
+internal fun bambooPlaylistFiles(group: BambooUAProvider.PlaylistGroup): List<String> = buildList {
+    group.file?.let { if (!isBambooSponsorVideo(it)) add(it) }
+    group.folder.orEmpty().mapNotNull { it.file }
+        .filterNot(::isBambooSponsorVideo)
+        .forEach(::add)
+}.distinct()
+
+/** Витягує лише URL із вкладки, назва якої явно містить «Трейлер». */
+internal fun extractBambooTrailer(document: Document): String? {
+    val trailerTab = document
+        .select(".player-footer_tabs a[href]")
+        .firstOrNull { it.text().contains("трейлер", ignoreCase = true) }
+        ?: return null
+
+    val targetId = trailerTab.attr("href").trim().removePrefix("#")
+    if (targetId.isBlank()) return null
+
+    val target = document.getElementById(targetId) ?: return null
+    val urls = sequence {
+        yieldAll(target.select("source[src], video[src], iframe[src]").map { element -> element.attr("src") })
+        yieldAll(target.select("a[href]").map { it.attr("href") })
+    }.mapNotNull(::normalizeBambooTrailerUrl).toList()
+
+    return urls.firstOrNull { it.contains("youtube.com", ignoreCase = true) || it.contains("youtu.be", ignoreCase = true) }
+        ?: urls.firstOrNull { it.contains(".m3u8", ignoreCase = true) || it.contains(".mp4", ignoreCase = true) }
+}
+
+private fun normalizeBambooTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
+    }
 }

@@ -52,7 +52,8 @@ cakes
 <!-- Developers -->
 ## ⭐️ Розробники
   - [@CakesTwix](https://codeberg.org/CakesTwix)
-  - [deleteBlack666](https://codeberg.org/deleteBlack666)
+  - [@Sommelier](https://codeberg.org/Sommelier)
+  - [@deleteBlack666](https://codeberg.org/deleteBlack666)
   
 ### Для розробників
 Pull Request приймаються тільки на боці codeberg.org/CakesTwix/cloudstream-extensions-uk, GitHub використовується як дзеркало!

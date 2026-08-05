@@ -1,7 +1,11 @@
 package com.lagradost
 
+import org.json.JSONObject
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CikavaParsingTest {
@@ -26,5 +30,121 @@ class CikavaParsingTest {
         assertNull(parseCikavaSubtitle("https://video.example/index.m3u8"))
         assertNull(parseCikavaSubtitle("[Українська]"))
         assertNull(parseCikavaSubtitle("[Українська]not-a-url"))
+    }
+
+    @Test
+    fun `deleted catalog item is detected by the dedicated quality marker`() {
+        val deleted = Jsoup.parse(
+            "<article class='th-item'><div class='fquality'>ВИДАЛЕНО</div></article>"
+        ).selectFirst(".th-item")!!
+        val available = Jsoup.parse(
+            "<article class='th-item'><div class='fquality'>HD</div></article>"
+        ).selectFirst(".th-item")!!
+
+        assertTrue(isCikavaDeleted(deleted))
+        assertFalse(isCikavaDeleted(available))
+    }
+
+    @Test
+    fun `rights-holder removal notice marks an item as unavailable`() {
+        val item = Jsoup.parse(
+            """
+            <article class="th-item">
+                Озвучення ставимо на пауз через малу підтримку глядачів!
+                Онлайн видалено на прохання правовласника.
+            </article>
+            """.trimIndent()
+        ).selectFirst(".th-item")!!
+
+        assertTrue(isCikavaDeleted(item))
+    }
+
+    @Test
+    fun `short rights-holder removal note also marks an item as unavailable`() {
+        val item = Jsoup.parse(
+            "<article class='th-item'>Видалено на прохання правовласника. Шукайте на інших сайтах.</article>"
+        ).selectFirst(".th-item")!!
+
+        assertTrue(isCikavaDeleted(item))
+    }
+
+    @Test
+    fun `series rights-holder removal note also marks an item as unavailable`() {
+        val item = Jsoup.parse(
+            "<article class='th-item'>Серіал видалено на прохання правовласника.</article>"
+        ).selectFirst(".th-item")!!
+
+        assertTrue(isCikavaDeleted(item))
+    }
+
+    @Test
+    fun `detail page removal notice is detected before building a response`() {
+        val document = Jsoup.parse(
+            "<div class='fmessage'>Видалено на прохання правовласника. Шукайте на інших сайтах.</div>"
+        )
+
+        assertTrue(isCikavaDeleted(document))
+    }
+
+    @Test
+    fun `comment mentioning removal does not hide an available detail page`() {
+        val document = Jsoup.parse(
+            "<div class='comments'>Користувач пише: матеріал видалено на іншому сайті.</div>"
+        )
+
+        assertFalse(isCikavaDeleted(document))
+    }
+
+    @Test
+    fun `empty primary player is unavailable even when trailer exists`() {
+        assertFalse(hasCikavaPlayableMaterial(JSONObject()))
+        assertFalse(hasCikavaPlayableMaterial(JSONObject("{\"Player1\":{}}")))
+        assertTrue(
+            hasCikavaPlayableMaterial(
+                JSONObject("{\"Player1\":\"https://video.example/main\"}")
+            )
+        )
+    }
+
+    @Test
+    fun `empty switches object is detected on a trailer-only page`() {
+        val document = Jsoup.parse(
+            """
+            <script>switches = Object({});</script>
+            <div id="Player1"><iframe src=""></iframe></div>
+            <div id="Player3"><iframe src="https://www.youtube.com/embed/example"></iframe></div>
+            """.trimIndent()
+        )
+
+        assertFalse(hasCikavaPlayableMaterial(parseCikavaPlayerJson(document)))
+    }
+
+    @Test
+    fun `trailer is selected by tab index and not by the main player`() {
+        val document = Jsoup.parse(
+            """
+            <div class="tabs-sel"><span>Плеєр 1</span><span>Трейлер</span></div>
+            <div class="tabs-b video-box"><iframe src="https://ashdi.vip/vod/123"></iframe></div>
+            <div class="tabs-b video-box"><iframe src="https://www.youtube.com/embed/hFNad8JtBak"></iframe></div>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "https://www.youtube.com/embed/hFNad8JtBak",
+            extractCikavaTrailer(document),
+        )
+    }
+
+    @Test
+    fun `empty trailer iframe is ignored`() {
+        val document = Jsoup.parse(
+            """
+            <div class="tabs-sel"><span>Плеєр 1</span><span>Трейлер</span></div>
+            <div class="tabs-b video-box"><iframe src=""></iframe></div>
+            <div class="tabs-b video-box"><iframe src=""></iframe></div>
+            """.trimIndent()
+        )
+
+        assertNull(extractCikavaTrailer(document))
     }
 }

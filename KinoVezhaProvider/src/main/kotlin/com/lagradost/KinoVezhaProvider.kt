@@ -1,11 +1,13 @@
 package com.lagradost
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Document
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -81,11 +83,11 @@ class KinoVezhaProvider : MainAPI() {
         // Parse info
         val title = document.select(".inner-page__title").text()
         val poster = mainUrl + document.select(".img-fit-cover img").attr("src")
-        val tags = document.select(".inner-page__list li")[2].select("a").map { it.text() }
+        val tags = document.select(".inner-page__list li a").map { it.text() }
         // Log.d("load-debug", tags.toString())
         val year = document.select(".inner-page__list li")[0].select("a").text().toIntOrNull()
 
-        val tvType = if(tags.contains("Мультсеріали") or tags.contains("Серіали")) TvType.TvSeries else TvType.Movie
+        val tvType = if (isKinoVezhaSeries(tags)) TvType.TvSeries else TvType.Movie
         val description = document.select("div.inner-page__text").text()
         // val author = someInfo.select("strong:contains(Студія:)").next().html()
         val rating = document.selectFirst(".dd-imdb-colours")?.text()
@@ -93,11 +95,27 @@ class KinoVezhaProvider : MainAPI() {
         // Parse episodes
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select(".video-responsive > iframe").attr("src")
+        val trailerUrl = extractKinoVezhaTrailer(document)
+        val trailer = if (trailerUrl?.contains("tortuga.tw/vod", ignoreCase = true) == true) {
+            val trailerHtml = runCatching {
+                app.get(trailerUrl, headers = mapOf("Referer" to mainUrl)).text
+            }.getOrDefault("")
+            resolveKinoVezhaTrailerUrl(trailerUrl, trailerHtml)
+        } else {
+            trailerUrl
+        }
 
         // Return to app
         // Parse Episodes as Series
         return if (tvType == TvType.TvSeries) {
-            val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(playerUrl).document.select("script").html())?.groups?.get(1)?.value.toString())
+            val playerRawJson = Decoder.decodeAndReverse(
+                fileRegex.find(
+                    app.get(playerUrl, headers = mapOf("Referer" to mainUrl))
+                        .document
+                        .select("script")
+                        .html()
+                )?.groups?.get(1)?.value.toString()
+            )
 
             AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { season ->
                 for (episode in season.folder) {
@@ -120,6 +138,13 @@ class KinoVezhaProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "$playerUrl|${title.replace("|", "")}") {
@@ -128,6 +153,13 @@ class KinoVezhaProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                trailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         }
     }
@@ -144,7 +176,14 @@ class KinoVezhaProvider : MainAPI() {
 
         // Its film, parse one m3u8
         if(dataList.size == 2){
-            val m3u8Url = Decoder.decodeAndReverse(fileRegex.find(app.get(dataList[0]).document.select("script").html())?.groups?.get(1)?.value.toString())
+            val m3u8Url = Decoder.decodeAndReverse(
+                fileRegex.find(
+                    app.get(dataList[0], headers = mapOf("Referer" to mainUrl))
+                        .document
+                        .select("script")
+                        .html()
+                )?.groups?.get(1)?.value.toString()
+            )
             M3u8Helper.generateM3u8(
                 source = dataList[1],
                 streamUrl = m3u8Url.toString(),
@@ -154,26 +193,34 @@ class KinoVezhaProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = Decoder.decodeAndReverse(fileRegex.find(app.get(dataList[0]).document.select("script").html())?.groups?.get(1)?.value.toString())
+        val playerRawJson = Decoder.decodeAndReverse(
+            fileRegex.find(
+                app.get(dataList[0], headers = mapOf("Referer" to mainUrl))
+                    .document
+                    .select("script")
+                    .html()
+            )?.groups?.get(1)?.value.toString()
+        )
         AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)
             ?.filter { it.title == dataList[1] } // Фільтруємо потрібний сезон
             ?.flatMap { it.folder }              // Беремо список епізодів
             ?.filter { it.title == dataList[2] } // Фільтруємо потрібний епізод
             ?.forEach { episode ->               // Обробляємо кожен епізод
-                val dubTitle = if (episode.file.startsWith("{")) episode.file.substringAfter("{").substringBefore("}") else "Цікава Ідея"
-                val streamUrl = if (episode.file.startsWith("{")) episode.file.substringAfter("}") else episode.file
+                // Старий формат Tortuga додає субтитри до поля file після HLS URL.
+                val parsedEpisode = parseKinoVezhaEpisodeFile(episode.file) ?: return@forEach
 
                 M3u8Helper.generateM3u8(
-                    source = dubTitle,
-                    streamUrl = streamUrl,
+                    source = parsedEpisode.source,
+                    streamUrl = parsedEpisode.streamUrl,
                     referer = "https://tortuga.wtf/"
                 ).dropLast(1).forEach(callback)
 
-                if (!episode.subtitle.isNullOrBlank()) {
+                val subtitle = episode.subtitle ?: parsedEpisode.subtitle
+                if (!subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(
                         newSubtitleFile(
-                            episode.subtitle.substringAfterLast("[").substringBefore("]"),
-                            episode.subtitle.substringAfter("]")
+                            subtitle.substringAfterLast("[").substringBefore("]"),
+                            subtitle.substringAfter("]")
                         )
                     )
                 }
@@ -247,4 +294,86 @@ class KinoVezhaProvider : MainAPI() {
             }
         }
     }
+}
+
+/** Визначає серіали за жанром, включно з формами «Мультсеріал» та «Міні-серіал». */
+internal fun isKinoVezhaSeries(tags: List<String>): Boolean =
+    tags.any { it.contains("серіал", ignoreCase = true) }
+
+/** Нормалізує старий формат `file` від Tortuga, де субтитри вбудовані після HLS URL. */
+internal data class KinoVezhaEpisodeFile(
+    val source: String,
+    val streamUrl: String,
+    val subtitle: String? = null,
+)
+
+internal fun parseKinoVezhaEpisodeFile(rawFile: String): KinoVezhaEpisodeFile? {
+    val raw = rawFile.trim()
+    if (raw.isBlank()) return null
+
+    val source = raw
+        .takeIf { it.startsWith("{") }
+        ?.substringAfter("{")
+        ?.substringBefore("}")
+        ?.takeIf { it.isNotBlank() }
+        ?: "Цікава Ідея"
+    val streamAndSubtitle = if (raw.startsWith("{")) raw.substringAfter("}") else raw
+    val subtitleMarker = streamAndSubtitle.indexOf("(subtitle:", ignoreCase = true)
+    val streamUrl = if (subtitleMarker >= 0) {
+        streamAndSubtitle.substring(0, subtitleMarker)
+    } else {
+        streamAndSubtitle
+    }
+    val subtitle = if (subtitleMarker >= 0) {
+        streamAndSubtitle
+            .substring(subtitleMarker + "(subtitle:".length)
+            .removeSuffix(")")
+            .trim()
+            .takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
+    return KinoVezhaEpisodeFile(
+        source = source,
+        streamUrl = streamUrl.trim().takeIf { it.isNotBlank() } ?: return null,
+        subtitle = subtitle,
+    )
+}
+
+/** Знаходить iframe лише в контенті вкладки, підписаної «Трейлер». */
+internal fun extractKinoVezhaTrailer(document: Document): String? {
+    val trailerIndex = document
+        .select(".tabs-block__select--player span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    return document
+        .select(".tabs-block__content.video-inside")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], video[src], source[src]")
+        ?.attr("src")
+        ?.trim()
+        ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+}
+
+/** Розшифровує сторінку Tortuga-трейлера до прямого HLS URL. */
+internal fun resolveKinoVezhaTrailerUrl(
+    trailerUrl: String?,
+    trailerPageHtml: String,
+    decode: (String) -> String? = { KinoVezhaProvider.Decoder.decodeAndReverse(it) },
+): String? {
+    val normalized = trailerUrl?.trim()?.takeIf { it.startsWith("http") } ?: return null
+    if (!normalized.contains("tortuga.tw/vod", ignoreCase = true)) return normalized
+
+    val encodedFile = Regex("file\\s*:\\s*[\\\"']([^\\\",']+?)[\\\"']")
+        .find(trailerPageHtml)
+        ?.groups
+        ?.get(1)
+        ?.value
+        ?.trim()
+        ?: return null
+
+    val decoded = if (encodedFile.startsWith("http", ignoreCase = true)) encodedFile else decode(encodedFile)
+    return decoded?.trim()?.takeIf { it.startsWith("http", ignoreCase = true) }
 }

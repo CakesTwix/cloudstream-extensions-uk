@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 1
+version = 2
 
 dependencies {
     implementation(libs.gson)
@@ -24,8 +24,8 @@ cloudstream {
      * */
     status = 3 // will be 3 if unspecified
 tvTypes = listOf(
-        "Мультфільми",
-        "Мультсеріали",
+        "Cartoon",
+        "TvSeries",
     )
     iconUrl = "https://simpsonsua.tv/templates/simpsonsua/images/favicon.ico"
 }

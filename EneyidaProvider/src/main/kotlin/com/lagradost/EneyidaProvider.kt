@@ -9,7 +9,32 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+
+// Витягує значення поля file: з JS-коду плеєра.
+// Підтримує вкладені JSON-структури серіалів і прямий HLS URL фільму/трейлера.
+internal fun extractEneyidaFileValue(scriptHtml: String): String {
+    val keyRegex = Regex("""file\s*:\s*(['"])""")
+    val match = keyRegex.find(scriptHtml) ?: return ""
+    val quote = match.groupValues[1]
+    val start = match.range.last + 1
+
+    var i = start
+    val sb = StringBuilder()
+    while (i < scriptHtml.length) {
+        val c = scriptHtml[i]
+        if (c == '\\' && i + 1 < scriptHtml.length) {
+            sb.append(scriptHtml[i + 1])
+            i += 2
+            continue
+        }
+        if (c.toString() == quote) break
+        sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
 
 class EneyidaProvider : MainAPI() {
 
@@ -25,34 +50,6 @@ class EneyidaProvider : MainAPI() {
         TvType.TvSeries,
         TvType.Anime,
     )
-
-    // Витягує значення поля file: з JS-коду плеєра.
-    // Підтримує всі формати плеєра hdvbua.pro:
-    //   1. file: '[{"title":"1 сезон","folder":[...]}]'         — серіал Сезон→Озвучка→Серія
-    //   2. file: '[{"title":"QTV","folder":[{"title":"1 сезон"...}]}]' — серіал Озвучка→Сезон→Серія
-    //   3. file: '[{"title":"Укр. Дуб.","file":"url.m3u8"}]'   — фільм з масивом озвучок
-    //   4. file: "https://example.com/video.m3u8"               — пряме посилання (без JSON)
-    private fun extractFileValue(scriptHtml: String): String {
-        val keyRegex = Regex("""file\s*:\s*(['"])""")
-        val match = keyRegex.find(scriptHtml) ?: return ""
-        val quote = match.groupValues[1]
-        val start = match.range.last + 1
-
-        var i = start
-        val sb = StringBuilder()
-        while (i < scriptHtml.length) {
-            val c = scriptHtml[i]
-            if (c == '\\' && i + 1 < scriptHtml.length) {
-                sb.append(scriptHtml[i + 1])
-                i += 2
-                continue
-            }
-            if (c.toString() == quote) break
-            sb.append(c)
-            i++
-        }
-        return sb.toString()
-    }
 
     private val subtitleRegex = "subtitle\\s*:\\s*['\"]([^'\"]+)['\"]".toRegex()
 
@@ -120,7 +117,7 @@ class EneyidaProvider : MainAPI() {
         val countries = fullInfo[2].select("a").joinToString { it.text() }
         val contentRating = fullInfo[5].selectFirst("span[class^=age]")?.text()
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
-        val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
+        val trailer = resolveEneyidaTrailer(document)
         val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text()
         val actors = fullInfo[4].select("a").map { it.text() }
 
@@ -132,7 +129,7 @@ class EneyidaProvider : MainAPI() {
         // Тип контенту визначаємо виключно по JSON, а не по жанровому тегу:
         // "аніме" може бути і серіалом (Наруто) і фільмом (Хлопчик і Чапля).
         val scriptHtml = app.get(playerUrl).document.select("script").html()
-        val playerRawJson = extractFileValue(scriptHtml)
+        val playerRawJson = extractEneyidaFileValue(scriptHtml)
         val parsedJson = tryParseJson<List<PlayerJson>>(playerRawJson)
 
         // Визначення типу по структурі JSON:
@@ -242,7 +239,7 @@ class EneyidaProvider : MainAPI() {
                 this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it.url, addRaw = it.addRaw) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|$playerUrl") {
@@ -255,7 +252,7 @@ class EneyidaProvider : MainAPI() {
                 this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it.url, addRaw = it.addRaw) }
             }
         }
     }
@@ -270,7 +267,7 @@ class EneyidaProvider : MainAPI() {
         val dataList = data.split("|")
 
         val scriptHtml = app.get(dataList.last()).document.select("script").html()
-        val playerRawJson = extractFileValue(scriptHtml)
+        val playerRawJson = extractEneyidaFileValue(scriptHtml)
 
         // Its film, parse m3u8
         // Три можливих формати для фільму/аніме:
@@ -409,5 +406,60 @@ class EneyidaProvider : MainAPI() {
             }
         }
         return true
+    }
+}
+
+internal data class EneyidaTrailerData(
+    val url: String,
+    val addRaw: Boolean,
+)
+
+/** Парсить тільки окремий trailer-контейнер і не перетворює відсутній src на "null". */
+internal fun extractEneyidaTrailer(document: Document): String? {
+    val containers = document.select("#trailer_place, [id], [class]")
+        .filter { element ->
+            element.attr("id").contains("trailer", ignoreCase = true) ||
+                element.attr("class").contains("trailer", ignoreCase = true)
+        }
+
+    fun extractUrl(element: Element): String? = sequence {
+        yieldAll(element.select("iframe[src], iframe[data-src]").map {
+            it.attr("src").ifBlank { it.attr("data-src") }
+        })
+        yieldAll(element.select("a[href]").map { it.attr("href") })
+    }
+        .mapNotNull(::normalizeEneyidaTrailerUrl)
+        .firstOrNull()
+
+    return containers.asSequence().mapNotNull(::extractUrl).firstOrNull()
+}
+
+/** Витягує прямий HLS з hdvbua player, для якого немає штатного extractor-а. */
+internal fun parseEneyidaTrailerPlayerUrl(scriptHtml: String): String? {
+    val file = extractEneyidaFileValue(scriptHtml).trim()
+    if (file.startsWith("[") || file.startsWith("{")) return null
+    return normalizeEneyidaTrailerUrl(file)
+}
+
+private suspend fun resolveEneyidaTrailer(document: Document): EneyidaTrailerData? {
+    val trailerUrl = extractEneyidaTrailer(document) ?: return null
+    if (!trailerUrl.contains("hdvbua.pro/vid/", ignoreCase = true)) {
+        return EneyidaTrailerData(trailerUrl, addRaw = false)
+    }
+
+    val playerDocument = runCatching { app.get(trailerUrl).document }.getOrNull() ?: return null
+    val streamUrl = parseEneyidaTrailerPlayerUrl(playerDocument.select("script").html())
+        ?: return null
+    return EneyidaTrailerData(streamUrl, addRaw = true)
+}
+
+private fun normalizeEneyidaTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
     }
 }

@@ -3,6 +3,7 @@ package com.lagradost
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.Score
@@ -20,7 +21,6 @@ import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
-import org.json.JSONObject
 import org.jsoup.nodes.Element
 
 class CikavaIdeyaProvider : MainAPI() {
@@ -53,7 +53,7 @@ class CikavaIdeyaProvider : MainAPI() {
     ): HomePageResponse {
         val document = app.get(request.data + page).document
 
-        val home = document.select(".th-item").map {
+        val home = document.select(".th-item").filterNot(::isCikavaDeleted).map {
             it.toSearchResponse()
         }
 
@@ -93,12 +93,13 @@ class CikavaIdeyaProvider : MainAPI() {
                     "story" to query.replace(" ", "+")))
                 .document
 
-        return document.select(".th-item").map { it.toSearchResponse() }
+        return document.select(".th-item").filterNot(::isCikavaDeleted).map { it.toSearchResponse() }
     }
 
     // Detailed information
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
+        if (isCikavaDeleted(document)) return null
         // Parse info
         val fullInfo = document.select(".flist li")
         val title = document.selectFirst(".full h1")?.text()?.trim().toString()
@@ -106,32 +107,20 @@ class CikavaIdeyaProvider : MainAPI() {
         val banner = document.select(".fx-row").attr("data-img")
         val tags = fullInfo[2].select("a").map { it.text() }
         val year = fullInfo[0].select("li").text().toIntOrNull()
-        val playerUrl = document.select(".video-box iframe").attr("src")
-
         val tvType = if (tags.contains("Фільми") or tags.contains("Артхаус")) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst(".fdesc")?.text()?.trim()
-        // val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
+        val trailer = extractCikavaTrailer(document)
         val rating = document.select(".likes").text().dropLast(1)
         // val actors = fullInfo[4].select("a").map { it.text() }
 
-        val recommendations = document.select(".th-rel").map {
+        val recommendations = document.select(".th-rel").filterNot(::isCikavaDeleted).map {
             it.toSearchResponse()
         }
 
-        // Grab player json from html
-        var playerJson = JSONObject()
-        document.select("script").forEach {
-            val scriptContent = it.html()
-            // Skip if no switches
-            if (!scriptContent.contains("switches = Object")) return@forEach
-
-            val jsonStart = scriptContent.indexOf("Object(") + "Object(".length
-            val jsonEnd = scriptContent.lastIndexOf(");")
-            val jsonString = scriptContent.substring(jsonStart, jsonEnd)
-
-            playerJson = JSONObject(jsonString)
-            // Log.d("CakesTwix-Debug", playerJson.getJSONObject("Player1").toString())
-        }
+        // Якщо основного Player1 немає, трейлер не повинен перетворювати порожню
+        // сторінку на доступний матеріал.
+        val playerJson = parseCikavaPlayerJson(document)
+        if (!hasCikavaPlayableMaterial(playerJson)) return null
 
         // Return to app
         // Parse Episodes as Series
@@ -166,7 +155,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
-                // addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, playerJson.getString("Player1")) {
@@ -178,7 +167,7 @@ class CikavaIdeyaProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 // addActors(actors)
                 this.recommendations = recommendations
-                // addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         }
     }

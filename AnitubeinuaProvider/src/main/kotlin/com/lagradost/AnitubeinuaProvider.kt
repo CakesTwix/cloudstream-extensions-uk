@@ -16,6 +16,7 @@ import com.lagradost.models.Link
 import com.lagradost.models.PlayerJson
 import com.lagradost.models.videoConstructor
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class AnitubeinuaProvider : MainAPI() {
@@ -110,7 +111,7 @@ class AnitubeinuaProvider : MainAPI() {
 
         val tvType = TvType.Anime
         val description = document.selectFirst("div.my-text")?.text()?.trim()
-        val trailer = document.selectFirst(".rcol a.rollover")?.attr("href").toString()
+        val trailer = extractAnitubeTrailer(document)
         val rating = document.selectFirst(".lexington-box > div:last-child span")?.text()
 
         val recommendations = document.select(".horizontal ul li").map { it.toSearchResponse() }
@@ -188,7 +189,7 @@ class AnitubeinuaProvider : MainAPI() {
             this.plot = description
             this.tags = tags
             this.score = Score.from10(rating)
-            addTrailer(trailer)
+            trailer?.let { addTrailer(it) }
             this.recommendations = recommendations
             addEpisodes(DubStatus.Dubbed, dubEpisodes)
             addEpisodes(DubStatus.Subbed, subEpisodes)
@@ -510,5 +511,29 @@ class AnitubeinuaProvider : MainAPI() {
         }
 
         return value.value.toIntOrNull()
+    }
+}
+
+/** Повертає null, якщо сторінка не має посилання на трейлер. */
+internal fun extractAnitubeTrailer(document: Document): String? {
+    return document.select(".rcol a.rollover[href], .rcol a[href]")
+        .asSequence()
+        .filter { element ->
+            element.hasClass("rollover") ||
+                element.text().contains("трейлер", ignoreCase = true) ||
+                element.attr("href").contains("youtube", ignoreCase = true)
+        }
+        .mapNotNull { normalizeAnitubeTrailerUrl(it.attr("href")) }
+        .firstOrNull()
+}
+
+private fun normalizeAnitubeTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
     }
 }
