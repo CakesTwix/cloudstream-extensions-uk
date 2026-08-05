@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.MainAPI
 import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
@@ -110,6 +111,7 @@ class UnimayProvider : MainAPI() {
             "Телесеріал" -> TvType.Anime
             else -> TvType.Anime
         }
+        val trailer = normalizeUnimayTrailer(anime.trailer)
 
         val episodes = mutableListOf<Episode>()
 
@@ -140,6 +142,7 @@ class UnimayProvider : MainAPI() {
             addEpisodes(DubStatus.Dubbed, episodes)
             this.year = anime.year
             addAniListId(anime.aniListId)
+            trailer?.let { addTrailer(it) }
         }
     }
 
@@ -165,5 +168,19 @@ class UnimayProvider : MainAPI() {
         }
 
         return true
+    }
+}
+
+/** Перетворює ID трейлера Unimay на URL YouTube; порожні поля ігноруються. */
+internal fun normalizeUnimayTrailer(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank()) return null
+
+    return when {
+        value.startsWith("http://", ignoreCase = true) ||
+            value.startsWith("https://", ignoreCase = true) -> value
+        value.matches(Regex("[A-Za-z0-9_-]{11}")) ->
+            "https://www.youtube.com/watch?v=$value"
+        else -> null
     }
 }
