@@ -4,9 +4,11 @@ import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class AnimeUAProvider : MainAPI() {
@@ -96,6 +98,7 @@ class AnimeUAProvider : MainAPI() {
         val tags = document.select(genresSelector).map { it.text() }
         val year = document.select(yearSelector).text().substringAfter(": ").substringBefore("-").toIntOrNull()
         val playerUrl = document.select(playerSelector).attr("data-src")
+        val trailer = extractAnimeUATrailer(document)
 
         val tvType = with(tags){
             when{
@@ -146,6 +149,7 @@ class AnimeUAProvider : MainAPI() {
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addMalId(malId)
                 addAniListId(anilistId?.toIntOrNull())
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, tvType, "${title.replace("|", "")}|$playerUrl") {
@@ -155,6 +159,7 @@ class AnimeUAProvider : MainAPI() {
                 this.plot = description
                 this.tags = tags
                 this.recommendations = recommendations
+                trailer?.let { addTrailer(it) }
             }
         }
     }
@@ -201,4 +206,24 @@ class AnimeUAProvider : MainAPI() {
         return true
     }
 
+}
+
+/** Вибирає iframe з вкладки «Трейлер», не плутаючи його з основним Ashdi-плеєром. */
+internal fun extractAnimeUATrailer(document: Document): String? {
+    val trailerIndex = document
+        .select(".pmovie__player-controls .tabs-block__select span")
+        .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
+    if (trailerIndex < 0) return null
+
+    val iframe = document
+        .select(".pmovie__player .tabs-block__content.video-inside")
+        .getOrNull(trailerIndex)
+        ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
+        ?: return null
+    val rawUrl = iframe.attr("src").ifBlank { iframe.attr("data-src") }.trim()
+    return when {
+        rawUrl.startsWith("//") -> "https:$rawUrl"
+        rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
+        else -> null
+    }
 }
