@@ -48,6 +48,8 @@ class CloudSyncPlugin : Plugin() {
     private var isRestoring = false
     @Volatile
     private var restoringUntil = 0L
+    @Volatile
+    private var reloadPending = false
     private val RESTORE_GUARD_MS = 5_000L
 
     // pullMutex відсікає повторний pull, а syncMutex не дає polling,
@@ -184,8 +186,14 @@ class CloudSyncPlugin : Plugin() {
     private fun reload() {
         pluginScope.launch(Dispatchers.Main) {
             val act = activity
-            if (act == null || act.isFinishing || act.isDestroyed) return@launch
+            if (shouldDeferUiReload(act != null, act?.isFinishing == true, act?.isDestroyed == true)) {
+                // Синхронізація може завершитися з Application-контекстом раніше
+                // за MainActivity. Не втрачаємо подію: повторимо її після resume.
+                reloadPending = true
+                return@launch
+            }
             try {
+                reloadPending = false
                 MainActivity.bookmarksUpdatedEvent.invoke(true)
                 MainActivity.reloadLibraryEvent.invoke(true)
             } catch (e: Throwable) {
@@ -463,6 +471,7 @@ class CloudSyncPlugin : Plugin() {
         dataPrefsListener = null
         defaultPrefsListener = null
         bookmarkObserver = null
+        reloadPending = false
         lifecycleCallbacks?.let { registeredApp?.unregisterActivityLifecycleCallbacks(it) }
         lifecycleCallbacks = null
         registeredApp = null
@@ -569,6 +578,7 @@ class CloudSyncPlugin : Plugin() {
             override fun onActivityResumed(a: android.app.Activity) {
                 if (a is MainActivity) {
                     this@CloudSyncPlugin.activity = a as? AppCompatActivity
+                    if (reloadPending) reload()
                     pluginScope.launch {
                         try {
                             val c = SyncStorage.creds

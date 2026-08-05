@@ -15,6 +15,7 @@ import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.ExtractorLink
@@ -38,8 +39,6 @@ class CikavaIdeyaProvider : MainAPI() {
     )
 
     private var dle_login_hash = ""
-    val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
-
     // Sections
     override val mainPage = mainPageOf(
         "$mainUrl/filmy/page/" to "Фільми",
@@ -192,22 +191,18 @@ class CikavaIdeyaProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = app.get(data).document
-        val m3u8Url = fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
+        val playerData = parseCikavaPlayerData(document.select("script").html())
+        if (playerData.streamUrl.isBlank()) return false
+
         M3u8Helper.generateM3u8(
             source = "Цікава Ідея",
-            streamUrl = m3u8Url.replace("https://", "http://"),
+            streamUrl = playerData.streamUrl,
             referer = "https://tortuga.wtf/"
         ).dropLast(1).forEach(callback)
 
-        val subtitleUrl = fileRegex.find(document.select("script").html())?.groups?.get(1)?.value ?: ""
-
-        if(subtitleUrl.isNullOrBlank()) return true
-        subtitleCallback.invoke(
-            SubtitleFile(
-                subtitleUrl.substringAfterLast("[").substringBefore("]"),
-                subtitleUrl.substringAfter("]")
-            )
-        )
+        playerData.subtitle?.let { subtitle ->
+            subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+        }
         return true
     }
 }

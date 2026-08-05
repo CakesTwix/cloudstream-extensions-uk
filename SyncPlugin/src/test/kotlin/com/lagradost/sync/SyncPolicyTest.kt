@@ -102,4 +102,12 @@ class SyncPolicyTest {
             SyncBackup.parseBackupFile("""{"datastore":{},"settings":{}}""").isSuccess
         )
     }
+
+    @Test
+    fun `reload waits for a visible activity when sync starts in the background`() {
+        assertTrue(shouldDeferUiReload(activityAvailable = false, isFinishing = false, isDestroyed = false))
+        assertTrue(shouldDeferUiReload(activityAvailable = true, isFinishing = true, isDestroyed = false))
+        assertTrue(shouldDeferUiReload(activityAvailable = true, isFinishing = false, isDestroyed = true))
+        assertFalse(shouldDeferUiReload(activityAvailable = true, isFinishing = false, isDestroyed = false))
+    }
 }
