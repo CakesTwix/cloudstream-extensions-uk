@@ -9,6 +9,15 @@ import org.junit.Test
 
 class BambooTrailerParsingTest {
     @Test
+    fun `прямий movie file у playlist не втрачається`() {
+        val file = "https://ongoing3.bambooua.com/films/example/video/index.m3u8"
+        assertEquals(
+            listOf(file),
+            bambooPlaylistFiles(BambooUAProvider.PlaylistGroup(file = file)),
+        )
+    }
+
+    @Test
     fun `playlist group without title is safely ignored`() {
         assertFalse(isBambooDubGroup(null))
         assertFalse(isBambooSubtitleGroup(null))
