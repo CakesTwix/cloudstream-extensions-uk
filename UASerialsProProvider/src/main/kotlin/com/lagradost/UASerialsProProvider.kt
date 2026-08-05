@@ -177,8 +177,6 @@ class UASerialsProProvider : MainAPI() {
         val countries = document.select(countrySelector).map { it.text() }
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
         val plot = if (countries.isNotEmpty()) "<b>Країна: ${countries.joinToString(", ")}.</b> $description" else description
-        val trailer = extractUASerialsTrailer(document)
-
         val recommendations = document.select(animeSelector).map {
             it.toSearchResponse()
         }
@@ -195,6 +193,18 @@ class UASerialsProProvider : MainAPI() {
         val cleanJson = if (lastBracket != -1) decryptData.substring(0, lastBracket + 1) else decryptData
 
         val playerTabs = Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel).orEmpty()
+        val trailer = extractUASerialsTrailer(document, playerTabs)
+        val resolvedTrailer = if (trailer?.contains("tortuga.tw/vod", ignoreCase = true) == true) {
+            val trailerHtml = runCatching {
+                app.get(
+                    trailer,
+                    headers = mapOf("User-Agent" to USER_AGENT, "Referer" to mainUrl),
+                ).text
+            }.getOrDefault("")
+            resolveUASerialsTrailerUrl(trailer, trailerHtml)
+        } else {
+            trailer
+        }
         val playerUrl = firstAvailablePlayerUrl(
             listOfNotNull(playerTabs.firstOrNull { it.tabName == "Плеєр" }?.url) +
                 playerTabs.map { it.url }
@@ -262,7 +272,13 @@ class UASerialsProProvider : MainAPI() {
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addActors(actors)
-                trailer?.let { addTrailer(it) }
+                resolvedTrailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         } else {
             // Для фільмів/мультфільмів: якщо є переклад на сторінці — використовуємо його,
@@ -277,7 +293,13 @@ class UASerialsProProvider : MainAPI() {
                 this.contentRating = contentRating
                 this.recommendations = recommendations
                 addActors(actors)
-                trailer?.let { addTrailer(it) }
+                resolvedTrailer?.let {
+                    addTrailer(
+                        it,
+                        referer = if (it.contains(".m3u8", ignoreCase = true)) "https://tortuga.tw/" else null,
+                        addRaw = it.contains(".m3u8", ignoreCase = true),
+                    )
+                }
             }
         }
     }
@@ -525,7 +547,16 @@ internal fun firstAvailablePlayerUrl(urls: List<String>): String? =
     urls.firstOrNull { it.isNotBlank() }
 
 /** Витягує URL лише з окремої вкладки/блоку `Трейлер`, а не з player iframe. */
-internal fun extractUASerialsTrailer(document: Document): String? {
+internal fun extractUASerialsTrailer(
+    document: Document,
+    playerTabs: List<AESPlayerDecodedModel> = emptyList(),
+): String? {
+    playerTabs.asSequence()
+        .filter { it.tabName.contains("трейлер", ignoreCase = true) }
+        .mapNotNull { normalizeUASerialsTrailerUrl(it.url) }
+        .firstOrNull()
+        ?.let { return it }
+
     val trailerElements = document.select("*").filter { element ->
         listOf("id", "class", "data-tab", "data-target", "data-content", "data-tab-content")
             .any { attribute -> element.attr(attribute).contains("trailer", ignoreCase = true) }
@@ -570,6 +601,32 @@ internal fun extractUASerialsTrailer(document: Document): String? {
     }
 
     return null
+}
+
+/** Перетворює сторінку Tortuga-плеєра вкладки «Трейлер» на прямий HLS URL. */
+internal fun resolveUASerialsTrailerUrl(
+    trailerUrl: String?,
+    trailerPageHtml: String,
+    decode: (String) -> String? = { UASerialsProProvider.Decoder.tortugaDecode(it) },
+): String? {
+    val normalized = normalizeUASerialsTrailerUrl(trailerUrl) ?: return null
+    if (!normalized.contains("tortuga.tw/vod", ignoreCase = true)) return normalized
+
+    val encodedFile = Regex("file\\s*:\\s*[\\\"']([^\\\",']+?)[\\\"']")
+        .find(trailerPageHtml)
+        ?.groups
+        ?.get(1)
+        ?.value
+        ?.trim()
+        ?: return null
+
+    val decodedFile = if (encodedFile.startsWith("http", ignoreCase = true)) {
+        encodedFile
+    } else {
+        decode(encodedFile)
+    }
+
+    return decodedFile?.trim()?.takeIf { it.startsWith("http", ignoreCase = true) }
 }
 
 private fun normalizeUASerialsTrailerUrl(raw: String?): String? {

@@ -1,5 +1,6 @@
 package com.lagradost
 
+import com.lagradost.models.AESPlayerDecodedModel
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,4 +35,37 @@ class UASerialsTrailerParsingTest {
 
         assertNull(extractUASerialsTrailer(document))
     }
+
+    @Test
+    fun `трейлер із зашифрованої вкладки плеєра знаходиться`() {
+        val document = Jsoup.parse("<player-control></player-control>")
+        val playerTabs = listOf(
+            AESPlayerDecodedModel("Плеєр", "https://tortuga.tw/embed/638"),
+            AESPlayerDecodedModel("Трейлер", "https://tortuga.tw/vod/31529"),
+        )
+
+        assertEquals(
+            "https://tortuga.tw/vod/31529",
+            extractUASerialsTrailer(document, playerTabs),
+        )
+    }
+
+    @Test
+    fun `сторінка Tortuga трейлера декодується до HLS`() {
+        val trailerHtml = """
+            <script>
+                playerjs({ file: "encoded-trailer" });
+            </script>
+        """.trimIndent()
+
+        assertEquals(
+            "https://calypso.tortuga.tw/hls/trailers/demo/index.m3u8",
+            resolveUASerialsTrailerUrl(
+                "https://tortuga.tw/vod/31529",
+                trailerHtml,
+                decode = { "https://calypso.tortuga.tw/hls/trailers/demo/index.m3u8" },
+            ),
+        )
+    }
+
 }
