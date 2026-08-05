@@ -7,6 +7,23 @@ import org.junit.Test
 
 class SerialnoTrailerParsingTest {
     @Test
+    fun `legacy Tortuga file separates HLS URL from inline subtitle`() {
+        val parsed = parseSerialnoEpisodeFile(
+            "{Clan Kaizoku}https://calypso.tortuga.tw/hls/serials/devil.in.ohio.s01e01.mvo_93098/hls/index.m3u8(subtitle:[Українські]https://tortuga.tw/player/subtitle/93098_ua.vtt)",
+        )
+
+        assertEquals("Clan Kaizoku", parsed?.source)
+        assertEquals(
+            "https://calypso.tortuga.tw/hls/serials/devil.in.ohio.s01e01.mvo_93098/hls/index.m3u8",
+            parsed?.streamUrl,
+        )
+        assertEquals(
+            "[Українські]https://tortuga.tw/player/subtitle/93098_ua.vtt",
+            parsed?.subtitle,
+        )
+    }
+
+    @Test
     fun `трейлер береться з video-box відповідно до вкладки`() {
         val document = Jsoup.parse(
             """

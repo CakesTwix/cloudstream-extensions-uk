@@ -178,20 +178,22 @@ class SerialnoProvider : MainAPI() {
             ?.flatMap { it.folder }              // Беремо список епізодів
             ?.filter { it.title == dataList[2] } // Фільтруємо потрібний епізод
             ?.forEach { episode ->               // Обробляємо кожен епізод
-                val dubTitle = if (episode.file.startsWith("{")) episode.file.substringAfter("{").substringBefore("}") else "Цікава Ідея"
-                val streamUrl = if (episode.file.startsWith("{")) episode.file.substringAfter("}") else episode.file
+                // Старий формат Tortuga додає субтитри до того самого поля file:
+                // `...index.m3u8(subtitle:[Мова]...vtt)`. Суфікс не може потрапити в URL HLS.
+                val parsedEpisode = parseSerialnoEpisodeFile(episode.file) ?: return@forEach
 
                 M3u8Helper.generateM3u8(
-                    source = dubTitle,
-                    streamUrl = streamUrl,
+                    source = parsedEpisode.source,
+                    streamUrl = parsedEpisode.streamUrl,
                     referer = "https://tortuga.wtf/"
                 ).dropLast(1).forEach(callback)
 
-                if (!episode.subtitle.isNullOrBlank()) {
+                val subtitle = episode.subtitle ?: parsedEpisode.subtitle
+                if (!subtitle.isNullOrBlank()) {
                     subtitleCallback.invoke(
                         newSubtitleFile(
-                            episode.subtitle.substringAfterLast("[").substringBefore("]"),
-                            episode.subtitle.substringAfter("]")
+                            subtitle.substringAfterLast("[").substringBefore("]"),
+                            subtitle.substringAfter("]")
                         )
                     )
                 }
@@ -266,6 +268,47 @@ class SerialnoProvider : MainAPI() {
             }
         }
     }
+}
+
+/** Нормалізує старий формат `file` від Tortuga, де субтитри вбудовані після HLS URL. */
+internal data class SerialnoEpisodeFile(
+    val source: String,
+    val streamUrl: String,
+    val subtitle: String? = null,
+)
+
+internal fun parseSerialnoEpisodeFile(rawFile: String): SerialnoEpisodeFile? {
+    val raw = rawFile.trim()
+    if (raw.isBlank()) return null
+
+    val source = raw
+        .takeIf { it.startsWith("{") }
+        ?.substringAfter("{")
+        ?.substringBefore("}")
+        ?.takeIf { it.isNotBlank() }
+        ?: "Цікава Ідея"
+    val streamAndSubtitle = if (raw.startsWith("{")) raw.substringAfter("}") else raw
+    val subtitleMarker = streamAndSubtitle.indexOf("(subtitle:", ignoreCase = true)
+    val streamUrl = if (subtitleMarker >= 0) {
+        streamAndSubtitle.substring(0, subtitleMarker)
+    } else {
+        streamAndSubtitle
+    }
+    val subtitle = if (subtitleMarker >= 0) {
+        streamAndSubtitle
+            .substring(subtitleMarker + "(subtitle:".length)
+            .removeSuffix(")")
+            .trim()
+            .takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
+    return SerialnoEpisodeFile(
+        source = source,
+        streamUrl = streamUrl.trim().takeIf { it.isNotBlank() } ?: return null,
+        subtitle = subtitle,
+    )
 }
 
 /** Знаходить iframe трейлера за порядком вкладок Serialno. */
