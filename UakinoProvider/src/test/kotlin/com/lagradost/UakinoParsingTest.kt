@@ -22,4 +22,22 @@ class UakinoParsingTest {
     fun `invalid year falls back to the existing default`() {
         assertEquals(2023, parseUakinoYear("невідомо", 2023))
     }
+
+    @Test
+    fun `movie fallback uses the original detail page`() {
+        val movieUrl = "https://uakino.best/filmy/family/35377-toni-10.html"
+        val ajaxUrl = "https://uakino.best/engine/ajax/playlists.php?news_id=35377"
+
+        // Для фільму AJAX-відповідь може бути ERR_NOT_DATA, тому сторінку треба
+        // повторно завантажувати за початковим URL, а не за URL AJAX-запиту.
+        assertEquals(movieUrl, resolveUakinoDetailUrl(movieUrl, null, ajaxUrl))
+    }
+
+    @Test
+    fun `episode fallback keeps the player request URL`() {
+        val movieUrl = "https://uakino.best/filmy/family/35377-toni-10.html"
+        val ajaxUrl = "https://uakino.best/engine/ajax/playlists.php?news_id=35377"
+
+        assertEquals(ajaxUrl, resolveUakinoDetailUrl(movieUrl, "Серія 1", ajaxUrl))
+    }
 }
