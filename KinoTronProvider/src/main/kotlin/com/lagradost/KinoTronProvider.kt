@@ -92,7 +92,7 @@ class KinoTronProvider : MainAPI() {
     }
 
     // Detailed information
-    override suspend fun load(url: String): LoadResponse {
+    override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
 
@@ -121,6 +121,8 @@ class KinoTronProvider : MainAPI() {
         val episodes = mutableListOf<Episode>()
         val playerUrl = document.select("div.video-box iframe").attr("data-src")
         val trailer = extractKinoTronTrailer(document)
+        // Якщо Player1 містить лише той самий YouTube-трейлер, матеріалу для перегляду немає.
+        if (!isKinoTronPlayableMainPlayer(playerUrl, trailer)) return null
         if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
         // Log.d("load-debug", playerUrl)
         // Return to app
@@ -206,6 +208,16 @@ class KinoTronProvider : MainAPI() {
         }
         return true
     }
+}
+
+/** Не вважає YouTube-трейлер основним потоком для KinoTron. */
+internal fun isKinoTronPlayableMainPlayer(playerUrl: String?, trailerUrl: String?): Boolean {
+    val player = playerUrl?.trim().orEmpty()
+    if (player.isBlank()) return false
+    val duplicateTrailer = trailerUrl?.trim()?.equals(player, ignoreCase = true) == true
+    val isYoutube = player.contains("youtube.com", ignoreCase = true) ||
+        player.contains("youtu.be", ignoreCase = true)
+    return !isYoutube && !duplicateTrailer
 }
 
 /** Витягує трейлер із явного trailer-box або відповідного табу KinoTron. */

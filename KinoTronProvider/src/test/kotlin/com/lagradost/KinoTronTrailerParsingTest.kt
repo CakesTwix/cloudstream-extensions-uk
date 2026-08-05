@@ -2,10 +2,21 @@ package com.lagradost
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class KinoTronTrailerParsingTest {
+    @Test
+    fun `youtube який продубльований у Player1 не є основним відео`() {
+        assertFalse(
+            isKinoTronPlayableMainPlayer(
+                "https://www.youtube.com/embed/0PPX_98KEx0",
+                "https://www.youtube.com/embed/0PPX_98KEx0",
+            )
+        )
+    }
+
     @Test
     fun `явний trailer-box має пріоритет над основним плеєром`() {
         val document = Jsoup.parse(
