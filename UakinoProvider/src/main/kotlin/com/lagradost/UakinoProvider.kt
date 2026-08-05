@@ -283,7 +283,9 @@ class UakinoProvider : MainAPI() {
             }
         } else {
             // Логіка для фільмів (або якщо AJAX не повернув успіх)
-            val filmDoc = fetchDetail(requestUrl)
+            // Для фільму requestUrl — це AJAX-запит, який часто відповідає ERR_NOT_DATA.
+            // Повторно відкриваємо сторінку фільму, а для серії залишаємо URL плеєра.
+            val filmDoc = fetchDetail(resolveUakinoDetailUrl(data, targetEpisode, requestUrl))
             val iframeUrl = filmDoc?.selectFirst("iframe#pre")?.attr("src")
 
             if (iframeUrl != null) {

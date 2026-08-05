@@ -21,5 +21,11 @@ internal fun parseUakinoEpisodeData(data: String): UakinoEpisodeData {
     )
 }
 
+internal fun resolveUakinoDetailUrl(
+    originalData: String,
+    targetEpisode: String?,
+    requestUrl: String,
+): String = if (targetEpisode == null) originalData else requestUrl
+
 internal fun parseUakinoYear(rawYear: String, fallback: Int): Int =
     rawYear.trim().toIntOrNull() ?: fallback
