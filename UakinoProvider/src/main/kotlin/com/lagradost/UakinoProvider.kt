@@ -178,7 +178,7 @@ class UakinoProvider : MainAPI() {
 
         val description = document.selectFirst("div[itemprop=description]")?.text()?.trim()
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
-        val trailer = document.selectFirst("iframe#pre")?.attr("data-src")
+        val trailer = extractUakinoTrailer(document)
 
         // Add seasons to recommendations
         val recommendations =
@@ -225,7 +225,7 @@ class UakinoProvider : MainAPI() {
                 addActors(actors)
                 addEpisodes(DubStatus.None, episodes.distinctBy { it.name })
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, tvType, url) {
@@ -237,7 +237,7 @@ class UakinoProvider : MainAPI() {
                 this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         }
     }
@@ -341,3 +341,71 @@ class UakinoProvider : MainAPI() {
         val response: String,
     )
 }
+
+/**
+ * Витягує тільки iframe/посилання з вкладки трейлера.
+ * Основний Uakino-плеєр також використовує `iframe#pre`, тому його не можна
+ * використовувати як універсальний fallback.
+ */
+internal fun extractUakinoTrailer(document: Document): String? {
+    val trailerElements = document.select("*").filter { element ->
+        listOf("id", "class", "data-tab", "data-target", "data-content", "data-tab-content")
+            .any { attribute -> element.attr(attribute).contains("trailer", ignoreCase = true) }
+    }
+
+    val targetElements = trailerElements.flatMap { element ->
+        val target = listOf("data-target", "data-content", "data-tab-content", "href")
+            .asSequence()
+            .map { element.attr(it).trim().removePrefix("#") }
+            .firstOrNull { it.isNotBlank() }
+
+        listOfNotNull(
+            element,
+            target?.let { document.getElementById(it) },
+            target?.let { value ->
+                document.select("[data-tab-content=\"$value\"], [data-content=\"$value\"]").firstOrNull()
+            },
+        )
+    }
+
+    fun extractUrl(element: Element): String? = sequence {
+        yieldAll(element.select("iframe[src], iframe[data-src]").map {
+            it.attr("src").ifBlank { it.attr("data-src") }
+        })
+        yieldAll(element.select("a[href]").map { it.attr("href") })
+    }
+        .mapNotNull(::normalizeUakinoTrailerUrl)
+        .toList()
+        .let { urls -> urls.firstOrNull(::isUakinoYoutubeUrl) ?: urls.firstOrNull() }
+
+    targetElements.asSequence().mapNotNull(::extractUrl).firstOrNull()?.let { return it }
+
+    // На частині сторінок вкладка не має id/data-target, але підпис присутній.
+    // У такому разі безпечним fallback є лише YouTube iframe, а не перший iframe.
+    if (document.text().contains("Трейлер", ignoreCase = true)) {
+        return document.select("iframe[src], iframe[data-src], a[href]")
+            .asSequence()
+            .map { element ->
+                if (element.tagName() == "a") element.attr("href")
+                else element.attr("src").ifBlank { element.attr("data-src") }
+            }
+            .mapNotNull(::normalizeUakinoTrailerUrl)
+            .firstOrNull(::isUakinoYoutubeUrl)
+    }
+
+    return null
+}
+
+private fun normalizeUakinoTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
+    }
+}
+
+private fun isUakinoYoutubeUrl(url: String): Boolean =
+    url.contains("youtube.com", ignoreCase = true) || url.contains("youtu.be", ignoreCase = true)

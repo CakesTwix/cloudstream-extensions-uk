@@ -15,6 +15,7 @@ import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.addDubStatus
 import com.lagradost.cloudstream3.addEpisodes
 import com.lagradost.cloudstream3.app
@@ -31,6 +32,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AESPlayerDecodedModel
 import com.lagradost.models.DecodedJSON
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -175,6 +177,7 @@ class UASerialsProProvider : MainAPI() {
         val countries = document.select(countrySelector).map { it.text() }
         val description = document.selectFirst(descriptionSelector)?.text()?.trim()
         val plot = if (countries.isNotEmpty()) "<b>Країна: ${countries.joinToString(", ")}.</b> $description" else description
+        val trailer = extractUASerialsTrailer(document)
 
         val recommendations = document.select(animeSelector).map {
             it.toSearchResponse()
@@ -259,6 +262,7 @@ class UASerialsProProvider : MainAPI() {
                 this.recommendations = recommendations
                 addEpisodes(DubStatus.Dubbed, episodes)
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         } else {
             // Для фільмів/мультфільмів: якщо є переклад на сторінці — використовуємо його,
@@ -273,6 +277,7 @@ class UASerialsProProvider : MainAPI() {
                 this.contentRating = contentRating
                 this.recommendations = recommendations
                 addActors(actors)
+                trailer?.let { addTrailer(it) }
             }
         }
     }
@@ -518,3 +523,65 @@ class UASerialsProProvider : MainAPI() {
 
 internal fun firstAvailablePlayerUrl(urls: List<String>): String? =
     urls.firstOrNull { it.isNotBlank() }
+
+/** Витягує URL лише з окремої вкладки/блоку `Трейлер`, а не з player iframe. */
+internal fun extractUASerialsTrailer(document: Document): String? {
+    val trailerElements = document.select("*").filter { element ->
+        listOf("id", "class", "data-tab", "data-target", "data-content", "data-tab-content")
+            .any { attribute -> element.attr(attribute).contains("trailer", ignoreCase = true) }
+    }
+
+    fun extractUrl(element: Element): String? = sequence {
+        yieldAll(element.select("iframe[src], iframe[data-src]").map {
+            it.attr("src").ifBlank { it.attr("data-src") }
+        })
+        yieldAll(element.select("a[href]").map { it.attr("href") })
+    }
+        .mapNotNull(::normalizeUASerialsTrailerUrl)
+        .toList()
+        .let { urls -> urls.firstOrNull(::isUASerialsYoutubeUrl) ?: urls.firstOrNull() }
+
+    val targetElements = trailerElements.flatMap { element ->
+        val target = listOf("data-target", "data-content", "data-tab-content", "href")
+            .asSequence()
+            .map { element.attr(it).trim().removePrefix("#") }
+            .firstOrNull { it.isNotBlank() }
+
+        listOfNotNull(
+            element,
+            target?.let { document.getElementById(it) },
+            target?.let { value ->
+                document.select("[data-tab-content=\"$value\"], [data-content=\"$value\"]").firstOrNull()
+            },
+        )
+    }
+
+    targetElements.asSequence().mapNotNull(::extractUrl).firstOrNull()?.let { return it }
+
+    if (document.text().contains("Трейлер", ignoreCase = true)) {
+        return document.select("iframe[src], iframe[data-src], a[href]")
+            .asSequence()
+            .map { element ->
+                if (element.tagName() == "a") element.attr("href")
+                else element.attr("src").ifBlank { element.attr("data-src") }
+            }
+            .mapNotNull(::normalizeUASerialsTrailerUrl)
+            .firstOrNull(::isUASerialsYoutubeUrl)
+    }
+
+    return null
+}
+
+private fun normalizeUASerialsTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
+    }
+}
+
+private fun isUASerialsYoutubeUrl(url: String): Boolean =
+    url.contains("youtube.com", ignoreCase = true) || url.contains("youtu.be", ignoreCase = true)

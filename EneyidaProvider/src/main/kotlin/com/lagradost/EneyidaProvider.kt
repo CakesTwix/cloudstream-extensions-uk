@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 class EneyidaProvider : MainAPI() {
@@ -120,7 +121,7 @@ class EneyidaProvider : MainAPI() {
         val countries = fullInfo[2].select("a").joinToString { it.text() }
         val contentRating = fullInfo[5].selectFirst("span[class^=age]")?.text()
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
-        val trailer = document.selectFirst("div#trailer_place iframe")?.attr("src").toString()
+        val trailer = extractEneyidaTrailer(document)
         val rating = document.selectFirst(".r_kp span, .r_imdb span")?.text()
         val actors = fullInfo[4].select("a").map { it.text() }
 
@@ -242,7 +243,7 @@ class EneyidaProvider : MainAPI() {
                 this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
             newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|$playerUrl") {
@@ -255,7 +256,7 @@ class EneyidaProvider : MainAPI() {
                 this.contentRating = contentRating
                 addActors(actors)
                 this.recommendations = recommendations
-                addTrailer(trailer)
+                trailer?.let { addTrailer(it) }
             }
         }
     }
@@ -409,5 +410,36 @@ class EneyidaProvider : MainAPI() {
             }
         }
         return true
+    }
+}
+
+/** Парсить тільки окремий trailer-контейнер і не перетворює відсутній src на "null". */
+internal fun extractEneyidaTrailer(document: Document): String? {
+    val containers = document.select("#trailer_place, [id], [class]")
+        .filter { element ->
+            element.attr("id").contains("trailer", ignoreCase = true) ||
+                element.attr("class").contains("trailer", ignoreCase = true)
+        }
+
+    fun extractUrl(element: Element): String? = sequence {
+        yieldAll(element.select("iframe[src], iframe[data-src]").map {
+            it.attr("src").ifBlank { it.attr("data-src") }
+        })
+        yieldAll(element.select("a[href]").map { it.attr("href") })
+    }
+        .mapNotNull(::normalizeEneyidaTrailerUrl)
+        .firstOrNull()
+
+    return containers.asSequence().mapNotNull(::extractUrl).firstOrNull()
+}
+
+private fun normalizeEneyidaTrailerUrl(raw: String?): String? {
+    val value = raw?.trim().orEmpty()
+    if (value.isBlank() || value.equals("null", ignoreCase = true)) return null
+    if (value.startsWith("#") || value.startsWith("javascript:", ignoreCase = true)) return null
+    return when {
+        value.startsWith("//") -> "https:$value"
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+        else -> null
     }
 }
