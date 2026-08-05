@@ -37,6 +37,13 @@ object SyncPollPolicy {
     fun shouldMerge(hasDirtyCategories: Boolean): Boolean = hasDirtyCategories
 }
 
+/** Відкладає подію оновлення, якщо синхронізація завершилась до появи MainActivity. */
+internal fun shouldDeferUiReload(
+    activityAvailable: Boolean,
+    isFinishing: Boolean,
+    isDestroyed: Boolean,
+): Boolean = !activityAvailable || isFinishing || isDestroyed
+
 /**
  * CloudStream додає перед шляхом ключа номер акаунта:
  * `0/result_watch_state/123`. Старий парсер очікував шлях без `0/`.
