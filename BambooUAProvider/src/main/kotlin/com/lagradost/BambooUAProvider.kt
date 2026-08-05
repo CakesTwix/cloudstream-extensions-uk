@@ -210,10 +210,7 @@ class BambooUAProvider : MainAPI() {
             if (playlistJson != null) {
                 val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
                 playlist.forEach { group ->
-                    group.folder.orEmpty()
-                        .filterNot { isBambooSponsorVideo(it.file) }
-                        .forEach { episode ->
-                        val file = episode.file ?: return@forEach
+                    bambooPlaylistFiles(group).forEach { file ->
                         M3u8Helper.generateM3u8(
                             source = group.title.orEmpty().ifBlank { "BambooUA" },
                             streamUrl = file,
@@ -239,7 +236,8 @@ class BambooUAProvider : MainAPI() {
 
     data class PlaylistGroup(
         val title: String? = null,
-        val folder: List<PlaylistEpisode>? = emptyList()
+        val folder: List<PlaylistEpisode>? = emptyList(),
+        val file: String? = null
     )
 
     data class PlaylistEpisode(
@@ -260,6 +258,14 @@ internal fun isBambooDubGroup(title: String?): Boolean =
 /** Безпечно класифікує групу субтитрів, навіть якщо сайт віддав null title. */
 internal fun isBambooSubtitleGroup(title: String?): Boolean =
     title?.contains("Субтитри", ignoreCase = true) == true
+
+/** Повертає і прямий movie file, і файли вкладених епізодів. */
+internal fun bambooPlaylistFiles(group: BambooUAProvider.PlaylistGroup): List<String> = buildList {
+    group.file?.let { if (!isBambooSponsorVideo(it)) add(it) }
+    group.folder.orEmpty().mapNotNull { it.file }
+        .filterNot(::isBambooSponsorVideo)
+        .forEach(::add)
+}.distinct()
 
 /** Витягує лише URL із вкладки, назва якої явно містить «Трейлер». */
 internal fun extractBambooTrailer(document: Document): String? {
