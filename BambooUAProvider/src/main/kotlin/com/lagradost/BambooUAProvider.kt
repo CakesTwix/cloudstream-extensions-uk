@@ -153,7 +153,10 @@ class BambooUAProvider : MainAPI() {
             playlist.forEach { group ->
                 val isDub = group.title.contains("Озвучення") || group.title.contains("Дубляж")
                 val isSub = group.title.contains("Субтитри")
-                group.folder.forEachIndexed { index, episode ->
+                // Службовий ролик підтримки не є епізодом і не повинен потрапляти в каталог.
+                group.folder
+                    .filterNot { isBambooSponsorVideo(it.file) }
+                    .forEachIndexed { index, episode ->
                     val ep = newEpisode(episode.file) {
                         this.name = episode.title
                         this.episode = index + 1
@@ -206,7 +209,9 @@ class BambooUAProvider : MainAPI() {
             if (playlistJson != null) {
                 val playlist = Gson().fromJson(playlistJson, Array<PlaylistGroup>::class.java)
                 playlist.forEach { group ->
-                    group.folder.forEach { episode ->
+                    group.folder
+                        .filterNot { isBambooSponsorVideo(it.file) }
+                        .forEach { episode ->
                         M3u8Helper.generateM3u8(
                             source = group.title,
                             streamUrl = episode.file,
@@ -219,6 +224,8 @@ class BambooUAProvider : MainAPI() {
         }
 
         // Serial — data це пряме m3u8 посилання
+        if (isBambooSponsorVideo(data)) return false
+
         M3u8Helper.generateM3u8(
             source = "BambooUA",
             streamUrl = data,
@@ -238,6 +245,10 @@ class BambooUAProvider : MainAPI() {
         val file: String
     )
 }
+
+/** Відкидає службовий sponsor-ролик, який сайт додає до playlist перед контентом. */
+internal fun isBambooSponsorVideo(url: String?): Boolean =
+    url?.contains("be_sponsors.mp4", ignoreCase = true) == true
 
 /** Витягує лише URL із вкладки, назва якої явно містить «Трейлер». */
 internal fun extractBambooTrailer(document: Document): String? {

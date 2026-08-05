@@ -3,9 +3,17 @@ package com.lagradost
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BambooTrailerParsingTest {
+    @Test
+    fun `службове sponsor відео відкидається`() {
+        assertTrue(isBambooSponsorVideo("/uploades/be_sponsors.mp4"))
+        assertFalse(isBambooSponsorVideo("https://ongoing3.bambooua.com/films/demo/index.m3u8"))
+    }
+
     @Test
     fun `youtube трейлер знаходиться через вкладку`() {
         val document = Jsoup.parse(
