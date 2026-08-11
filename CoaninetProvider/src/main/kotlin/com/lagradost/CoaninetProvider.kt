@@ -1,6 +1,5 @@
 ﻿package com.lagradost
 
-import android.util.Log.d
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -103,62 +102,9 @@ class CoaninetProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        d("DEBUG load", "url:$url")
+//        d("DEBUG load", "url:$url")
         val document = app.get(url).document
 //        d("DEBUG load", "document:$document")
-
-
-        /*
-        *
-        *   get season:
-        * 1)https://coani.net/api/public/film/season?slug=oshi-no-ko-season-2
-        * get id from response
-        * {
-            "type": "season",
-            "data": {
-                "context": {
-                    "is_viewed": false,
-                    "series_viewed": 0,
-                    "series_viewed_percent": 0,
-                    "last_viewed_seria": 0
-                },
-                "id": 156,
-                *
-                *
-                *
-                * 2) get id for each season
-                * https://coani.net/api/public/film/season?slug=oshi-no-ko-season-2
-                * {
-            "type": "season",
-            "data": {
-                "context": {
-                    "is_viewed": false,
-                    "series_viewed": 0,
-                    "series_viewed_percent": 0,
-                    "last_viewed_seria": 0
-                },
-                "id": 156,
-
-                *https://coani.net/api/public/film/season?slug=oshi-no-ko-season-3
-                * {
-            "type": "season",
-            "data": {
-                "context": {
-                    "is_viewed": false,
-                    "series_viewed": 0,
-                    "series_viewed_percent": 0,
-                    "last_viewed_seria": 0
-                },
-                "id": 157,
-                *
-                * 3)get m3u video url for each episod of each season m3u
-                * episod preview
-                *
-
-        *
-        *
-        * */
-
 
         // Collect all seasons at the start.
         // `null` means there is no selector, so reuse the already-loaded document.
@@ -179,7 +125,7 @@ class CoaninetProvider : MainAPI() {
                 listOf(1 to "")
             }
 
-        d("DEBUG load", "seasons:$seasons")
+//        d("DEBUG load", "seasons:$seasons")
 
         val title = getPageTitle(document)
         val engTitle = getPageEngTitle(document)
@@ -223,8 +169,7 @@ class CoaninetProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        d("DEBUG loadLinks", "Data: $data")
-
+//        d("DEBUG loadLinks", "Data: $data")
         // 1. Deserialize as a List of SeriesData objects (all available dubs for this episode)
         val seriesList = mapper.readValue<List<SeriesData>>(data)
 
@@ -236,7 +181,7 @@ class CoaninetProvider : MainAPI() {
         seriesList.forEach { seriesData ->
             val savedM3uUrl = seriesData.video.orEmpty()
             val dubName = seriesData.voiceType.takeIf { !it.isNullOrEmpty() } ?: this.name
-
+//            d("DEBUG loadLinks", "dubName: $dubName")
             if (savedM3uUrl.isNotBlank()) {
                 // Generate links for each dub option
                 M3u8Helper.generateM3u8(
@@ -268,7 +213,7 @@ class CoaninetProvider : MainAPI() {
         parentUrl: String,
         seasonNumber: Int,
     ): List<Episode> = coroutineScope {
-        d("DEBUG getSeasonEpisodes", "seasonUrl:$seasonUrl parentUrl:$parentUrl")
+//        d("DEBUG getSeasonEpisodes", "seasonUrl:$seasonUrl parentUrl:$parentUrl")
 
         val seasonUrlName = seasonUrl.substringAfterLast('/')
         val seasonUrlNameRawResponseText = app.get("$episodeRequestUrl$seasonUrlName").text
@@ -285,7 +230,7 @@ class CoaninetProvider : MainAPI() {
         // 2. Create ONE Episode per episode number
         episodesByNumber.mapNotNull { (epNumber, items) ->
             if (epNumber == null) return@mapNotNull null
-
+//            d("DEBUG getSeasonEpisodes", "epNumber$epNumber seasonNumber$seasonNumber")
             // Extract list of all SeriesData objects for this episode
             val seriesDataList: List<SeriesData> = items.mapNotNull { it.data }
             val firstItem = seriesDataList.firstOrNull() ?: return@mapNotNull null
@@ -304,7 +249,7 @@ class CoaninetProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): MovieSearchResponse {
-        d("toSearchResponse", "$this")
+//        d("toSearchResponse", "$this")
         val title = this.select(titleSelector).text()
         val url = this.select(titleSelector).attr("href")
         val attr = this.select(posterUrlSelector).attr("src")
@@ -313,7 +258,7 @@ class CoaninetProvider : MainAPI() {
         }
 
         return newMovieSearchResponse(title, url, TvType.Movie) {
-            d("newMovieSearchResponse", "posterUrl:$posterUrl")
+//            d("newMovieSearchResponse", "posterUrl:$posterUrl")
             this.posterUrl = posterUrl
         }
     }
@@ -334,6 +279,7 @@ class CoaninetProvider : MainAPI() {
         document.selectFirst("span.film-info__row_name:contains(Оригінальна назва:)")?.text()
             ?.trim()
 
-    private fun getPageTitle(document: Document) = document.select("title").text()
+    private fun getPageTitle(document: Document) = document.selectFirst(".film-info__preview img")
+        ?.attr("alt") ?: ""
 
 }
