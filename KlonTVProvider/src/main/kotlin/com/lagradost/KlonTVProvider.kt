@@ -12,7 +12,7 @@ import org.jsoup.nodes.Element
 class KlonTVProvider : MainAPI() {
 
     // Basic Info
-    override var mainUrl = "https://klon.fun"
+    override var mainUrl = "https://klonua.com"
     override var name = "KlonTV"
     override val hasMainPage = true
     override var lang = "uk"
@@ -56,9 +56,15 @@ class KlonTVProvider : MainAPI() {
     ): HomePageResponse {
         val document = app.get(request.data + page).document
 
-        val home = document.select(animeSelector).map {
-            it.toSearchResponse()
-        }
+        val home = document.select(animeSelector)
+            .filterNot {
+                request.name == "Мультфільми" &&
+                    it.selectFirst("div.subscribe-label-module")?.text().orEmpty().let { label ->
+                        label.contains("Мультсеріал") || label.contains("Аніме")
+                    }
+            }.map {
+                it.toSearchResponse()
+            }
         return newHomePageResponse(request.name, home)
     }
 
@@ -134,7 +140,7 @@ class KlonTVProvider : MainAPI() {
             }
         }
 
-        // https://klon.fun/filmy/1783-rik-ta-morti.html not movie
+        // https://klonua.com/filmy/1783-rik-ta-morti.html not movie
         if (playerUrl.contains("/serial/")) {
             tvType = TvType.TvSeries
         }
