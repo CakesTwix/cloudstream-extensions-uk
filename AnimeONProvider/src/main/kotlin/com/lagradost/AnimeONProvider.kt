@@ -241,6 +241,26 @@ class AnimeONProvider : MainAPI() {
         )
     }
 
+    private fun escapeJson(str: String): String {
+        return str.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t")
+    }
+
+    private fun buildEpisodeDataJson(sources: List<EpisodeSource>): String {
+        val sb = StringBuilder("[")
+        sources.forEachIndexed { index, s ->
+            if (index > 0) sb.append(",")
+            sb.append("{\"translationName\":\"${escapeJson(s.translationName)}\",")
+            sb.append("\"playerName\":\"${escapeJson(s.playerName)}\",")
+            sb.append("\"episodeId\":${s.episodeId}}")
+        }
+        sb.append("]")
+        return sb.toString()
+    }
+
     @Synchronized
     private fun ensurePosterProxy() {
         if (posterProxyPort != 0) return
@@ -438,13 +458,8 @@ class AnimeONProvider : MainAPI() {
         }
     }
 
-    private fun fetchJsonOrNullSync(url: String, timeoutSeconds: Int = 8): String? {
+    private fun fetchJsonOrNullSync(url: String): String? {
         return try {
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(timeoutSeconds.toLong(), java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(timeoutSeconds.toLong(), java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-                
             val request = okhttp3.Request.Builder()
                 .url(url)
                 .header("Referer", mainUrl)
@@ -452,7 +467,7 @@ class AnimeONProvider : MainAPI() {
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
+            val response = htmlHttpClient.newCall(request).execute()
             val text = if (response.isSuccessful) response.body?.string() else null
             response.close()
 
@@ -788,7 +803,7 @@ class AnimeONProvider : MainAPI() {
 
     private suspend fun searchById(id: Int): SearchResponse? {
         val slug = resolveAnimeSlug(id)
-        val realUrl = if (slug.toIntOrNull() != null) "$apiUrl/$slug" else "$apiUrl/$slug"
+        val realUrl = "$apiUrl/$slug"
         val jsonText = fetchJsonOrNull(realUrl) ?: return null
 
         val anime = try {
@@ -807,57 +822,11 @@ class AnimeONProvider : MainAPI() {
         val animeId = url.substringAfterLast("/").substringBefore("-").toIntOrNull()
             ?: throw Exception("Invalid anime ID in URL: $url")
 
-        val executor = java.util.concurrent.Executors.newFixedThreadPool(4)
+        val slug = resolveAnimeSlug(animeId)
+        val realApiUrl = "$apiUrl/$slug"
         
-        val animeInfoFuture = executor.submit(java.util.concurrent.Callable<Pair<String, String?>> {
-            val initial = fetchJsonOrNullSync("$apiUrl/$animeId", timeoutSeconds = 8)
-            val slug = if (initial != null) {
-                try {
-                    val redirect = AppUtils.parseJson<RedirectResponse>(initial)
-                    if (redirect?.moved == true && !redirect.slug.isNullOrEmpty()) redirect.slug!! else animeId.toString()
-                } catch (e: Exception) { animeId.toString() }
-            } else animeId.toString()
-            
-            val animeInfoJson = fetchJsonOrNullSync("$apiUrl/$slug", timeoutSeconds = 8)
-            Pair(slug, animeInfoJson)
-        })
-        
-        val translationsFuture = executor.submit(java.util.concurrent.Callable<String?> {
-            fetchJsonOrNullSync("$mainUrl/api/player/$animeId/translations", timeoutSeconds = 8)
-        })
-        
-        val franchiseFuture = executor.submit(java.util.concurrent.Callable<List<SearchResponse>> {
-            try {
-                val json = fetchJsonOrNullSync("$mainUrl/api/franchise/full/$animeId", timeoutSeconds = 10)
-                if (json != null) {
-                    val items = AppUtils.parseJson<List<FranchiseItem>>(json)
-                    items.filter { it.id != animeId }.map { item ->
-                        newAnimeSearchResponse(item.titleUa, "anime/${item.id}", TvType.Anime) {
-                            this.posterUrl = item.image?.preview?.let { posterApi.format(it) }
-                        }
-                    }
-                } else emptyList()
-            } catch (e: Exception) { emptyList() }
-        })
-
-        val (slug, jsonText) = try { 
-            animeInfoFuture.get(10, java.util.concurrent.TimeUnit.SECONDS) 
-        } catch (e: Exception) { 
-            Pair(animeId.toString(), null as String?) 
-        }
-        
-        val translationsJson: String? = try { 
-            translationsFuture.get(10, java.util.concurrent.TimeUnit.SECONDS) 
-        } catch (e: Exception) { null }
-        
-        val franchise: List<SearchResponse> = try { 
-            franchiseFuture.get(12, java.util.concurrent.TimeUnit.SECONDS) 
-        } catch (e: Exception) { emptyList() }
-
-        if (jsonText == null) {
-            executor.shutdown()
-            throw Exception("Failed to load anime $animeId")
-        }
+        val jsonText = fetchJsonOrNull(realApiUrl)
+            ?: throw Exception("Failed to load anime $animeId")
 
         val animeJSON = AppUtils.parseJson<SafeAnimeInfoModel>(jsonText)
             ?: throw Exception("Failed to parse anime $animeId")
@@ -883,13 +852,15 @@ class AnimeONProvider : MainAPI() {
         val episodeInfoMap = fetchEpisodeInfoMap(slug)
 
         val episodes = mutableListOf<com.lagradost.cloudstream3.Episode>()
+        val translationsJson = fetchJsonOrNull("$mainUrl/api/player/$animeId/translations")
 
         if (translationsJson != null) {
             try {
                 val translations = AppUtils.parseJson<SafeTranslationsResponse>(translationsJson).translations
                 val episodeSources = java.util.concurrent.ConcurrentHashMap<Int, MutableList<EpisodeSource>>()
 
-                val episodeExecutor = java.util.concurrent.Executors.newFixedThreadPool(12)
+                val poolSize = (translations.sumOf { it.player.size } * 2).coerceIn(4, 24)
+                val episodeExecutor = java.util.concurrent.Executors.newFixedThreadPool(poolSize)
                 val futures = java.util.concurrent.CopyOnWriteArrayList<java.util.concurrent.Future<CollectedEpisodes>>()
 
                 try {
@@ -907,7 +878,7 @@ class AnimeONProvider : MainAPI() {
                                     val collected = mutableListOf<FundubEpisode>()
                                     val seenIDs = mutableSetOf<Int>()
 
-                                    val epJsonMinus1 = fetchJsonOrNullSync("$baseUrl&skip=-1&includeAlternative=$includeAlt", timeoutSeconds = 8)
+                                    val epJsonMinus1 = fetchJsonOrNullSync("$baseUrl&skip=-1&includeAlternative=$includeAlt")
                                     if (epJsonMinus1 != null) {
                                         try {
                                             val eps = AppUtils.parseJson<SafePlayerEpisodes>(epJsonMinus1).episodes
@@ -917,7 +888,7 @@ class AnimeONProvider : MainAPI() {
 
                                     var skip = 0
                                     while (true) {
-                                        val epJson = fetchJsonOrNullSync("$baseUrl&skip=$skip&includeAlternative=$includeAlt", timeoutSeconds = 8) ?: break
+                                        val epJson = fetchJsonOrNullSync("$baseUrl&skip=$skip&includeAlternative=$includeAlt") ?: break
                                         try {
                                             val eps = AppUtils.parseJson<SafePlayerEpisodes>(epJson).episodes
                                             if (eps.isNullOrEmpty()) break
@@ -936,7 +907,8 @@ class AnimeONProvider : MainAPI() {
                         try {
                             val result = future.get(15, java.util.concurrent.TimeUnit.SECONDS) ?: continue
                             for (ep in result.episodes) {
-                                episodeSources.getOrPut(ep.episode) { mutableListOf() }.add(
+                                val sources = episodeSources.getOrPut(ep.episode) { mutableListOf() }
+                                sources.add(
                                     EpisodeSource(
                                         translationName = result.translationName,
                                         playerName = result.playerName,
@@ -953,6 +925,10 @@ class AnimeONProvider : MainAPI() {
 
                 ensurePosterProxy()
 
+                val posterPrefetchExecutor = java.util.concurrent.Executors.newFixedThreadPool(
+                    (episodeSources.size / 2).coerceIn(4, 16)
+                )
+
                 episodeSources.keys.sorted().forEach { epNum ->
                     val sources = episodeSources[epNum] ?: return@forEach
 
@@ -961,28 +937,34 @@ class AnimeONProvider : MainAPI() {
                     }
 
                     if (epPoster == null) {
-                        val cached = episodePosterCache["$animeId:$epNum"]
-                        if (cached != null && !cached.contains("mooncdn.")) {
-                            epPoster = cached
+                        val cachedPoster = episodePosterCache["$animeId:$epNum"]
+                        if (cachedPoster != null && !cachedPoster.contains("mooncdn.")) {
+                            epPoster = cachedPoster
                         } else {
                             val episodeId = sources.firstOrNull()?.episodeId
                             if (episodeId != null) {
                                 val key = java.util.UUID.randomUUID().toString().replace("-", "")
                                 posterFetchTasks[key] = PosterFetchTask(episodeId, animeId)
                                 epPoster = "http://127.0.0.1:$posterProxyPort/poster?$key"
+
+                                val prefetchKey = key
+                                val prefetchEpisodeId = episodeId
+                                val prefetchAnimeId = animeId
+                                posterPrefetchExecutor.submit {
+                                    if (!posterCache.containsKey(prefetchKey)) {
+                                        val bytes = fetchEpisodePosterBytes(prefetchEpisodeId)
+                                        if (bytes != null && bytes.isNotEmpty()) {
+                                            posterCache[prefetchKey] = bytes
+                                            episodePosterCache["$prefetchAnimeId:$prefetchEpisodeId"] =
+                                                "http://127.0.0.1:$posterProxyPort/poster?$prefetchKey"
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    val dataJson = org.json.JSONArray().also { arr ->
-                        sources.forEach { s ->
-                            arr.put(org.json.JSONObject().apply {
-                                put("translationName", s.translationName)
-                                put("playerName", s.playerName)
-                                put("episodeId", s.episodeId)
-                            })
-                        }
-                    }.toString()
+                    val dataJson = buildEpisodeDataJson(sources)
 
                     val episodeName = episodeInfoMap[epNum]?.takeIf { it.isNotBlank() }
 
@@ -994,11 +976,14 @@ class AnimeONProvider : MainAPI() {
                         }
                     )
                 }
+
+                posterPrefetchExecutor.shutdown()
+
             } catch (e: Exception) {
             }
         }
 
-        executor.shutdown()
+        val franchise = buildFranchise(animeId)
 
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
             newAnimeLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType) {
