@@ -56,4 +56,47 @@ class UakinoParsingTest {
     fun `invalid encrypted file is ignored`() {
         assertEquals(null, resolveUakinoStreamUrl("not-a-playable-file"))
     }
+
+    @Test
+    fun `resolveUakinoStreamUrls extracts direct m3u8 urls from bracketed and multi-source lists`() {
+        val raw = "[1080p]https://calypso.tortuga.wtf/1080/index.m3u8 or [720p]https://calypso.tortuga.wtf/720/index.m3u8"
+        val urls = resolveUakinoStreamUrls(raw)
+
+        assertEquals(
+            listOf(
+                "https://calypso.tortuga.wtf/1080/index.m3u8",
+                "https://calypso.tortuga.wtf/720/index.m3u8",
+            ),
+            urls,
+        )
+    }
+
+    @Test
+    fun `extractUakinoMoviePlayerUrls extracts schema video and iframes excluding trailer`() {
+        val document = org.jsoup.Jsoup.parse(
+            """
+            <div itemscope itemtype="https://schema.org/Movie">
+                <link itemprop="video" value="//ashdi.vip/vod/96531">
+                <link itemprop="trailer" value="https://www.youtube.com/embed/VJsPZvs4yrA">
+                <div class="box full-text visible">
+                    <iframe id="pre" data-src="//tortuga.wtf/vod/3430"></iframe>
+                </div>
+                <div class="box full-text" id="overroll">
+                    <iframe id="pre" src="https://www.youtube.com/embed/VJsPZvs4yrA"></iframe>
+                </div>
+            </div>
+            """.trimIndent()
+        )
+
+        val players = extractUakinoMoviePlayerUrls(document)
+
+        assertEquals(
+            listOf(
+                "https://ashdi.vip/vod/96531",
+                "https://tortuga.wtf/vod/3430",
+            ),
+            players,
+        )
+    }
 }
+
