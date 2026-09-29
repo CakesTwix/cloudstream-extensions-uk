@@ -1,5 +1,7 @@
 package com.lagradost
 
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import com.lagradost.nicehttp.Session
 import com.lagradost.models.PlayerJson
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -24,6 +26,13 @@ class KlonTVProvider : MainAPI() {
         TvType.Cartoon,
         TvType.Movie,
     )
+
+    private val client by lazy {
+        app.baseClient.newBuilder()
+            .addInterceptor(CloudflareKiller())
+            .build()
+    }
+    private val session by lazy { Session(client) }
 
     // Sections
     override val mainPage = mainPageOf(
@@ -54,7 +63,7 @@ class KlonTVProvider : MainAPI() {
         page: Int,
         request: MainPageRequest
     ): HomePageResponse {
-        val document = app.get(request.data + page).document
+        val document = session.get(request.data + page).document
 
         val home = document.select(animeSelector)
             .filterNot {
@@ -83,7 +92,7 @@ class KlonTVProvider : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.post(
+        val document = session.post(
             url = mainUrl,
             data = mapOf(
                 "do" to "search",
@@ -99,7 +108,7 @@ class KlonTVProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document = session.get(url).document
         // Parse info
         val rawTitleJson = document.selectFirst("script[type=application/ld+json]")?.html()
         val titleJson = rawTitleJson
@@ -158,7 +167,7 @@ class KlonTVProvider : MainAPI() {
             val playerRawJson = if (playerUrl.isBlank()) {
                 ""
             } else {
-                fileRegex.find(app.get(playerUrl).document.select("script").html())?.groupValues?.get(1).orEmpty()
+                fileRegex.find(session.get(playerUrl).document.select("script").html())?.groupValues?.get(1).orEmpty()
             }
 
             tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
@@ -214,7 +223,7 @@ class KlonTVProvider : MainAPI() {
             if (dataList[1].isBlank()) return false
             // TODO: Remove this hack
             val m3u8Url = fileRegex.find(
-                app.get(dataList[1].replace("?multivoice", ""))
+                session.get(dataList[1].replace("?multivoice", ""))
                     .document.select("script[type=text/javascript]").html()
             )?.groups?.get(1)?.value.orEmpty()
             if (m3u8Url.isBlank()) return false
@@ -225,7 +234,7 @@ class KlonTVProvider : MainAPI() {
                 referer = "https://tortuga.wtf/"
             ).dropLast(1).forEach(callback)
 
-            val subtitleUrl = subtitleRegex.find(app.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
+            val subtitleUrl = subtitleRegex.find(session.get(dataList[1]).document.select("script").html())?.groupValues?.get(1) ?: ""
 
             if (subtitleUrl.isBlank()) return true
             subtitleCallback.invoke(
@@ -239,7 +248,7 @@ class KlonTVProvider : MainAPI() {
 
         if (dataList.size < 3 || dataList[2].isBlank()) return false
         val playerRawJson = fileRegex.find(
-            app.get(dataList[2]).document.select("script[type=text/javascript]").html()
+            session.get(dataList[2]).document.select("script[type=text/javascript]").html()
         )?.groups?.get(1)?.value.orEmpty()
 
         tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dub ->
