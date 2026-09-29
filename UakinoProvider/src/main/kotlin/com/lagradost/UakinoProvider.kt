@@ -390,7 +390,7 @@ class UakinoProvider : MainAPI() {
         return foundLinks
     }
 
-    private fun extractPageStreams(
+    private suspend fun extractPageStreams(
         document: Document,
         title: String,
         callback: (ExtractorLink) -> Unit
