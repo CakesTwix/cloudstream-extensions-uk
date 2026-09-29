@@ -112,7 +112,7 @@ class SimpsonsUATvProvider : MainAPI() {
 
     override val mainPage = mainPageOf(
         mainPage("$mainUrl/", "Останні оновлення", horizontalImages = true),
-        mainPage("$mainUrl/multserialy-ukrainskoyu/", "Мультсеріали"),
+        mainPage("$mainUrl/multserialy-ukrainskoyu/", "Мультсеріали", horizontalImages = true),
     )
 
     private fun getTitleFromComment(element: Element): String? {
@@ -247,7 +247,7 @@ class SimpsonsUATvProvider : MainAPI() {
                             val posterUrl = extractImageUrl(el)
                             val title = getTitleFromComment(el) ?: fallbackTitle(href)
                             newAnimeSearchResponse(title, href, TvType.Cartoon) {
-                                this.posterUrl = convertToPortraitProxy(posterUrl)
+                                this.posterUrl = convertToLandscapeProxy(posterUrl)
                                 this.posterHeaders = mapOf("Referer" to mainUrl)
                             }
                         }
@@ -272,12 +272,16 @@ class SimpsonsUATvProvider : MainAPI() {
                 val posterUrl = extractImageUrl(el)
                 val title = fallbackTitle(href)
                 newAnimeSearchResponse(title, href, TvType.Cartoon) {
-                    this.posterUrl = convertToPortraitProxy(posterUrl)
+                    this.posterUrl = if (request.horizontalImages) {
+                        convertToLandscapeProxy(posterUrl)
+                    } else {
+                        convertToPortraitProxy(posterUrl)
+                    }
                     this.posterHeaders = mapOf("Referer" to mainUrl)
                 }
             }
             if (items.isNotEmpty()) {
-                homePageLists.add(HomePageList(request.name, items))
+                homePageLists.add(HomePageList(request.name, items, isHorizontalImages = request.horizontalImages))
                 hasNextPage = true
             }
         } catch (e: Exception) { hasNextPage = false }

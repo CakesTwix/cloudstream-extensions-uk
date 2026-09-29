@@ -47,7 +47,7 @@ class UakinoProvider : MainAPI() {
     val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
     private fun Document.isDetailPage(): Boolean =
-        selectFirst("h1 span.solototle, div.film-poster, div.playlists-ajax") != null
+        selectFirst("h1 span.solototle, div.film-poster, div.playlists-ajax, div[itemprop=description]") != null
 
     private fun headers(referer: String = mainUrl) = mapOf(
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -60,7 +60,11 @@ class UakinoProvider : MainAPI() {
     )
 
     private suspend fun fetchDetail(url: String): Document? =
-        session.get(url, headers = headers()).document.takeIf { it.isDetailPage() }
+        try {
+            session.get(url, headers = headers()).document.takeIf { it.isDetailPage() }
+        } catch (e: Throwable) {
+            null
+        }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = session.get(request.data + page, headers = headers()).document
@@ -264,45 +268,75 @@ class UakinoProvider : MainAPI() {
         } else {
             parsedData.requestUrl to parsedData.episodeName
         }
-        if (requestUrl.isBlank()) return false
 
-        // 2. Робимо запит до API
-        val responseGet = session.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
+        var foundLinks = false
+        val wrappedCallback: (ExtractorLink) -> Unit = { link ->
+            foundLinks = true
+            callback(link)
+        }
 
-        if (responseGet?.success == true) {
-            // Логіка для серіалів
-            val document = Jsoup.parse(responseGet.response)
-            val selector = if (targetEpisode != null) {
-                "div.playlists-videos li:contains($targetEpisode)"
-            } else {
-                "div.playlists-videos li"
+        // 2. Спробуємо запит до API (для серіалів або якщо є плейлист)
+        if (requestUrl.isNotBlank()) {
+            val responseGet = try {
+                session.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
+            } catch (e: Throwable) {
+                null
             }
 
-            document.select(selector).forEach { eps ->
-                // Якщо шукаємо конкретну серію, перевіряємо точний збіг тексту
-                if (targetEpisode != null && eps.text() != targetEpisode) return@forEach
+            if (responseGet?.success == true) {
+                val document = Jsoup.parse(responseGet.response)
+                val selector = if (targetEpisode != null) {
+                    "div.playlists-videos li:contains($targetEpisode)"
+                } else {
+                    "div.playlists-videos li"
+                }
 
-                val href = normalizeUakinoPlayerUrl(eps.attr("data-file").trim())
-                val dub = eps.attr("data-voice")
+                document.select(selector).forEach { eps ->
+                    if (targetEpisode != null && eps.text() != targetEpisode) return@forEach
 
-                extractPlayerJs(href, dub, callback, subtitleCallback)
-            }
-        } else {
-            // Логіка для фільмів (або якщо AJAX не повернув успіх)
-            // Для фільму requestUrl — це AJAX-запит, який часто відповідає ERR_NOT_DATA.
-            // Повторно відкриваємо сторінку фільму, а для серії залишаємо URL плеєра.
-            val filmDoc = fetchDetail(resolveUakinoDetailUrl(data, targetEpisode, requestUrl))
-            val iframeUrl = filmDoc?.selectFirst("iframe#pre")?.attr("src")
+                    val href = normalizeUakinoPlayerUrl(eps.attr("data-file").trim())
+                    val dub = eps.attr("data-voice").ifBlank { "Uakino" }
 
-            if (iframeUrl != null) {
-                val title = filmDoc.selectFirst("h1 span.solototle")?.text()?.trim() ?: "Movie"
-                extractPlayerJs(iframeUrl, title, callback, subtitleCallback)
-            } else {
-                return false
+                    extractPlayerJs(href, dub, wrappedCallback, subtitleCallback)
+                }
             }
         }
 
-        return true
+        // 3. Якщо посилання ще не знайдено (або це фільм / AJAX не дав результату)
+        if (!foundLinks) {
+            val detailUrl = resolveUakinoDetailUrl(data, targetEpisode, requestUrl)
+            val filmDoc = fetchDetail(detailUrl)
+
+            if (filmDoc != null) {
+                val title = filmDoc.selectFirst("h1 span.solototle")?.text()?.trim() ?: "Movie"
+
+                // Шукаємо всі можливі плеєри на сторінці (окрім трейлера)
+                val playerUrls = extractUakinoMoviePlayerUrls(filmDoc)
+                playerUrls.forEach { playerUrl ->
+                    extractPlayerJs(playerUrl, title, wrappedCallback, subtitleCallback)
+                }
+
+                // Fallback: якщо плеєр вбудовано безпосередньо у скрипти сторінки
+                if (!foundLinks) {
+                    val pageScripts = filmDoc.select("script").joinToString("\n") { it.data() }
+                    val pageFiles = fileRegex.findAll(pageScripts).map { it.groupValues[1] }.toList()
+                    val pageStreams = pageFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
+                    pageStreams.forEach { streamUrl ->
+                        try {
+                            val streams = M3u8Helper.generateM3u8(
+                                source = title,
+                                streamUrl = streamUrl,
+                                referer = "$mainUrl/"
+                            )
+                            val filtered = streams.dropLast(1)
+                            (if (filtered.isNotEmpty()) filtered else streams).forEach(wrappedCallback)
+                        } catch (e: Throwable) { }
+                    }
+                }
+            }
+        }
+
+        return foundLinks
     }
 
     private suspend fun extractPlayerJs(
@@ -311,34 +345,46 @@ class UakinoProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
-        if (url.isBlank()) return
-        val scriptData = session.get(url, headers = headers()).document
-            .select("script").joinToString("\n") { it.data() }
+        val normalizedUrl = normalizeUakinoPlayerUrl(url)
+        if (normalizedUrl.isBlank()) return
+        val doc = try {
+            session.get(normalizedUrl, headers = headers()).document
+        } catch (e: Throwable) {
+            return
+        }
+        val scriptData = doc.select("script").joinToString("\n") { it.data() }
 
-        val rawFile = fileRegex.findAll(scriptData).map { it.groupValues[1] }
-            .firstOrNull { it.contains(".m3u8") }
-            ?: fileRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
-        val m3uLink = resolveUakinoStreamUrl(rawFile)
+        val rawFiles = fileRegex.findAll(scriptData).map { it.groupValues[1] }.toList()
+        val allStreamUrls = rawFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
 
-        if (!m3uLink.isNullOrBlank()) {
-            val playerReferer = URL(url).let { "${it.protocol}://${it.host}/" }
-            val streams = M3u8Helper.generateM3u8(
-                source = sourceName,
-                streamUrl = m3uLink,
-                referer = playerReferer
-            )
-            val filtered = streams.dropLast(1)
-            (if (filtered.isNotEmpty()) filtered else streams).forEach(callback)
+        val playerReferer = try {
+            URL(normalizedUrl).let { "${it.protocol}://${it.host}/" }
+        } catch (e: Throwable) {
+            mainUrl
+        }
+
+        allStreamUrls.forEach { m3uLink ->
+            try {
+                val streams = M3u8Helper.generateM3u8(
+                    source = sourceName,
+                    streamUrl = m3uLink,
+                    referer = playerReferer
+                )
+                val filtered = streams.dropLast(1)
+                (if (filtered.isNotEmpty()) filtered else streams).forEach(callback)
+            } catch (e: Throwable) { }
         }
 
         val subtitleUrl = subsRegex.find(scriptData)?.groups?.get(1)?.value ?: ""
         if (subtitleUrl.isNotBlank()) {
-            subtitleCallback.invoke(
-                newSubtitleFile(
-                    subtitleUrl.substringAfterLast("[").substringBefore("]"),
-                    subtitleUrl.substringAfter("]")
+            try {
+                subtitleCallback.invoke(
+                    newSubtitleFile(
+                        subtitleUrl.substringAfterLast("[").substringBefore("]"),
+                        subtitleUrl.substringAfter("]")
+                    )
                 )
-            )
+            } catch (e: Throwable) { }
         }
     }
 

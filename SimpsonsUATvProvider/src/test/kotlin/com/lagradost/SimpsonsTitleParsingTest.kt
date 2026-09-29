@@ -31,4 +31,13 @@ class SimpsonsTitleParsingTest {
             provider.fallbackTitle("https://simpsonsua.tv/allfuturama/"),
         )
     }
+
+    @Test
+    fun `mainPage sections configure horizontal images`() {
+        assertEquals(2, provider.mainPage.size)
+        assertEquals("Останні оновлення", provider.mainPage[0].name)
+        assertEquals(true, provider.mainPage[0].horizontalImages)
+        assertEquals("Мультсеріали", provider.mainPage[1].name)
+        assertEquals(true, provider.mainPage[1].horizontalImages)
+    }
 }
