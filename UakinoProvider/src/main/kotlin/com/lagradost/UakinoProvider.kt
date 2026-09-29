@@ -3,7 +3,6 @@ package com.lagradost
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.nicehttp.Session
@@ -24,12 +23,12 @@ class UakinoProvider : MainAPI() {
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
 
-    private val client by lazy {
-        app.baseClient.newBuilder()
-            .addInterceptor(CloudflareKiller())
-            .build()
+    companion object {
+        private const val USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
     }
-    private val session by lazy { Session(client) }
+
+    private val session by lazy { Session(app.baseClient) }
 
     // Sections
     override val mainPage =
@@ -50,12 +49,16 @@ class UakinoProvider : MainAPI() {
         selectFirst("h1 span.solototle, div.film-poster, div.playlists-ajax, div[itemprop=description]") != null
 
     private fun headers(referer: String = mainUrl) = mapOf(
+        "User-Agent" to USER_AGENT,
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer" to referer,
     )
-    private val ajaxHeaders = mapOf(
-        "Referer" to mainUrl,
+    private fun ajaxHeaders(referer: String = mainUrl) = mapOf(
+        "User-Agent" to USER_AGENT,
+        "Accept" to "*/*",
+        "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer" to referer,
         "X-Requested-With" to "XMLHttpRequest",
     )
 
@@ -203,8 +206,8 @@ class UakinoProvider : MainAPI() {
                 ?: url.split("/").last().split("-").first()
             val episodes =
                 session.get(
-                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
-                    headers = ajaxHeaders
+                    "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist",
+                    headers = ajaxHeaders(url)
                 )
                     .parsedSafe<Responses>()
                     ?.response
@@ -212,7 +215,7 @@ class UakinoProvider : MainAPI() {
                         Jsoup.parse(it.toString()).select("div.playlists-videos li").mapNotNull {
                                 eps ->
                             val href =
-                                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}"
+                                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist"
                             val name = eps.text().trim() // Серія 1
                             if (href.isNotEmpty()) {
                                 newEpisode("$href,$name") {
@@ -238,7 +241,12 @@ class UakinoProvider : MainAPI() {
                 trailer?.let { addTrailer(it) }
             }
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, tvType, url) {
+            val newsId = document.selectFirst("div.playlists-ajax")?.attr("data-news_id")
+                ?: url.split("/").lastOrNull()?.split("-")?.firstOrNull()?.toIntOrNull()?.toString()
+            val playerUrls = extractUakinoMoviePlayerUrls(document)
+            val movieData = buildUakinoMovieData(url, newsId, playerUrls)
+
+            newMovieLoadResponse(title, url, tvType, movieData) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = plot
@@ -259,26 +267,82 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val parsedData = parseUakinoEpisodeData(data)
-
-        // 1. Визначаємо URL для запиту та назву епізоду (якщо є)
-        val (requestUrl, targetEpisode) = if (parsedData.episodeName == null) {
-            val id = data.split("/").last().split("-").first()
-            "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}" to null
-        } else {
-            parsedData.requestUrl to parsedData.episodeName
-        }
-
         var foundLinks = false
         val wrappedCallback: (ExtractorLink) -> Unit = { link ->
             foundLinks = true
             callback(link)
         }
 
+        // Fast path for movie data
+        if (data.startsWith("MOVIE:")) {
+            val movieData = parseUakinoMovieData(data)
+            val pageUrl = movieData.pageUrl.ifBlank { mainUrl }
+
+            // 1. If we have newsId, query playlists.php for voiceovers/players
+            if (!movieData.newsId.isNullOrBlank()) {
+                val playlistUrl = "$mainUrl/engine/ajax/playlists.php?news_id=${movieData.newsId}&xfield=playlist"
+                val responseGet = try {
+                    session.get(playlistUrl, headers = ajaxHeaders(pageUrl)).parsedSafe<Responses>()
+                } catch (e: Throwable) {
+                    null
+                }
+
+                if (responseGet?.success == true) {
+                    val document = Jsoup.parse(responseGet.response)
+                    document.select("div.playlists-videos li").forEach { item ->
+                        val href = normalizeUakinoPlayerUrl(item.attr("data-file").trim())
+                        val dub = item.attr("data-voice").ifBlank { "Uakino" }
+                        if (href.isNotBlank()) {
+                            extractPlayerJs(href, dub, wrappedCallback, subtitleCallback)
+                        }
+                    }
+                }
+            }
+
+            // 2. Pre-extracted player URLs from page load
+            if (!foundLinks) {
+                movieData.playerUrls.forEach { playerUrl ->
+                    extractPlayerJs(playerUrl, "Uakino", wrappedCallback, subtitleCallback)
+                }
+            }
+
+            // 3. Fallback: fetch detail page if needed
+            if (!foundLinks && pageUrl.startsWith("http")) {
+                val filmDoc = fetchDetail(pageUrl)
+                if (filmDoc != null) {
+                    val title = filmDoc.selectFirst("h1 span.solototle")?.text()?.trim() ?: "Movie"
+                    val playerUrls = extractUakinoMoviePlayerUrls(filmDoc)
+                    playerUrls.forEach { playerUrl ->
+                        extractPlayerJs(playerUrl, title, wrappedCallback, subtitleCallback)
+                    }
+                    if (!foundLinks) {
+                        extractPageStreams(filmDoc, title, wrappedCallback)
+                    }
+                }
+            }
+
+            return foundLinks
+        }
+
+        val parsedData = parseUakinoEpisodeData(data)
+
+        // 1. Визначаємо URL для запиту та назву епізоду (якщо є)
+        val (requestUrl, targetEpisode) = if (parsedData.episodeName == null) {
+            val id = data.split("/").lastOrNull()?.split("-")?.firstOrNull()?.toIntOrNull()?.toString()
+            if (id != null) {
+                "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist" to null
+            } else {
+                "" to null
+            }
+        } else {
+            parsedData.requestUrl to parsedData.episodeName
+        }
+
         // 2. Спробуємо запит до API (для серіалів або якщо є плейлист)
         if (requestUrl.isNotBlank()) {
+            val referer = if (data.startsWith("http")) data.substringBefore(",") else mainUrl
             val responseGet = try {
-                session.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
+                session.get(requestUrl, headers = ajaxHeaders(referer)).parsedSafe<Responses>()
             } catch (e: Throwable) {
                 null
             }
@@ -318,25 +382,33 @@ class UakinoProvider : MainAPI() {
 
                 // Fallback: якщо плеєр вбудовано безпосередньо у скрипти сторінки
                 if (!foundLinks) {
-                    val pageScripts = filmDoc.select("script").joinToString("\n") { it.data() }
-                    val pageFiles = fileRegex.findAll(pageScripts).map { it.groupValues[1] }.toList()
-                    val pageStreams = pageFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
-                    pageStreams.forEach { streamUrl ->
-                        try {
-                            val streams = M3u8Helper.generateM3u8(
-                                source = title,
-                                streamUrl = streamUrl,
-                                referer = "$mainUrl/"
-                            )
-                            val filtered = streams.dropLast(1)
-                            (if (filtered.isNotEmpty()) filtered else streams).forEach(wrappedCallback)
-                        } catch (e: Throwable) { }
-                    }
+                    extractPageStreams(filmDoc, title, wrappedCallback)
                 }
             }
         }
 
         return foundLinks
+    }
+
+    private fun extractPageStreams(
+        document: Document,
+        title: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val pageScripts = document.select("script").joinToString("\n") { it.data() }
+        val pageFiles = fileRegex.findAll(pageScripts).map { it.groupValues[1] }.toList()
+        val pageStreams = pageFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
+        pageStreams.forEach { streamUrl ->
+            try {
+                val streams = M3u8Helper.generateM3u8(
+                    source = title,
+                    streamUrl = streamUrl,
+                    referer = "$mainUrl/"
+                )
+                val filtered = streams.dropLast(1)
+                (if (filtered.isNotEmpty()) filtered else streams).forEach(callback)
+            } catch (e: Throwable) { }
+        }
     }
 
     private suspend fun extractPlayerJs(

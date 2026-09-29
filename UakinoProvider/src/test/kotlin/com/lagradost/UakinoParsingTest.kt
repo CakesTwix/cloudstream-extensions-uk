@@ -98,5 +98,29 @@ class UakinoParsingTest {
             players,
         )
     }
+
+    @Test
+    fun `movie data serialization and parsing roundtrip`() {
+        val serialized = buildUakinoMovieData(
+            pageUrl = "https://uakino.best/filmy/genre_comedy/3430-bez-vdchuttv.html",
+            newsId = "3430",
+            playerUrls = listOf("https://ashdi.vip/vod/16447", "https://tortuga.wtf/vod/3430")
+        )
+
+        val parsed = parseUakinoMovieData(serialized)
+
+        assertEquals("https://uakino.best/filmy/genre_comedy/3430-bez-vdchuttv.html", parsed.pageUrl)
+        assertEquals("3430", parsed.newsId)
+        assertEquals(listOf("https://ashdi.vip/vod/16447", "https://tortuga.wtf/vod/3430"), parsed.playerUrls)
+    }
+
+    @Test
+    fun `legacy movie url is parsed into UakinoMovieData`() {
+        val parsed = parseUakinoMovieData("https://uakino.best/filmy/genre_comedy/3430-bez-vdchuttv.html")
+
+        assertEquals("https://uakino.best/filmy/genre_comedy/3430-bez-vdchuttv.html", parsed.pageUrl)
+        assertEquals("3430", parsed.newsId)
+        assertEquals(emptyList<String>(), parsed.playerUrls)
+    }
 }
 

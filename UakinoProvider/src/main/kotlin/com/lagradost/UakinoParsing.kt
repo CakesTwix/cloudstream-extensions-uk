@@ -27,6 +27,30 @@ internal fun normalizeUakinoPlayerUrlOrNull(rawUrl: String?): String? {
     return url.takeIf { it.startsWith("https://") || it.startsWith("http://") }
 }
 
+internal data class UakinoMovieData(
+    val pageUrl: String,
+    val newsId: String?,
+    val playerUrls: List<String> = emptyList(),
+)
+
+internal fun buildUakinoMovieData(pageUrl: String, newsId: String?, playerUrls: List<String>): String {
+    val id = newsId.orEmpty()
+    val players = playerUrls.joinToString("|")
+    return "MOVIE:$pageUrl#$id#$players"
+}
+
+internal fun parseUakinoMovieData(data: String): UakinoMovieData {
+    if (!data.startsWith("MOVIE:")) {
+        val id = data.split("/").lastOrNull()?.split("-")?.firstOrNull()?.toIntOrNull()?.toString()
+        return UakinoMovieData(pageUrl = data.substringBefore(","), newsId = id)
+    }
+    val parts = data.removePrefix("MOVIE:").split("#")
+    val pageUrl = parts.getOrNull(0).orEmpty()
+    val newsId = parts.getOrNull(1)?.takeIf { it.isNotBlank() }
+    val playerUrls = parts.getOrNull(2)?.split("|")?.filter { it.isNotBlank() }.orEmpty()
+    return UakinoMovieData(pageUrl, newsId, playerUrls)
+}
+
 internal fun parseUakinoEpisodeData(data: String): UakinoEpisodeData {
     val separator = data.indexOf(',')
     if (separator < 0) return UakinoEpisodeData(data, null)
