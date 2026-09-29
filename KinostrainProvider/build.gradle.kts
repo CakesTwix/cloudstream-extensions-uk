@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 1
+version = 2
 
 dependencies {
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
@@ -28,5 +28,11 @@ cloudstream {
      * 3: Beta only
      * */
     status = 1 // will be 3 if unspecified
+    tvTypes = listOf(
+        "TvSeries",
+        "Cartoon",
+        "Movie",
+        "Anime"
+    )
     iconUrl = "https://www.google.com/s2/favicons?domain=kinostrain.com&sz=%size%"
 }

@@ -2,7 +2,7 @@
 android-gradle-plugin = "8.13.2"
 cloudstream3 = "pre-release"
 cloudstreamapi = "0.1.6"
-recloudstream-gradle = "-SNAPSHOT"
+recloudstream-gradle = "32895aedb636"
 gson = "2.13.2"
 kotlinx-coroutines-core = "1.10.2"
 kotlinx-coroutines-test = "1.10.2"

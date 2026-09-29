@@ -3,8 +3,10 @@ package com.lagradost
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.nicehttp.Session
 import java.net.URL
 import java.util.*
 import org.jsoup.Jsoup
@@ -21,6 +23,13 @@ class UakinoProvider : MainAPI() {
     override val hasQuickSearch = true
     override val hasDownloadSupport = true
     override val supportedTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime)
+
+    private val client by lazy {
+        app.baseClient.newBuilder()
+            .addInterceptor(CloudflareKiller())
+            .build()
+    }
+    private val session by lazy { Session(client) }
 
     // Sections
     override val mainPage =
@@ -40,9 +49,7 @@ class UakinoProvider : MainAPI() {
     private fun Document.isDetailPage(): Boolean =
         selectFirst("h1 span.solototle, div.film-poster, div.playlists-ajax") != null
 
-    private val UA = "Mozilla/5.0 (Linux; Android 15; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Mobile Safari/537.36"
     private fun headers(referer: String = mainUrl) = mapOf(
-        "User-Agent" to UA,
         "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer" to referer,
@@ -50,14 +57,13 @@ class UakinoProvider : MainAPI() {
     private val ajaxHeaders = mapOf(
         "Referer" to mainUrl,
         "X-Requested-With" to "XMLHttpRequest",
-        "User-Agent" to UA,
     )
 
     private suspend fun fetchDetail(url: String): Document? =
-        app.get(url, headers = headers()).document.takeIf { it.isDetailPage() }
+        session.get(url, headers = headers()).document.takeIf { it.isDetailPage() }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get(request.data + page, headers = headers()).document
+        val document = session.get(request.data + page, headers = headers()).document
         val home =
             document
                 .select("div.owl-item, div.movie-item")
@@ -85,7 +91,7 @@ class UakinoProvider : MainAPI() {
 
     private suspend fun Element.getSeasonInfo(): SearchResponse {
         // Log.d("CakesTwix-Debug", "getSeasonInfo: ${this.attr("href")}")
-        val document = app.get(this.attr("href"), headers = headers()).document
+        val document = session.get(this.attr("href"), headers = headers()).document
         val title = document.selectFirst("h1 span.solototle")?.text()?.trim().toString()
         val poster = mainUrl + document.selectFirst("div.film-poster img")?.attr("src").toString()
 
@@ -98,7 +104,7 @@ class UakinoProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document =
-            app.post(
+            session.post(
                 url = "$mainUrl/ua/",
                 data =
                     mapOf(
@@ -192,7 +198,7 @@ class UakinoProvider : MainAPI() {
             val id = document.selectFirst("div.playlists-ajax")?.attr("data-news_id")
                 ?: url.split("/").last().split("-").first()
             val episodes =
-                app.get(
+                session.get(
                     "$mainUrl/engine/ajax/playlists.php?news_id=$id&xfield=playlist&time=${Date().time}",
                     headers = ajaxHeaders
                 )
@@ -261,7 +267,7 @@ class UakinoProvider : MainAPI() {
         if (requestUrl.isBlank()) return false
 
         // 2. Робимо запит до API
-        val responseGet = app.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
+        val responseGet = session.get(requestUrl, headers = ajaxHeaders).parsedSafe<Responses>()
 
         if (responseGet?.success == true) {
             // Логіка для серіалів
@@ -306,7 +312,7 @@ class UakinoProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
         if (url.isBlank()) return
-        val scriptData = app.get(url, headers = headers()).document
+        val scriptData = session.get(url, headers = headers()).document
             .select("script").joinToString("\n") { it.data() }
 
         val rawFile = fileRegex.findAll(scriptData).map { it.groupValues[1] }

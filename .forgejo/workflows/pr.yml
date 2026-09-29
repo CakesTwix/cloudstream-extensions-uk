@@ -13,9 +13,7 @@ jobs:
         uses: actions/checkout@master
 
       - name: Setup JDK 17
-        # §75: v3 kırıldı — android-actions issue #537 (`tools` paketi deprecate)
-        # ve #536 (commandlinetools URL 404). v4 = maintainer cmdline-tools yolu.
-        uses: https://github.com/android-actions/setup-android@v4
+        uses: https://github.com/actions/setup-java@v3
         with:
           java-version: 17
           distribution: "temurin"
