@@ -1,11 +1,14 @@
 package com.lagradost.model
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class MovieResponse(
     @JsonProperty("data") val data: List<MovieItem>
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class MovieItem(
     @JsonProperty("name") val name: String,
     @JsonProperty("originalName") val originalName: String,
@@ -20,6 +23,7 @@ data class MovieItem(
     @JsonProperty("highlight") val highlight: Highlight?
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class FirstReadySeason(
     @JsonProperty("number") val number: Int?,
     @JsonProperty("lastReadyEpisode") val lastReadyEpisode: Int?,
@@ -27,6 +31,7 @@ data class FirstReadySeason(
     @JsonProperty("lastUrlSuffix") val lastUrlSuffix: String?
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class Highlight(
     @JsonProperty("name") val name: String
 )

@@ -1,4 +1,4 @@
-﻿package com.lagradost
+package com.lagradost
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -32,6 +32,7 @@ class KinostrainProvider : MainAPI() {
     private val mapper = JsonMapper.builder()
         .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
         .configure(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_SINGLE_QUOTES, true)
+        .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
         .addModule(KotlinModule.Builder().build()).build()
 
     // Basic Info
