@@ -111,8 +111,8 @@ class SimpsonsUATvProvider : MainAPI() {
     )
 
     override val mainPage = mainPageOf(
-        "$mainUrl/" to "Останні оновлення",
-        "$mainUrl/multserialy-ukrainskoyu/" to "Усі мультserialи"
+        mainPage("$mainUrl/", "Останні оновлення", horizontalImages = true),
+        mainPage("$mainUrl/multserialy-ukrainskoyu/", "Мультсеріали"),
     )
 
     private fun getTitleFromComment(element: Element): String? {
@@ -155,7 +155,7 @@ class SimpsonsUATvProvider : MainAPI() {
         val posterUrl = extractImageUrl(this)
 
         return newAnimeSearchResponse(title, href, TvType.Cartoon) {
-            this.posterUrl = convertToPortraitProxy(posterUrl)
+            this.posterUrl = convertToLandscapeProxy(posterUrl)
             this.posterHeaders = mapOf("Referer" to mainUrl)
         }
     }
@@ -186,7 +186,7 @@ class SimpsonsUATvProvider : MainAPI() {
     }
 
     private fun extractImageUrl(el: Element?): String? {
-        val img = el?.selectFirst("img") ?: return null
+        val img = (if (el?.tagName() == "img") el else el?.selectFirst("img")) ?: return null
         val rawUrl = img.attr("data-src").takeIf { it.isNotBlank() }
             ?: img.attr("data-lazy-src").takeIf { it.isNotBlank() }
             ?: img.attr("src")
@@ -253,7 +253,7 @@ class SimpsonsUATvProvider : MainAPI() {
                         }
                     }
                     if (updates.isNotEmpty())
-                        homePageLists.add(HomePageList("Останні оновлення серій", updates))
+                        homePageLists.add(HomePageList(request.name, updates, isHorizontalImages = true))
                 } catch (e: Exception) { }
             }
             return if (homePageLists.isNotEmpty())
@@ -277,7 +277,7 @@ class SimpsonsUATvProvider : MainAPI() {
                 }
             }
             if (items.isNotEmpty()) {
-                homePageLists.add(HomePageList("Список мультсеріалів", items))
+                homePageLists.add(HomePageList(request.name, items))
                 hasNextPage = true
             }
         } catch (e: Exception) { hasNextPage = false }
@@ -385,7 +385,8 @@ class SimpsonsUATvProvider : MainAPI() {
                 ?: document.title()
         )
 
-        val mainImgEl = document.selectFirst(".movie_item, div.story, .poster")
+        val mainImgEl = document.selectFirst(".movie_item, div.story, .poster:has(img), center:has(img)")
+            ?: document.selectFirst("img[src*='/photos/poster/'], #dle-content img")
         val poster = extractImageUrl(mainImgEl)
         val description = document.selectFirst(".sez-opys, .fullstory, div.story")?.text()?.trim()
 
