@@ -1,7 +1,11 @@
 package com.lagradost.extractors
 
+import com.lagradost.AnitubeSubtitle
+import com.lagradost.DEFAULT_SUBTITLE_LABEL
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.distinctSubtitles
+import com.lagradost.markForcedSubtitle
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.Qualities
@@ -32,10 +36,19 @@ class MoonExtractor {
         "X-Requested-With" to "mark.via.gp"
     )
 
-    /** Головний вхід: дістати iframe MOON і віддати посилання через callback. */
-    suspend fun getUrl(iframeUrl: String, sourceName: String, callback: (ExtractorLink) -> Unit) {
-        val rawFile = getMoonFile(iframeUrl)
-        if (rawFile.isNotEmpty()) processMoonRawFile(rawFile, sourceName, callback)
+    /**
+     * Головний вхід: дістати iframe MOON і віддати посилання через callback.
+     * Повертає знайдені субтитри — провайдер віддає їх у subtitleCallback сам,
+     * бо newSubtitleFile() є suspend-функцією.
+     */
+    suspend fun getUrl(
+        iframeUrl: String,
+        sourceName: String,
+        callback: (ExtractorLink) -> Unit,
+    ): List<AnitubeSubtitle> {
+        val payload = getMoonFile(iframeUrl)
+        if (payload.file.isNotEmpty()) processMoonRawFile(payload.file, sourceName, callback)
+        return payload.subtitles
     }
 
     private suspend fun processMoonRawFile(
@@ -140,7 +153,13 @@ class MoonExtractor {
         }
     }
 
-    private suspend fun getMoonFile(iframeUrl: String): String {
+    /** Відео плюс субтитри, дістані з одного розшифрованого конфігу. */
+    private data class MoonPayload(
+        val file: String,
+        val subtitles: List<AnitubeSubtitle> = emptyList(),
+    )
+
+    private suspend fun getMoonFile(iframeUrl: String): MoonPayload {
         val cleanUrl = iframeUrl
             .replace(Regex("[?&]player=[^&]*"), "")
             .replace("?&", "?")
@@ -177,13 +196,19 @@ class MoonExtractor {
                     val keyRegex = Regex("""var\s+k\s*=\s*["']([^"']+)["']""")
                     val xorKey = keyRegex.find(decodedJs)?.groupValues?.get(1)
 
+                    // Той самий набір розшифрованих значень містить і відео, і субтитри
+                    var subtitles = emptyList<AnitubeSubtitle>()
+
                     if (!xorKey.isNullOrEmpty()) {
                         val encodedRegex = Regex("""_0xd\s*\(\s*["']([^"']+)["']\s*\)""")
-                        val matches = encodedRegex.findAll(decodedJs).toList()
+                        val decodedValues = encodedRegex.findAll(decodedJs)
+                            .map { moonDecrypt(it.groupValues[1], xorKey) }
+                            .filter { it.isNotEmpty() }
+                            .toList()
 
-                        for (match in matches) {
-                            val decoded = moonDecrypt(match.groupValues[1], xorKey)
-                            if (decoded.isEmpty()) continue
+                        subtitles = moonSubtitles(decodedValues)
+
+                        for (decoded in decodedValues) {
                             val isVideoOrPlaylist = decoded.contains(".m3u8") ||
                                     decoded.contains(".mp4") || decoded.contains(".webm") ||
                                     decoded.startsWith("[")
@@ -194,7 +219,7 @@ class MoonExtractor {
                                 Regex("""\.(jpg|jpeg|png|vtt|srt|txt)(\?|$)""", RegexOption.IGNORE_CASE)
                             )
                             if ((isVideoOrPlaylist || isMoonDomain) && !isStaticAsset) {
-                                return decoded
+                                return MoonPayload(decoded, subtitles)
                             }
                         }
                     }
@@ -205,7 +230,7 @@ class MoonExtractor {
                         !contentMatch.contains(Regex("""\.(jpg|jpeg|png)$"""))
                     ) {
                         val resolved = resolveMoonContent(contentMatch)
-                        if (!resolved.isNullOrEmpty()) return resolved
+                        if (!resolved.isNullOrEmpty()) return MoonPayload(resolved, subtitles)
                     }
                 }
             }
@@ -219,11 +244,39 @@ class MoonExtractor {
                 val resolved = resolveMoonContent("https://s.moonanime.art/content/v/$hash/$quality/")
                 if (!resolved.isNullOrEmpty()) qualityResults.add("[${quality}p]$resolved")
             }
-            if (qualityResults.isNotEmpty()) return qualityResults.joinToString(",")
+            if (qualityResults.isNotEmpty()) return MoonPayload(qualityResults.joinToString(","))
         }
 
-        return ""
+        return MoonPayload("")
     }
+
+    /**
+     * Відбирає з розшифрованих значень справжні субтитри.
+     * Пропускаємо thumbnails.vtt — це прев'ю таймлайна, а не текст.
+     */
+    private fun moonSubtitles(decodedValues: List<String>): List<AnitubeSubtitle> =
+        decodedValues.asSequence()
+            .filter { it.startsWith("http", ignoreCase = true) }
+            .filter { Regex("""\.(vtt|srt|ass)(\?|$)""", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+            .filterNot { value ->
+                listOf("thumbnail", "sprite", "preview", "storyboard").any {
+                    value.contains(it, ignoreCase = true)
+                }
+            }
+            .map { url ->
+                val fileName = url.substringBefore('?').substringAfterLast('/')
+                val language = Regex("""[_-]([a-z]{2})\.(vtt|srt|ass)$""", RegexOption.IGNORE_CASE)
+                    .find(fileName)?.groupValues?.get(1)
+                val isForced = listOf("forced", "signs", "napisy").any {
+                    url.contains(it, ignoreCase = true)
+                }
+                AnitubeSubtitle(
+                    markForcedSubtitle(language ?: DEFAULT_SUBTITLE_LABEL, isForced),
+                    url,
+                )
+            }
+            .toList()
+            .distinctSubtitles()
 
     private fun moonDecrypt(encoded: String, key: String = "mAnK"): String {
         return try {
