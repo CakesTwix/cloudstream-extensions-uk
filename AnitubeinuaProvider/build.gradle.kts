@@ -1,7 +1,9 @@
 // use an integer for version numbers
-version = 21
+version = 22
 
 dependencies {
+    implementation(libs.gson)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }

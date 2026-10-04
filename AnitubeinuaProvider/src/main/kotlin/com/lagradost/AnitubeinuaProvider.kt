@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.getExtractorApiFromName
 import com.lagradost.extractors.AshdiExtractor
 import com.lagradost.extractors.csstExtractor
+import com.lagradost.extractors.FenixExtractor
 import com.lagradost.extractors.MoonExtractor
 import com.lagradost.models.Ajax
 import com.lagradost.models.Link
@@ -212,6 +213,16 @@ class AnitubeinuaProvider : MainAPI() {
         // Хеш-сет для запобігання дублюванню однакових стримінг-посилань (якостей)
         val addedLinks = hashSetOf<String>()
 
+        // Один епізод часто роздають кілька плеєрів з тими ж субтитрами — показуємо раз
+        val addedSubtitles = hashSetOf<String>()
+        suspend fun emitSubtitles(subtitles: List<AnitubeSubtitle>) {
+            subtitles.forEach { subtitle ->
+                if (addedSubtitles.add(subtitle.url)) {
+                    subtitleCallback.invoke(newSubtitleFile(subtitle.label, subtitle.url))
+                }
+            }
+        }
+
         if (dataList[1].toIntOrNull() != null) {
             if (dle_login_hash.isEmpty()) {
                 val animeUrl = "$mainUrl/${dataList[1]}-temp.html"
@@ -244,22 +255,40 @@ class AnitubeinuaProvider : MainAPI() {
                     when {
                         it.urls.url.contains("ashdi.vip") -> {
                             val fixedUrl = if (it.urls.url.startsWith("//")) "https:${it.urls.url}" else it.urls.url
-                            val streamUrl = AshdiExtractor().ParseM3U8(fixedUrl.replace("/embed/", "/vod/"))
-                            M3u8Helper.generateM3u8(
-                                    source = "${it.urls.playerName} (${it.urls.name})",
-                                    streamUrl = streamUrl,
-                                    referer = "https://qeruya.cyou")
-                                    .dropLast(1).forEach { link ->
-                                        if (addedLinks.add(link.url)) {
-                                            callback(link)
+                            val source = AshdiExtractor().parseSource(fixedUrl.replace("/embed/", "/vod/"))
+                            emitSubtitles(source.subtitles)
+                            if (source.file.isNotBlank()) {
+                                M3u8Helper.generateM3u8(
+                                        source = "${it.urls.playerName} (${it.urls.name})",
+                                        streamUrl = source.file,
+                                        referer = "https://qeruya.cyou")
+                                        .dropLast(1).forEach { link ->
+                                            if (addedLinks.add(link.url)) {
+                                                callback(link)
+                                            }
                                         }
-                                    }
+                            }
                         }
                         it.urls.url.contains("moonanime.art") -> {
                             val fixedUrl = if (it.urls.url.startsWith("//")) "https:${it.urls.url}" else it.urls.url
-                            MoonExtractor().getUrl(fixedUrl, "${it.urls.playerName} (${it.urls.name})") { link ->
+                            val moonSubtitles = MoonExtractor().getUrl(
+                                fixedUrl,
+                                "${it.urls.playerName} (${it.urls.name})",
+                            ) { link ->
                                 if (addedLinks.add(link.url)) callback(link)
                             }
+                            emitSubtitles(moonSubtitles)
+                        }
+                        it.urls.url.contains("fenixplay") -> {
+                            val fixedUrl = if (it.urls.url.startsWith("//")) "https:${it.urls.url}" else it.urls.url
+                            val fenixSubtitles = FenixExtractor().getUrl(
+                                fixedUrl,
+                                "${it.urls.playerName} (${it.urls.name})",
+                                it.numberEpisode,
+                            ) { link ->
+                                if (addedLinks.add(link.url)) callback(link)
+                            }
+                            emitSubtitles(fenixSubtitles)
                         }
                         it.urls.url.contains("https://www.udrop.com") -> {
                             val link = newExtractorLink(
@@ -275,7 +304,9 @@ class AnitubeinuaProvider : MainAPI() {
                         it.urls.url.contains("https://csst.online/embed/") ||
                                 it.urls.url.contains("https://monstro.site/embed/") ||
                                 it.urls.url.contains("https://monstro.online/embed/") -> {
-                            csstExtractor().ParseUrl(it.urls.url).split(",").forEach { csstUrl ->
+                            val source = csstExtractor().parseSource(it.urls.url)
+                            emitSubtitles(source.subtitles)
+                            source.file.split(",").forEach { csstUrl ->
                                 val link = newExtractorLink(
                                     this.urls.url,
                                     "${it.urls.playerName} (${it.urls.name}) ${csstUrl.substringBefore("]").drop(1)}",
@@ -329,22 +360,37 @@ class AnitubeinuaProvider : MainAPI() {
                             when {
                                 contains("ashdi.vip") -> {
                                     val fixedUrl = if (this.startsWith("//")) "https:$this" else this
-                                    val streamUrl = AshdiExtractor().ParseM3U8(fixedUrl.replace("/embed/", "/vod/"))
-                                    M3u8Helper.generateM3u8(
-                                            source = dub.playerName,
-                                            streamUrl = streamUrl,
-                                            referer = "https://qeruya.cyou")
-                                            .dropLast(1).forEach { link ->
-                                                if (addedLinks.add(link.url)) {
-                                                    callback(link)
+                                    val source = AshdiExtractor().parseSource(fixedUrl.replace("/embed/", "/vod/"))
+                                    emitSubtitles(source.subtitles)
+                                    if (source.file.isNotBlank()) {
+                                        M3u8Helper.generateM3u8(
+                                                source = dub.playerName,
+                                                streamUrl = source.file,
+                                                referer = "https://qeruya.cyou")
+                                                .dropLast(1).forEach { link ->
+                                                    if (addedLinks.add(link.url)) {
+                                                        callback(link)
+                                                    }
                                                 }
-                                            }
+                                    }
                                 }
                                 contains("moonanime.art") -> {
                                     val fixedUrl = if (this.startsWith("//")) "https:$this" else this
-                                    MoonExtractor().getUrl(fixedUrl, dub.playerName) { link ->
+                                    val moonSubtitles = MoonExtractor().getUrl(fixedUrl, dub.playerName) { link ->
                                         if (addedLinks.add(link.url)) callback(link)
                                     }
+                                    emitSubtitles(moonSubtitles)
+                                }
+                                contains("fenixplay") -> {
+                                    val fixedUrl = if (this.startsWith("//")) "https:$this" else this
+                                    val fenixSubtitles = FenixExtractor().getUrl(
+                                        fixedUrl,
+                                        dub.playerName,
+                                        dub.episodeNumber,
+                                    ) { link ->
+                                        if (addedLinks.add(link.url)) callback(link)
+                                    }
+                                    emitSubtitles(fenixSubtitles)
                                 }
                                 contains("https://www.udrop.com") -> {
                                     val link = newExtractorLink(
@@ -359,7 +405,9 @@ class AnitubeinuaProvider : MainAPI() {
                                 contains("https://monstro.site/embed/") ||
                                         contains("https://csst.online/embed/") ||
                                         contains("https://monstro.online/embed/") -> {
-                                    csstExtractor().ParseUrl(this).split(",").forEach {
+                                    val source = csstExtractor().parseSource(this)
+                                    emitSubtitles(source.subtitles)
+                                    source.file.split(",").forEach {
                                         val link = newExtractorLink(
                                             dub.playerName,
                                             name =
