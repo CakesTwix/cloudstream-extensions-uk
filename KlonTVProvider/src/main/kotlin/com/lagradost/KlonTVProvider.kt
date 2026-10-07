@@ -120,7 +120,12 @@ class KlonTVProvider : MainAPI() {
             ?: document.selectFirst(titleLoadSelector)?.text()?.trim().orEmpty()
         val poster = titleJson?.image?.takeIf { it.isNotBlank() }
             ?: fixUrl(document.selectFirst(posterSelector)?.attr("data-src").orEmpty())
-        val rating = titleJson?.aggregateRating?.ratingValue?.toString().orEmpty()
+        val rating = titleJson?.aggregateRating?.ratingValue?.toString()?.takeIf { it.isNotBlank() }
+            ?: document.select(".table-info__item").firstOrNull {
+                it.selectFirst(".table__category")?.text()?.trim() == "Рейтинг:"
+            }?.text()?.let { text ->
+                text.substringAfter("Рейтинг:").trim().substringBefore("/").trim()
+            }.orEmpty()
         val actors = titleJson?.actor?.map { it.name }.orEmpty()
 
         // HTML
