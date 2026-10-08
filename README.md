@@ -1,7 +1,7 @@
 <p align="center">
 	<!-- Title -->
 	<img src="assets/cloudstream3.png" width="128"/><br>
-	<b>🇺🇦 Розширення Cloudstream (Україна)</b>
+	<b>🇺🇦 Розширення CloudStream (Україна)</b>
 </p>
 <p align="center">
 <img src="https://img.shields.io/github/languages/code-size/CakesTwix/cloudstream-extensions-uk?style=for-the-badge"/>
@@ -14,7 +14,12 @@
 
 <!-- Brief information about the extension -->
 ## 📖 Що це таке?
-Це спеціальне розширення для перегляду фільмів, серіалів та аніме в якісному українському дубляжу від різних постачальників в стрімінговій програмі [Cloudstream](https://github.com/recloudstream/cloudstream).
+
+Це спеціальне розширення для перегляду фільмів, серіалів та аніме в якісному українському дубляжу
+від різних постачальників в стрімінговій програмі CloudStream.
+
+* [CloudStream репозиторій](https://github.com/recloudstream/cloudstream)
+* [CloudStream Wiki](https://cloudstream.miraheze.org/wiki/Main_Page)
 
 <!-- Installation guide -->
 ## ⚙️ Інсталяція
@@ -54,6 +59,6 @@ cakes
   - [@CakesTwix](https://codeberg.org/CakesTwix)
   - [@Sommelier](https://codeberg.org/Sommelier)
   - [@deleteBlack666](https://codeberg.org/deleteBlack666)
-  
+
 ### Для розробників
 Pull Request приймаються тільки на боці codeberg.org/CakesTwix/cloudstream-extensions-uk, GitHub використовується як дзеркало!
