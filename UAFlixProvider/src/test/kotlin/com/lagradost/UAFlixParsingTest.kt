@@ -1,7 +1,9 @@
 package com.lagradost
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.jsoup.Jsoup
 
@@ -57,5 +59,57 @@ class UAFlixParsingTest {
         )
 
         assertNull(extractUAFlixTrailer(document))
+    }
+
+    @Test
+    fun `coming soon is detected from the premiere span`() {
+        val document = Jsoup.parse(
+            """
+            <div class="rate-yx-share">
+                <span style="color:#e85d00">Прем'єра: <srtrong>незабаром</srtrong>
+                    <span class="fa fa-question-circle-o"><div>Фільм (серіал) вийде не раніше запланованої дати.</div></span>
+                </span>
+            </div>
+            """.trimIndent()
+        )
+
+        assertTrue(isUAFlixComingSoon(document))
+    }
+
+    @Test
+    fun `premiere button outside the share block is ignored`() {
+        val document = Jsoup.parse(
+            """
+            <div class="subtitle icon-l">
+                <h2>Фільм Мертва хватка (2026) дивитись онлайн українською:</h2>
+                <button class="btn btn-warning">Прем'єра - незабаром</button>
+            </div>
+            """.trimIndent()
+        )
+
+        assertFalse(isUAFlixComingSoon(document))
+    }
+
+    @Test
+    fun `released content is not marked as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="rate-yx-share"><div class="rating-box">100</div></div>
+            <div class="subtitle icon-l"><h2>Дивитись онлайн</h2></div>
+            """.trimIndent()
+        )
+
+        assertFalse(isUAFlixComingSoon(document))
+    }
+
+    @Test
+    fun `premiere wording without the marker elements is ignored`() {
+        val document = Jsoup.parse(
+            """
+            <div class="fdesc full-text" id="fdesc">Прем'єра відбудеться незабаром після завершення зйомок.</div>
+            """.trimIndent()
+        )
+
+        assertFalse(isUAFlixComingSoon(document))
     }
 }

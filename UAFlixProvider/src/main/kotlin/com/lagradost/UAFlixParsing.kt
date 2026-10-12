@@ -24,6 +24,13 @@ internal fun parseUAFlixSubtitle(raw: String?): UAFlixSubtitle? {
     return UAFlixSubtitle(language, url)
 }
 
+internal fun isUAFlixComingSoon(document: Document): Boolean {
+    return document.select(".rate-yx-share").any { element ->
+        val text = element.text()
+        text.contains("Прем'єра") && text.contains("незабаром")
+    }
+}
+
 /** Витягує трейлер лише з окремої кнопки UAFlix, а не з основного плеєра. */
 internal fun extractUAFlixTrailer(document: Document): String? {
     val trailerButton = document.select(".to-trailer").firstOrNull { element ->
