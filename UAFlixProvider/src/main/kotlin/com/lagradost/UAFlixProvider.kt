@@ -188,6 +188,7 @@ class UAFlixProvider : MainAPI() {
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val rating = document.select(ratingSelector).text()
         val trailer = extractUAFlixTrailer(document)
+        val comingSoon = isUAFlixComingSoon(document)
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
@@ -240,7 +241,7 @@ class UAFlixProvider : MainAPI() {
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
 
-            newAnimeLoadResponse(title, url, tvType) {
+            val response = newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.engName = engTitle
                 this.year = year
@@ -252,6 +253,10 @@ class UAFlixProvider : MainAPI() {
                 addActors(actors)
                 trailer?.let { addTrailer(it) }
             }
+            // newAnimeLoadResponse recomputes comingSoon after the initializer
+            // (comingSoonIfNone), so the marker-based value is applied here.
+            if (comingSoon) response.comingSoon = true
+            response
         } else { // Parse as Movie.
 
             newMovieLoadResponse(title, url, tvType, url) {
@@ -262,6 +267,7 @@ class UAFlixProvider : MainAPI() {
                 this.tags = tags
                 this.contentRating = contentRating
                 this.score = Score.from10(rating)
+                this.comingSoon = comingSoon
                 addActors(actors)
                 trailer?.let { addTrailer(it) }
             }
