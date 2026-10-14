@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken
 import com.lagradost.cloudstream3.AnimeSearchResponse
 import com.lagradost.cloudstream3.DubStatus
 import com.lagradost.cloudstream3.Episode
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.MainAPI
@@ -22,6 +23,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.base64DecodeArray
 import com.lagradost.cloudstream3.base64Encode
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.newAnimeLoadResponse
 import com.lagradost.cloudstream3.newAnimeSearchResponse
 import com.lagradost.cloudstream3.newEpisode
@@ -32,6 +34,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.AESPlayerDecodedModel
 import com.lagradost.models.DecodedJSON
+import com.lagradost.nicehttp.Session
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import javax.crypto.Cipher
@@ -58,9 +61,23 @@ class UASerialsProProvider : MainAPI() {
         TvType.Anime
     )
 
+    private val client by lazy {
+        app.baseClient.newBuilder()
+            .addInterceptor(CloudflareKiller())
+            .build()
+    }
+    private val session by lazy { Session(client) }
+
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
     val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
-    val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0"
+    val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+    private fun defaultHeaders(referer: String = "$mainUrl/") = mapOf(
+        "User-Agent" to USER_AGENT,
+        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer" to referer,
+    )
 
     // Sections
     override val mainPage = mainPageOf(
@@ -101,7 +118,7 @@ class UASerialsProProvider : MainAPI() {
         } else {
             "${request.data}$page/"
         }
-        val document = app.get(url).document
+        val document = session.get(url, headers = defaultHeaders()).document
 
         val home = document.select(animeSelector).map {
             it.toSearchResponse()
@@ -126,7 +143,7 @@ class UASerialsProProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val encodedQuery = java.net.URLEncoder.encode(query, "utf-8").replace("+", "%20")
-        val document = app.get("$mainUrl/search/$encodedQuery/").document
+        val document = session.get("$mainUrl/search/$encodedQuery/", headers = defaultHeaders()).document
 
         return document.select(".uas-card").map {
             val title = it.selectFirst(".uas-card__title")?.text()?.trim().toString()
@@ -145,7 +162,7 @@ class UASerialsProProvider : MainAPI() {
 
     // Detailed information
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url, headers = mapOf("User-Agent" to USER_AGENT)).document
+        val document = session.get(url, headers = defaultHeaders()).document
 
         val title = document.select(".short-title").text()
         val engTitle = document.select(".oname").text()
@@ -181,24 +198,42 @@ class UASerialsProProvider : MainAPI() {
             it.toSearchResponse()
         }
 
+        val tag1 = document.selectFirst("player-control[data-tag1]")?.attr("data-tag1")
+            ?: document.select("div.fplayer player-control").attr("data-tag1")
+        if (tag1.isBlank()) {
+            throw ErrorLoadingException("Не знайдено плеєр на сторінці (можливо, діє захист Cloudflare або сторінка оновилася)")
+        }
+
+        val aesData = try {
+            Gson().fromJson(tag1, AesData::class.java)
+        } catch (e: Exception) {
+            null
+        }
+
         val decryptData = cryptojsAESHandler(
-            Gson().fromJson(
-                document.select("div.fplayer player-control").attr("data-tag1"),
-                AesData::class.java,
-            ),
+            aesData,
             "297796CCB81D255125",
             false
         ).replace("\\", "")
+
         val lastBracket = decryptData.lastIndexOf("]")
         val cleanJson = if (lastBracket != -1) decryptData.substring(0, lastBracket + 1) else decryptData
 
-        val playerTabs = Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel).orEmpty()
+        if (cleanJson.isBlank() || !cleanJson.startsWith("[")) {
+            throw ErrorLoadingException("Не вдалося розшифрувати дані плеєра")
+        }
+
+        val playerTabs = try {
+            Gson().fromJson<List<AESPlayerDecodedModel>>(cleanJson, listAESModel).orEmpty()
+        } catch (e: Exception) {
+            emptyList()
+        }
         val trailer = extractUASerialsTrailer(document, playerTabs)
         val resolvedTrailer = if (trailer?.contains("tortuga.tw/vod", ignoreCase = true) == true) {
             val trailerHtml = runCatching {
-                app.get(
+                session.get(
                     trailer,
-                    headers = mapOf("User-Agent" to USER_AGENT, "Referer" to mainUrl),
+                    headers = defaultHeaders(mainUrl),
                 ).text
             }.getOrDefault("")
             resolveUASerialsTrailerUrl(trailer, trailerHtml)
@@ -211,7 +246,7 @@ class UASerialsProProvider : MainAPI() {
         )
 
         val playerHtml = if (playerUrl != null) {
-            app.get(playerUrl, headers = mapOf("User-Agent" to USER_AGENT, "Referer" to mainUrl)).text
+            session.get(playerUrl, headers = defaultHeaders(mainUrl)).text
         } else {
             ""
         }
@@ -315,12 +350,9 @@ class UASerialsProProvider : MainAPI() {
         // Movie
         if (dataList.size == 2 && !dataList[0].startsWith("http") && !dataList[0].startsWith("{")) {
             if (dataList[1].isBlank()) return false
-            val html = app.get(
+            val html = session.get(
                 dataList[1],
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to mainUrl
-                )
+                headers = defaultHeaders(mainUrl)
             ).text
 
             val m3u8Raw = fileRegex.find(html)?.groups?.get(1)?.value ?: ""
@@ -413,43 +445,61 @@ class UASerialsProProvider : MainAPI() {
     }
 
     // THANKS to Hexated!
-    private fun cryptojsAESHandler(
-        data: AesData,
+    internal fun cryptojsAESHandler(
+        data: AesData?,
         pass: String,
         encrypt: Boolean = true
     ): String {
+        if (data == null || data.s.isNullOrBlank() || data.iv.isNullOrBlank() || data.ct.isNullOrBlank()) {
+            return ""
+        }
+        val salt = try {
+            data.s.decodeHex()
+        } catch (e: Exception) {
+            return ""
+        }
+        val iv = try {
+            data.iv.decodeHex()
+        } catch (e: Exception) {
+            return ""
+        }
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512")
-        val spec = PBEKeySpec(pass.toCharArray(), data.s.decodeHex(), 999, 256)
+        val spec = PBEKeySpec(pass.toCharArray(), salt, 999, 256)
         val key = factory.generateSecret(spec)
         val cipher = Cipher.getInstance("AES/CBC/NoPadding")
-        return if (!encrypt) {
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                SecretKeySpec(key.encoded, "AES"),
-                IvParameterSpec(data.iv.decodeHex())
-            )
-            String(cipher.doFinal(base64DecodeArray(data.ct)))
-        } else {
-            cipher.init(
-                Cipher.ENCRYPT_MODE,
-                SecretKeySpec(key.encoded, "AES"),
-                IvParameterSpec(data.iv.decodeHex())
-            )
-            base64Encode(cipher.doFinal(data.ct.toByteArray()))
+        return try {
+            if (!encrypt) {
+                cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    SecretKeySpec(key.encoded, "AES"),
+                    IvParameterSpec(iv)
+                )
+                String(cipher.doFinal(base64DecodeArray(data.ct)))
+            } else {
+                cipher.init(
+                    Cipher.ENCRYPT_MODE,
+                    SecretKeySpec(key.encoded, "AES"),
+                    IvParameterSpec(iv)
+                )
+                base64Encode(cipher.doFinal(data.ct.toByteArray()))
+            }
+        } catch (e: Exception) {
+            ""
         }
     }
 
     private fun String.decodeHex(): ByteArray {
-        check(length % 2 == 0) { "Must have an even length" }
-        return chunked(2)
+        val clean = filter { it in "0123456789abcdefABCDEF" }
+        check(clean.length % 2 == 0) { "Must have an even length" }
+        return clean.chunked(2)
             .map { it.toInt(16).toByte() }
             .toByteArray()
     }
 
     data class AesData(
-        @SerializedName("ciphertext") val ct: String,
-        @SerializedName("salt") val s: String,
-        @SerializedName("iv") val iv: String,
+        @SerializedName("ciphertext") val ct: String? = null,
+        @SerializedName("salt") val s: String? = null,
+        @SerializedName("iv") val iv: String? = null,
         @SerializedName("iterations") val iterations: Int = 999,
     )
 
