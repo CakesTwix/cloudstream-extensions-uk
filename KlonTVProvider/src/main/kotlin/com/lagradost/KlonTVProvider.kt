@@ -116,8 +116,10 @@ class KlonTVProvider : MainAPI() {
             ?.let { json -> runCatching { tryParseJson<GeneralInfo>(json) }.getOrNull() }
 
         // JSON
-        val title = titleJson?.name?.takeIf { it.isNotBlank() }
-            ?: document.selectFirst(titleLoadSelector)?.text()?.trim().orEmpty()
+        val title = stripTitleYear(
+            titleJson?.name?.takeIf { it.isNotBlank() }
+                ?: document.selectFirst(titleLoadSelector)?.text()?.trim().orEmpty()
+        )
         val poster = titleJson?.image?.takeIf { it.isNotBlank() }
             ?: fixUrl(document.selectFirst(posterSelector)?.attr("data-src").orEmpty())
         val rating = titleJson?.aggregateRating?.ratingValue?.toString()?.takeIf { it.isNotBlank() }
