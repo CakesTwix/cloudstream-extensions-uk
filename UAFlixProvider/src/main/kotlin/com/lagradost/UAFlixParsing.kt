@@ -1,6 +1,7 @@
 package com.lagradost
 
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 
 internal data class UAFlixSubtitle(
     val language: String,
@@ -43,6 +44,26 @@ internal fun isUAFlixComingSoon(document: Document): Boolean {
     if (hasButtonPremiere) return true
 
     return false
+}
+
+private val uaflixSeoSuffixRegex = Regex(
+    """(?:\s+(?:дивитись|дивитися)\s+онлайн|\s+українською)+\s*$""",
+)
+
+/** Чиста назва з h1 сторінки деталей: справжній заголовок з [itemprop=name] без SEO-хвоста "дивитись онлайн [українською]", який зрізаємо лише з кінця. */
+internal fun extractUAFlixTitle(document: Document): String {
+    val h1 = document.selectFirst(".fright h1") ?: return ""
+    val nameElement = h1.selectFirst("[itemprop=name]") ?: h1
+    return nameElement.text()
+        .replace(uaflixSeoSuffixRegex, "")
+        .trim()
+}
+
+/** Назва картки у списку: вузол `.vi-title` (лише українська назва), інакше alt постера — у пошуку `.vi-title` немає. */
+internal fun extractUAFlixCardTitle(card: Element): String {
+    val title = card.selectFirst(".vi-title")?.text()?.trim()
+    if (!title.isNullOrBlank()) return title
+    return card.selectFirst(".vi-img, .sres-img img")?.attr("alt")?.trim().orEmpty()
 }
 
 /** Витягує трейлер лише з окремої кнопки UAFlix, а не з основного плеєра. */

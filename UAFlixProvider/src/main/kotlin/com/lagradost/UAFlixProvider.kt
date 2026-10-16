@@ -62,8 +62,7 @@ class UAFlixProvider : MainAPI() {
 
     // Main Page
     private val animeSelector = ".video-item"
-    private val titleSelector = ".vi-img"
-    private val hrefSelector = titleSelector
+    private val hrefSelector = ".vi-img"
     private val posterSelector = ".img-resp-h img"
 
     // Load info
@@ -112,7 +111,7 @@ class UAFlixProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): AnimeSearchResponse {
-        val title = this.selectFirst("$titleSelector,.sres-img img")?.attr("alt")?.trim().toString()
+        val title = extractUAFlixCardTitle(this)
         val href = this.selectFirst("$hrefSelector,.sres-wrap")?.attr("href").toString()
         val posterUrl = fixUrl(this.select("$posterSelector,.sres-img img").attr("src"))
 
@@ -140,7 +139,7 @@ class UAFlixProvider : MainAPI() {
         val document = app.get(url).document
         // Parse info
 
-        val title = document.select(".fright h1").text().trim().replace("дивитись онлайн", "")
+        val title = extractUAFlixTitle(document)
         val engTitle = document.select("span.eng-rus").text()
         var poster = fixUrl(document.select(".img-box img").attr("data-src"))
         if(poster.isNullOrBlank()){
