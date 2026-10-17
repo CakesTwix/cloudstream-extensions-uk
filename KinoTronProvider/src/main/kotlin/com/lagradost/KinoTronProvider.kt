@@ -97,7 +97,7 @@ class KinoTronProvider : MainAPI() {
 
 
         // Parse info
-        val title = document.select(".full h1").text()
+        val title = cleanKinoTronTitle(document.select(".full h1").text())
         val poster = mainUrl + document.select(".img-box img").attr("data-src")
         val tags = document.select(".flist li")[2].select("a").map { it.text() }
 
@@ -259,4 +259,13 @@ internal fun extractKinoTronTrailer(document: Document): String? {
         ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
         ?: return null
     return normalize(iframe.attr("src").ifBlank { iframe.attr("data-src") })
+}
+
+/** Очищає SEO хвости на кшталт "дивитись онлайн" з заголовка KinoTron. */
+internal fun cleanKinoTronTitle(rawTitle: String): String {
+    return rawTitle
+        .replace(Regex("""\s*дивити(?:сь|ся)\s+онлайн.*$""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*українською(?:\s+мовою)?(?:\s+онлайн)?\s*$""", RegexOption.IGNORE_CASE), "")
+        .trim()
+        .replace(Regex("""[\s\-–—:]+$"""), "")
 }

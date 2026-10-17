@@ -168,12 +168,7 @@ class SimpsonsUATvProvider : MainAPI() {
         return Regex("""(\d+)-seriya""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: fallback
     }
 
-    private fun cleanTitle(text: String): String {
-        return text
-            .replace(Regex("дивитися онлайн.*", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("українською.*", RegexOption.IGNORE_CASE), "")
-            .trim()
-    }
+    internal fun cleanTitle(text: String): String = cleanSimpsonsTitle(text)
 
     private fun sectionTitle(url: String, fallbackDoc: Document? = null): String {
         val slug = urlSlug(url)
@@ -680,4 +675,13 @@ class SimpsonsUATvProvider : MainAPI() {
 
         return found
     }
+}
+
+/** Очищає SEO хвости на кшталт "дивитися онлайн" та "українською" з кінця назви. */
+internal fun cleanSimpsonsTitle(text: String): String {
+    return text
+        .replace(Regex("""\s*дивити(?:сь|ся)\s+онлайн.*$""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*українською(?:\s+мовою)?(?:\s+онлайн)?\s*$""", RegexOption.IGNORE_CASE), "")
+        .trim()
+        .replace(Regex("""[\s\-–—:]+$"""), "")
 }

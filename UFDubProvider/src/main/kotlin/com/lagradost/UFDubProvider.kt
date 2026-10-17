@@ -84,7 +84,7 @@ class UFDubProvider : MainAPI() {
         val someInfo = document.select("div.full-desc")
 
         // Parse info
-        val title = document.select("h1.top-title").text()
+        val title = cleanUFDubTitle(document.selectFirst("h1.top-title"))
         val poster = mainUrl + document.select("div.f-poster img").attr("src")
         val tags = mutableListOf<String>()
         val year = someInfo.select("strong:contains(Рік випуску аніме:)").next().html().toIntOrNull()
@@ -172,5 +172,18 @@ class UFDubProvider : MainAPI() {
         // Add as source
         callback(newExtractorLink(m3u8Url,"UFDub", m3u8Url, ExtractorLinkType.VIDEO))
         return true
+    }
+}
+
+/** Очищає заголовок UFDub, видаляючи вкладений div.short-t-or з оригінальною назвою. */
+internal fun cleanUFDubTitle(topTitleElement: Element?): String {
+    if (topTitleElement == null) return ""
+    val clone = topTitleElement.clone()
+    clone.select(".short-t-or").remove()
+    val cleaned = clone.text().trim()
+    return cleaned.replace(Regex("""[\s\-–—:]+$"""), "").ifBlank {
+        topTitleElement.ownText().trim().ifBlank {
+            topTitleElement.text().trim()
+        }
     }
 }
