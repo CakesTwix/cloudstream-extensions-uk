@@ -262,7 +262,8 @@ class UakinoProvider : MainAPI() {
             } catch (e: Throwable) {
                 emptyList()
             }
-            newAnimeLoadResponse(title, url, tvType) {
+            val comingSoon = isUakinoComingSoon(url, document, episodes.isNotEmpty())
+            val response = newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.engName = engTitle
                 this.year = year
@@ -275,6 +276,8 @@ class UakinoProvider : MainAPI() {
                 this.recommendations = recommendations
                 trailer?.let { addTrailer(it) }
             }
+            if (comingSoon) response.comingSoon = true
+            response
         } else { // Parse as Movie.
             val newsId = document.selectFirst("div.playlists-ajax")?.attr("data-news_id")
                 ?: url.split("/").lastOrNull()?.split("-")?.firstOrNull()?.toIntOrNull()?.toString()
@@ -292,6 +295,7 @@ class UakinoProvider : MainAPI() {
                 } catch (e: Throwable) { }
             }
 
+            val comingSoon = isUakinoComingSoon(url, document, playerUrls.isNotEmpty())
             val movieData = buildUakinoMovieData(url, newsId, playerUrls)
 
             newMovieLoadResponse(title, url, tvType, movieData) {
@@ -301,6 +305,7 @@ class UakinoProvider : MainAPI() {
                 this.tags = tags
                 this.score = Score.from10(rating)
                 this.contentRating = contentRating
+                this.comingSoon = comingSoon
                 addActors(actors)
                 this.recommendations = recommendations
                 trailer?.let { addTrailer(it) }
@@ -326,6 +331,10 @@ class UakinoProvider : MainAPI() {
         if (isMovie) {
             val movieData = parseUakinoMovieData(data)
             val pageUrl = movieData.pageUrl.ifBlank { mainUrl }
+
+            if (pageUrl.contains("/anonsi/") && movieData.playerUrls.isEmpty()) {
+                return false
+            }
 
             // 1. Pre-extracted player URLs from page load
             movieData.playerUrls.forEach { playerUrl ->

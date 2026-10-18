@@ -77,13 +77,39 @@ class UAFlixParsingTest {
     }
 
     @Test
-    fun `premiere button outside the share block is ignored`() {
+    fun `premiere button marks unreleased content as coming soon`() {
         val document = Jsoup.parse(
             """
             <div class="subtitle icon-l">
                 <h2>Фільм Мертва хватка (2026) дивитись онлайн українською:</h2>
                 <button class="btn btn-warning">Прем'єра - незабаром</button>
             </div>
+            """.trimIndent()
+        )
+
+        assertTrue(isUAFlixComingSoon(document))
+    }
+
+    @Test
+    fun `premiere button with date marks unreleased content as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="subtitle icon-l">
+                <h2>Фільм Веріті (2026) дивитись онлайн українською:</h2>
+                <button class="btn btn-warning">Прем'єра - жовтень 2026</button>
+            </div>
+            """.trimIndent()
+        )
+
+        assertTrue(isUAFlixComingSoon(document))
+    }
+
+    @Test
+    fun `content with video player is not marked as coming soon even if premiere button exists`() {
+        val document = Jsoup.parse(
+            """
+            <div class="video-box"><iframe src="https://zetvideo.net/player/123"></iframe></div>
+            <button class="btn btn-warning">Прем'єра - відбулась</button>
             """.trimIndent()
         )
 

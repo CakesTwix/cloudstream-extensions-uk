@@ -1,7 +1,10 @@
 package com.lagradost
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.jsoup.Jsoup
 
 class UakinoParsingTest {
     @Test
@@ -121,6 +124,75 @@ class UakinoParsingTest {
         assertEquals("https://uakino.best/filmy/genre_comedy/3430-bez-vdchuttv.html", parsed.pageUrl)
         assertEquals("3430", parsed.newsId)
         assertEquals(emptyList<String>(), parsed.playerUrls)
+    }
+
+    @Test
+    fun `announcement url without playable media is marked as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-quality">ТРЕЙЛЕР</div>
+            <div class="solototle">Веріті</div>
+            """.trimIndent()
+        )
+
+        assertTrue(
+            isUakinoComingSoon(
+                url = "https://uakino.best/anonsi/36524-veriti.html",
+                document = document,
+                hasPlayableMedia = false,
+            )
+        )
+    }
+
+    @Test
+    fun `trailer quality without playable media is marked as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-quality">ТРЕЙЛЕР</div>
+            """.trimIndent()
+        )
+
+        assertTrue(
+            isUakinoComingSoon(
+                url = "https://uakino.best/filmy/12345-movie.html",
+                document = document,
+                hasPlayableMedia = false,
+            )
+        )
+    }
+
+    @Test
+    fun `content without playable media is marked as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-quality">BDRip 1080p</div>
+            """.trimIndent()
+        )
+
+        assertTrue(
+            isUakinoComingSoon(
+                url = "https://uakino.best/filmy/12345-movie.html",
+                document = document,
+                hasPlayableMedia = false,
+            )
+        )
+    }
+
+    @Test
+    fun `released content with playable media is not marked as coming soon`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-quality">BDRip 1080p</div>
+            """.trimIndent()
+        )
+
+        assertFalse(
+            isUakinoComingSoon(
+                url = "https://uakino.best/filmy/12345-movie.html",
+                document = document,
+                hasPlayableMedia = true,
+            )
+        )
     }
 }
 

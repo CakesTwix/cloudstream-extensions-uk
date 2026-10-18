@@ -188,7 +188,7 @@ class UAFlixProvider : MainAPI() {
         val plot = if (!countries.isNullOrBlank()) "<b>Країна: $countries.</b> $description" else description
         val rating = document.select(ratingSelector).text()
         val trailer = extractUAFlixTrailer(document)
-        val comingSoon = isUAFlixComingSoon(document)
+        val comingSoonMarker = isUAFlixComingSoon(document)
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
@@ -240,7 +240,7 @@ class UAFlixProvider : MainAPI() {
 
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
-
+            val isComingSoon = comingSoonMarker || episodes.isEmpty()
             val response = newAnimeLoadResponse(title, url, tvType) {
                 this.posterUrl = poster
                 this.engName = engTitle
@@ -255,10 +255,10 @@ class UAFlixProvider : MainAPI() {
             }
             // newAnimeLoadResponse recomputes comingSoon after the initializer
             // (comingSoonIfNone), so the marker-based value is applied here.
-            if (comingSoon) response.comingSoon = true
+            if (isComingSoon) response.comingSoon = true
             response
         } else { // Parse as Movie.
-
+            val isComingSoon = comingSoonMarker || playerUrl.isBlank()
             newMovieLoadResponse(title, url, tvType, url) {
                 this.posterUrl = poster
                 this.name = title
@@ -267,7 +267,7 @@ class UAFlixProvider : MainAPI() {
                 this.tags = tags
                 this.contentRating = contentRating
                 this.score = Score.from10(rating)
-                this.comingSoon = comingSoon
+                this.comingSoon = isComingSoon
                 addActors(actors)
                 trailer?.let { addTrailer(it) }
             }
@@ -285,6 +285,7 @@ class UAFlixProvider : MainAPI() {
 
         if(dataList.size == 1){
             var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
+            if(playerUrl.isBlank()) return false
             if(playerUrl.startsWith("//")){
                 playerUrl = "https:$playerUrl"
             }
@@ -301,7 +302,9 @@ class UAFlixProvider : MainAPI() {
                         source = "UAFlix",
                         streamUrl = playerRawJson,
                         referer = "https://tortuga.wtf/"
-                ).dropLast(1).forEach(callback)
+                ).let { streams ->
+                    if (streams.size > 1) streams.dropLast(1) else streams
+                }.forEach(callback)
 
                 parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
                     subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
@@ -319,7 +322,9 @@ class UAFlixProvider : MainAPI() {
                             source = dubs.title,
                             streamUrl = episode.file,
                             referer = "https://tortuga.wtf/"
-                    ).dropLast(1).forEach(callback)
+                    ).let { streams ->
+                        if (streams.size > 1) streams.dropLast(1) else streams
+                    }.forEach(callback)
 
                     parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
                         subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
@@ -342,7 +347,9 @@ class UAFlixProvider : MainAPI() {
                                     source = dubs.title,
                                     streamUrl = episode.file,
                                     referer = "https://tortuga.wtf/"
-                            ).dropLast(1).forEach(callback)
+                            ).let { streams ->
+                                if (streams.size > 1) streams.dropLast(1) else streams
+                            }.forEach(callback)
 
                             parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
                                 subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
