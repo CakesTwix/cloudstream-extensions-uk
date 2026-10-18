@@ -173,3 +173,19 @@ internal fun extractUakinoMoviePlayerUrls(document: Document): List<String> {
     return urls.distinct()
 }
 
+internal fun isUakinoComingSoon(
+    url: String,
+    document: Document,
+    hasPlayableMedia: Boolean,
+): Boolean {
+    if (!hasPlayableMedia) return true
+    if (url.contains("/anonsi/", ignoreCase = true)) return true
+
+    val qualityText = document.select(".full-quality, .fi-desc").text()
+    if (qualityText.contains("ТРЕЙЛЕР", ignoreCase = true) || qualityText.contains("АНОНС", ignoreCase = true)) {
+        return true
+    }
+
+    return false
+}
+

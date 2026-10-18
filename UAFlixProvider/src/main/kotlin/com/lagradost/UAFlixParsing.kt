@@ -25,10 +25,24 @@ internal fun parseUAFlixSubtitle(raw: String?): UAFlixSubtitle? {
 }
 
 internal fun isUAFlixComingSoon(document: Document): Boolean {
-    return document.select(".rate-yx-share").any { element ->
-        val text = element.text()
-        text.contains("Прем'єра") && text.contains("незабаром")
+    val hasVideoPlayer = document.select(".video-box iframe[src], .video-box iframe[data-src]").any {
+        val src = it.attr("src").ifBlank { it.attr("data-src") }
+        src.isNotBlank() && !src.contains("youtube.com", ignoreCase = true) && !src.contains("youtu.be", ignoreCase = true)
     }
+    if (hasVideoPlayer) return false
+
+    val hasSharePremiere = document.select(".rate-yx-share").any { element ->
+        val text = element.text()
+        text.contains("Прем'єра", ignoreCase = true) && text.contains("незабаром", ignoreCase = true)
+    }
+    if (hasSharePremiere) return true
+
+    val hasButtonPremiere = document.select("button.btn-warning, button.btn, .btn, .fbtn").any { element ->
+        element.text().contains("Прем'єра", ignoreCase = true)
+    }
+    if (hasButtonPremiere) return true
+
+    return false
 }
 
 /** Витягує трейлер лише з окремої кнопки UAFlix, а не з основного плеєра. */
