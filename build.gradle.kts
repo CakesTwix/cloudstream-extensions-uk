@@ -49,6 +49,15 @@ subprojects {
             targetCompatibility = JavaVersion.VERSION_11
         }
 
+        sourceSets {
+            getByName("main") {
+                java.srcDir("${rootProject.projectDir}/common/src/main/kotlin")
+            }
+            getByName("test") {
+                java.srcDir("${rootProject.projectDir}/common/src/test/kotlin")
+            }
+        }
+
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_11) // Required
@@ -77,6 +86,9 @@ subprojects {
         implementation(libs.nicehttp) // http library
         implementation(libs.kotlinx.coroutines.core) // coroutines for fetchBypass
         implementation(libs.jsoup) // html parser
+
+        val testImplementation by configurations
+        testImplementation(libs.junit)
     }
 
     tasks.withType<Test>().configureEach {
