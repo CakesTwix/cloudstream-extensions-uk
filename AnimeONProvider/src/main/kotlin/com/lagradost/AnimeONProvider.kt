@@ -1491,6 +1491,15 @@ class AnimeONProvider : MainAPI() {
 
         var foundAny = false
 
+        val seenLinks = mutableSetOf<String>()
+        val safeCallback: (ExtractorLink) -> Unit = { link ->
+            val cleanUrl = link.url.substringBefore("?")
+            val key = "${link.name}|${link.quality}|$cleanUrl"
+            if (seenLinks.add(key)) {
+                callback(link)
+            }
+        }
+
         val moonVideoHeaders = mapOf(
             "User-Agent" to userAgent,
             "Accept" to "*/*",
@@ -1526,7 +1535,7 @@ class AnimeONProvider : MainAPI() {
                                 videoUrl,
                                 sourceName,
                                 subtitleCallback,
-                                callback,
+                                safeCallback,
                                 preferredTrack
                             )
                             foundAny = true
@@ -1537,7 +1546,7 @@ class AnimeONProvider : MainAPI() {
 
                 if (isAshdi) {
                     if (videoUrl.contains("ashdi.vip")) {
-                        processAshdiIframe(videoUrl, sourceName, isMovie = false, callback)
+                        processAshdiIframe(videoUrl, sourceName, isMovie = false, safeCallback)
                         foundAny = true
                     } else if (videoUrl.contains(".m3u8")) {
                         val streams = M3u8Helper.generateM3u8(
@@ -1549,9 +1558,9 @@ class AnimeONProvider : MainAPI() {
                         val filtered = streams.dropLast(1)
 
                         if (filtered.isNotEmpty()) {
-                            filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                            filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                         } else {
-                            streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                            streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                         }
 
                         foundAny = true
@@ -1569,9 +1578,9 @@ class AnimeONProvider : MainAPI() {
                             val filtered = streams.dropLast(1)
 
                             if (filtered.isNotEmpty()) {
-                                filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                             } else {
-                                streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                             }
 
                             foundAny = true
@@ -1580,7 +1589,7 @@ class AnimeONProvider : MainAPI() {
 
                             if (rawFile.isNotEmpty()) {
                                 invokeSubtitles(subUrl, subtitleCallback)
-                                processMoonRawFile(rawFile, sourceName, isMovie = false, callback)
+                                processMoonRawFile(rawFile, sourceName, isMovie = false, safeCallback)
                                 foundAny = true
                             }
                         }
@@ -1601,6 +1610,15 @@ class AnimeONProvider : MainAPI() {
         val translationsJson = fetchJsonOrNull("$mainUrl/api/player/$animeId/translations") ?: return false
 
         var foundAny = false
+
+        val seenLinks = mutableSetOf<String>()
+        val safeCallback: (ExtractorLink) -> Unit = { link ->
+            val cleanUrl = link.url.substringBefore("?")
+            val key = "${link.name}|${link.quality}|$cleanUrl"
+            if (seenLinks.add(key)) {
+                callback(link)
+            }
+        }
 
         val moonVideoHeaders = mapOf(
             "User-Agent" to userAgent,
@@ -1692,7 +1710,7 @@ class AnimeONProvider : MainAPI() {
                                                     finalUrl,
                                                     sourceName,
                                                     subtitleCallback,
-                                                    callback,
+                                                    safeCallback,
                                                     preferredTrack
                                                 )
                                                 foundAny = true
@@ -1703,7 +1721,7 @@ class AnimeONProvider : MainAPI() {
 
                                     if (isAshdi) {
                                         if (finalUrl.contains("ashdi.vip")) {
-                                            processAshdiIframe(finalUrl, sourceName, isMovie = true, callback)
+                                            processAshdiIframe(finalUrl, sourceName, isMovie = true, safeCallback)
                                             foundAny = true
                                         } else if (finalUrl.contains(".m3u8")) {
                                             val streams = M3u8Helper.generateM3u8(
@@ -1715,9 +1733,9 @@ class AnimeONProvider : MainAPI() {
                                             val filtered = streams.dropLast(1)
 
                                             if (filtered.isNotEmpty()) {
-                                                filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                                filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                             } else {
-                                                streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                                streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                             }
 
                                             foundAny = true
@@ -1735,9 +1753,9 @@ class AnimeONProvider : MainAPI() {
                                                 val filtered = streams.dropLast(1)
 
                                                 if (filtered.isNotEmpty()) {
-                                                    filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                                    filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                                 } else {
-                                                    streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                                    streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                                 }
 
                                                 foundAny = true
@@ -1746,7 +1764,7 @@ class AnimeONProvider : MainAPI() {
 
                                                 if (rawFile.isNotEmpty()) {
                                                     invokeSubtitles(subUrl, subtitleCallback)
-                                                    processMoonRawFile(rawFile, sourceName, isMovie = true, callback)
+                                                    processMoonRawFile(rawFile, sourceName, isMovie = true, safeCallback)
                                                     foundAny = true
                                                 }
                                             }
@@ -1779,7 +1797,7 @@ class AnimeONProvider : MainAPI() {
                                             videoUrl,
                                             sourceName,
                                             subtitleCallback,
-                                            callback,
+                                            safeCallback,
                                             preferredTrack
                                         )
                                         foundAny = true
@@ -1790,7 +1808,7 @@ class AnimeONProvider : MainAPI() {
 
                             if (isAshdi) {
                                 if (videoUrl.contains("ashdi.vip")) {
-                                    processAshdiIframe(videoUrl, sourceName, isMovie = true, callback)
+                                    processAshdiIframe(videoUrl, sourceName, isMovie = true, safeCallback)
                                     foundAny = true
                                 } else if (videoUrl.contains(".m3u8")) {
                                     val streams = M3u8Helper.generateM3u8(
@@ -1802,9 +1820,9 @@ class AnimeONProvider : MainAPI() {
                                     val filtered = streams.dropLast(1)
 
                                     if (filtered.isNotEmpty()) {
-                                        filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                        filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                     } else {
-                                        streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                        streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                     }
 
                                     foundAny = true
@@ -1822,9 +1840,9 @@ class AnimeONProvider : MainAPI() {
                                         val filtered = streams.dropLast(1)
 
                                         if (filtered.isNotEmpty()) {
-                                            filtered.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                            filtered.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                         } else {
-                                            streams.forEach { callback(fixMovieExtractorLink(it, sourceName)) }
+                                            streams.forEach { safeCallback(fixMovieExtractorLink(it, sourceName)) }
                                         }
 
                                         foundAny = true
@@ -1833,7 +1851,7 @@ class AnimeONProvider : MainAPI() {
 
                                         if (rawFile.isNotEmpty()) {
                                             invokeSubtitles(subUrl, subtitleCallback)
-                                            processMoonRawFile(rawFile, sourceName, isMovie = true, callback)
+                                            processMoonRawFile(rawFile, sourceName, isMovie = true, safeCallback)
                                             foundAny = true
                                         }
                                     }
