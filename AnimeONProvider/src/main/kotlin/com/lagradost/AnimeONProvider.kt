@@ -23,10 +23,10 @@ class AnimeONProvider : MainAPI() {
             val url = request.url.toString()
 
             val newRequest = when {
-                url.contains("moonanime.art") || url.contains("s.moonanime.art") -> {
+                url.contains("moonanime.net") || url.contains("s.moonanime.net") -> {
                     request.newBuilder()
-                        .header("Referer", "https://moonanime.art/")
-                        .header("Origin", "https://moonanime.art")
+                        .header("Referer", "https://moonanime.net/")
+                        .header("Origin", "https://moonanime.net")
                         .header("User-Agent", userAgent)
                         .build()
                 }
@@ -407,7 +407,7 @@ class AnimeONProvider : MainAPI() {
 
         return try {
             val request = okhttp3.Request.Builder()
-                .url("https://moonanime.art/")
+                .url("https://moonanime.net/")
                 .header("User-Agent", userAgent)
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .get()
@@ -448,11 +448,11 @@ class AnimeONProvider : MainAPI() {
                 .get()
 
             when {
-                originalUrl.contains("s.moonanime.art") ||
-                originalUrl.contains("moonanime.art") ||
+                originalUrl.contains("s.moonanime.net") ||
+                originalUrl.contains("moonanime.net") ||
                 originalUrl.contains("mooncdn.") -> {
-                    requestBuilder.header("Referer", "https://moonanime.art/")
-                    requestBuilder.header("Origin", "https://moonanime.art")
+                    requestBuilder.header("Referer", "https://moonanime.net/")
+                    requestBuilder.header("Origin", "https://moonanime.net")
                 }
                 originalUrl.contains("ashdi.vip") -> {
                     requestBuilder.header("Referer", "https://ashdi.vip/")
@@ -1075,7 +1075,7 @@ class AnimeONProvider : MainAPI() {
 
         val rawPosterUrl = when {
             videoUrl.contains("ashdi.vip") -> getAshdiRawPosterUrl(videoUrl)
-            videoUrl.contains("moonanime.art") -> getMoonRawPosterUrl(videoUrl)
+            videoUrl.contains("moonanime.net") -> getMoonRawPosterUrl(videoUrl)
             else -> null
         } ?: return null
 
@@ -1085,7 +1085,7 @@ class AnimeONProvider : MainAPI() {
     private suspend fun resolveMoonContent(contentUrl: String): String? {
         return try {
             val cookieResponse = app.get(
-                "https://moonanime.art/",
+                "https://moonanime.net/",
                 headers = mapOf(
                     "User-Agent" to userAgent,
                     "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -1102,8 +1102,8 @@ class AnimeONProvider : MainAPI() {
                     "User-Agent" to userAgent,
                     "Accept" to "*/*",
                     "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Referer" to "https://moonanime.art/",
-                    "Origin" to "https://moonanime.art",
+                    "Referer" to "https://moonanime.net/",
+                    "Origin" to "https://moonanime.net",
                     "Sec-Fetch-Site" to "same-site",
                     "Sec-Fetch-Mode" to "cors",
                     "Sec-Fetch-Dest" to "empty",
@@ -1504,8 +1504,8 @@ class AnimeONProvider : MainAPI() {
             "User-Agent" to userAgent,
             "Accept" to "*/*",
             "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer" to "https://moonanime.art/",
-            "Origin" to "https://moonanime.art",
+            "Referer" to "https://moonanime.net/",
+            "Origin" to "https://moonanime.net",
             "Sec-Ch-Ua-Platform" to "\"Android\"",
             "Sec-Fetch-Site" to "cross-site",
             "Sec-Fetch-Mode" to "no-cors",
@@ -1566,12 +1566,12 @@ class AnimeONProvider : MainAPI() {
                         foundAny = true
                     }
                 } else {
-                    if (videoUrl.contains("moonanime.art")) {
+                    if (videoUrl.contains("moonanime.net")) {
                         if (videoUrl.contains("m3u8")) {
                             val streams = M3u8Helper.generateM3u8(
                                 source = sourceName,
                                 streamUrl = videoUrl,
-                                referer = "https://moonanime.art/",
+                                referer = "https://moonanime.net/",
                                 headers = moonVideoHeaders
                             )
 
@@ -1624,8 +1624,8 @@ class AnimeONProvider : MainAPI() {
             "User-Agent" to userAgent,
             "Accept" to "*/*",
             "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer" to "https://moonanime.art/",
-            "Origin" to "https://moonanime.art",
+            "Referer" to "https://moonanime.net/",
+            "Origin" to "https://moonanime.net",
             "Sec-Ch-Ua-Platform" to "\"Android\"",
             "Sec-Fetch-Site" to "cross-site",
             "Sec-Fetch-Mode" to "no-cors",
@@ -1741,12 +1741,12 @@ class AnimeONProvider : MainAPI() {
                                             foundAny = true
                                         }
                                     } else {
-                                        if (finalUrl.contains("moonanime.art")) {
+                                        if (finalUrl.contains("moonanime.net")) {
                                             if (finalUrl.contains("m3u8")) {
                                                 val streams = M3u8Helper.generateM3u8(
                                                     source = sourceName,
                                                     streamUrl = finalUrl,
-                                                    referer = "https://moonanime.art/",
+                                                    referer = "https://moonanime.net/",
                                                     headers = moonVideoHeaders
                                                 )
 
@@ -1828,12 +1828,12 @@ class AnimeONProvider : MainAPI() {
                                     foundAny = true
                                 }
                             } else {
-                                if (videoUrl.contains("moonanime.art")) {
+                                if (videoUrl.contains("moonanime.net")) {
                                     if (videoUrl.contains("m3u8")) {
                                         val streams = M3u8Helper.generateM3u8(
                                             source = sourceName,
                                             streamUrl = videoUrl,
-                                            referer = "https://moonanime.art/",
+                                            referer = "https://moonanime.net/",
                                             headers = moonVideoHeaders
                                         )
 
@@ -1878,8 +1878,8 @@ class AnimeONProvider : MainAPI() {
             "User-Agent" to userAgent,
             "Accept" to "*/*",
             "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.8,en;q=0.7",
-            "Referer" to "https://moonanime.art/",
-            "Origin" to "https://moonanime.art",
+            "Referer" to "https://moonanime.net/",
+            "Origin" to "https://moonanime.net",
             "Sec-Ch-Ua-Platform" to "\"Android\"",
             "Sec-Fetch-Site" to "cross-site",
             "Sec-Fetch-Mode" to "no-cors",
@@ -1902,7 +1902,7 @@ class AnimeONProvider : MainAPI() {
                         val streams = M3u8Helper.generateM3u8(
                             source = sourceName,
                             streamUrl = qUrl,
-                            referer = "https://moonanime.art/",
+                            referer = "https://moonanime.net/",
                             headers = moonVideoHeaders
                         )
 
@@ -1914,7 +1914,7 @@ class AnimeONProvider : MainAPI() {
                         }
                     }
 
-                    qUrl.contains("s.moonanime.art") || qUrl.contains("moonanime.art/content") -> {
+                    qUrl.contains("s.moonanime.net") || qUrl.contains("moonanime.net/content") -> {
                         val finalUrl = resolveMoonContent(qUrl)
 
                         if (!finalUrl.isNullOrEmpty()) {
@@ -1922,7 +1922,7 @@ class AnimeONProvider : MainAPI() {
                                 source = name,
                                 name = sourceName,
                                 url = finalUrl,
-                                referer = "https://moonanime.art/",
+                                referer = "https://moonanime.net/",
                                 quality = qualityInt,
                                 type = com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO,
                                 headers = moonVideoHeaders
@@ -1937,7 +1937,7 @@ class AnimeONProvider : MainAPI() {
                             source = name,
                             name = sourceName,
                             url = qUrl,
-                            referer = "https://moonanime.art/",
+                            referer = "https://moonanime.net/",
                             quality = qualityInt,
                             type = com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO,
                             headers = moonVideoHeaders
@@ -1951,7 +1951,7 @@ class AnimeONProvider : MainAPI() {
             val streams = M3u8Helper.generateM3u8(
                 source = sourceName,
                 streamUrl = rawFile,
-                referer = "https://moonanime.art/",
+                referer = "https://moonanime.net/",
                 headers = moonVideoHeaders
             )
 
@@ -1961,7 +1961,7 @@ class AnimeONProvider : MainAPI() {
             finalStreams.forEach {
                 callback(fixMovieExtractorLink(it, sourceName))
             }
-        } else if (rawFile.contains("s.moonanime.art") || rawFile.contains("moonanime.art/content")) {
+        } else if (rawFile.contains("s.moonanime.net") || rawFile.contains("moonanime.net/content")) {
             val finalUrl = resolveMoonContent(rawFile)
 
             if (!finalUrl.isNullOrEmpty()) {
@@ -1969,7 +1969,7 @@ class AnimeONProvider : MainAPI() {
                     source = name,
                     name = sourceName,
                     url = finalUrl,
-                    referer = "https://moonanime.art/",
+                    referer = "https://moonanime.net/",
                     quality = com.lagradost.cloudstream3.utils.Qualities.Unknown.value,
                     type = com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO,
                     headers = moonVideoHeaders
@@ -1982,7 +1982,7 @@ class AnimeONProvider : MainAPI() {
                 source = name,
                 name = sourceName,
                 url = rawFile,
-                referer = "https://moonanime.art/",
+                referer = "https://moonanime.net/",
                 quality = com.lagradost.cloudstream3.utils.Qualities.Unknown.value,
                 type = com.lagradost.cloudstream3.utils.ExtractorLinkType.VIDEO,
                 headers = moonVideoHeaders
@@ -2188,8 +2188,8 @@ class AnimeONProvider : MainAPI() {
                                 decoded.startsWith("[")
 
                         val isMoonDomain = decoded.contains("mooncdn") ||
-                                decoded.contains("moonanime.art/content") ||
-                                decoded.contains("s.moonanime.art")
+                                decoded.contains("moonanime.net/content") ||
+                                decoded.contains("s.moonanime.net")
 
                         val isStaticAsset = decoded.contains(
                             Regex("""\.(jpg|jpeg|png|vtt|srt|txt)(\?|$)""", RegexOption.IGNORE_CASE)
@@ -2201,7 +2201,7 @@ class AnimeONProvider : MainAPI() {
                     }
                 }
 
-                val contentUrlRegex = Regex("""(https?://s\.moonanime\.art/content/[^\s"'`]+)""")
+                val contentUrlRegex = Regex("""(https?://s\.moonanime\.net/content/[^\s"'`]+)""")
                 val contentMatch = contentUrlRegex.find(decodedJs)?.groupValues?.get(1)
 
                 if (!contentMatch.isNullOrEmpty() && !contentMatch.contains(Regex("""\.(jpg|jpeg|png)$"""))) {
@@ -2221,7 +2221,7 @@ class AnimeONProvider : MainAPI() {
             val qualityResults = mutableListOf<String>()
 
             for (quality in listOf(1080, 720, 480, 360)) {
-                val contentUrl = "https://s.moonanime.art/content/v/$hash/$quality/"
+                val contentUrl = "https://s.moonanime.net/content/v/$hash/$quality/"
                 val resolved = resolveMoonContent(contentUrl)
 
                 if (!resolved.isNullOrEmpty()) {
@@ -2307,8 +2307,8 @@ class AnimeONProvider : MainAPI() {
                         url,
                         headers = mapOf(
                             "User-Agent" to userAgent,
-                            "Referer" to "https://moonanime.art/",
-                            "Origin" to "https://moonanime.art",
+                            "Referer" to "https://moonanime.net/",
+                            "Origin" to "https://moonanime.net",
                             "Accept" to "*/*",
                             "Accept-Language" to "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
                         ),
