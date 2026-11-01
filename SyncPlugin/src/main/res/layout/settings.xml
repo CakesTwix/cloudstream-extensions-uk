@@ -161,6 +161,32 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
 
+        <!-- ======== DIAGNOSTICS ======== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Діагностика"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="8dp" />
+
+        <Switch
+            android:id="@+id/debug_logs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Детальний лог синхронізації"
+            android:textSize="15sp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Пише кроки синхронізації в Logcat (фільтр: CloudSync). Увімкніть, натисніть «Синхронізувати зараз» і збережіть лог для діагностики."
+            android:textSize="12sp"
+            android:textColor="#999999" />
+
         <!-- ======== DEVICES ======== -->
         <TextView
             android:layout_width="wrap_content"

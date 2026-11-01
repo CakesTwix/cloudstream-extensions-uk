@@ -19,6 +19,13 @@ object SyncStorage {
             setKey("CLOUDSYNC_V2_MIGRATED", value)
         }
 
+    /** Детальний лог синхронізації (перемикач у налаштуваннях плагіна). */
+    var debugLogs: Boolean
+        get() = getKey("CLOUDSYNC_DEBUG_LOGS") ?: false
+        set(value) {
+            setKey("CLOUDSYNC_DEBUG_LOGS", value)
+        }
+
     fun getCategoryTimestamp(category: SyncCategory): Long {
         val key = "CLOUDSYNC_TS_${category.key}"
         val stored: Long = getKey(key) ?: 0L
@@ -54,6 +61,7 @@ object SyncStorage {
     fun deleteAllData() {
         setKey("CLOUDSYNC_CREDS", null)
         setKey("CLOUDSYNC_V2_MIGRATED", null)
+        setKey("CLOUDSYNC_DEBUG_LOGS", null)
         SyncCategory.entries.forEach { cat ->
             setKey("CLOUDSYNC_TS_${cat.key}", null)
             setKey("CLOUDSYNC_HASH_${cat.key}", null)

@@ -149,6 +149,15 @@ class SyncSettings(private val plugin: CloudSyncPlugin) {
             }
         }
 
+        // Debug logging switch
+        settings.findView<Switch>("debug_logs").apply {
+            isChecked = sm.debugLogs
+            setOnCheckedChangeListener { _, checked ->
+                sm.debugLogs = checked
+                if (checked) showToast("Лог увімкнено — Logcat, фільтр: CloudSync")
+            }
+        }
+
         // Per-category rows
         val currentCreds = sm.creds ?: SyncCreds()
         val categoriesList = settings.findView<LinearLayout>("categories_list")
@@ -366,6 +375,7 @@ class SyncSettings(private val plugin: CloudSyncPlugin) {
         }
         scope.launch {
             try {
+                SyncLog.d("manual sync requested (server=${creds.serverUrl}, backup=${creds.backupDevice}, restore=${creds.restoreDevice})")
                 showToast("Синхронізація...")
                 plugin.mergeAndSyncAllCategories(context)
                 showToast("Готово!")

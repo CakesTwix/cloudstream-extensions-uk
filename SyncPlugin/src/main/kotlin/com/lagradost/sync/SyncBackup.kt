@@ -52,7 +52,7 @@ object SyncBackup {
         "HAS_DONE_SETUP", "PLUGINS_KEY",
         // This plugin's own state — must never be synced.
         "cloudsync_creds", "cloudsync_v2_migrated", "cloudsync_ts_", "cloudsync_hash_",
-        "cloudsync_synced_keys_",
+        "cloudsync_synced_keys_", "cloudsync_debug_logs",
         "used_fstream_providers_v3", "fstream_version",
         "home_api_used", "home_api", "user_selected_homepage_api",
         "last_sync_api_key", "home_pref_homepage", "library_sorting_mode",
@@ -133,10 +133,10 @@ object SyncBackup {
                 isKeyBackupEnabled(category, creds)
         }
         if (allData.isEmpty() && allSettings.isEmpty()) {
-            Log.d(TAG, "getBackupForCategory(${category.key}): no keys found")
+            SyncLog.d("getBackupForCategory(${category.key}): no keys found")
             return null
         }
-        Log.d(TAG, "getBackupForCategory(${category.key}): datastore=${allData.size} settings=${allSettings.size}")
+        SyncLog.d("getBackupForCategory(${category.key}): datastore=${allData.size} settings=${allSettings.size}")
         return BackupFile(
             datastore = buildBackupVars(allData),
             settings = buildBackupVars(allSettings),

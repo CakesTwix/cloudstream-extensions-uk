@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Base64
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.app
@@ -65,7 +66,13 @@ object SyncNetwork {
         if (!creds.isLoggedIn()) return null
         return try {
             val res = app.get("${creds.baseUrl}v1/sync/manifest", headers = headers())
-            if (res.code == 200) Gson().fromJson(res.text, SyncManifest::class.java) else null
+            if (res.code == 200) {
+                SyncLog.d("GET manifest -> 200 (${res.text.length} bytes)")
+                Gson().fromJson(res.text, SyncManifest::class.java)
+            } else {
+                Log.e(TAG, "GET manifest -> HTTP ${res.code}")
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "fetchManifest failed: ${e.message}")
             null
@@ -85,9 +92,13 @@ object SyncNetwork {
             val res =
                 app.get("${creds.baseUrl}v1/sync/categories/${category.key}", headers = headers())
             if (res.code == 200) {
+                SyncLog.d("GET ${category.key} -> 200 (${res.text.length} bytes)")
                 val payload = Gson().fromJson(res.text, SyncCategoryPayload::class.java)
                 payload.copy(data = decompressData(payload.data))
-            } else null
+            } else {
+                SyncLog.d("GET ${category.key} -> HTTP ${res.code}")
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "fetchCategory(${category.key}) failed: ${e.message}")
             null
@@ -97,12 +108,15 @@ object SyncNetwork {
     /**
      * Push categories in parallel. The server auto-updates the manifest.
      * @param categoryData map of category to Pair(rawJsonData, hash)
-     * @return set of successfully pushed categories
+     * @return map успішно відправлених категорій -> серверна часова мітка (сек).
+     * Час саме з відповіді сервера: годинник пристрою може розходитися,
+     * а локальні ts порівнюються з ts manifest під час polling.
      */
-    suspend fun pushCategories(categoryData: Map<SyncCategory, Pair<String, String>>): Set<SyncCategory> {
-        val creds = SyncStorage.creds ?: return emptySet()
-        if (!creds.isLoggedIn()) return emptySet()
-        val successful = java.util.Collections.synchronizedSet(mutableSetOf<SyncCategory>())
+    suspend fun pushCategories(categoryData: Map<SyncCategory, Pair<String, String>>): Map<SyncCategory, Long> {
+        val creds = SyncStorage.creds ?: return emptyMap()
+        if (!creds.isLoggedIn()) return emptyMap()
+        val successful =
+            java.util.Collections.synchronizedMap(mutableMapOf<SyncCategory, Long>())
 
         coroutineScope {
             categoryData.map { (category, dataPair) ->
@@ -118,8 +132,20 @@ object SyncNetwork {
                             json = body,
                             headers = headers(),
                         )
-                        if (res.code in 200..299) successful.add(category)
-                        else Log.e(TAG, "pushCategories: ${category.key} HTTP ${res.code}")
+                        if (res.code in 200..299) {
+                            val serverTs = runCatching {
+                                Gson().fromJson(res.text, JsonObject::class.java)
+                                    ?.get("ts")?.takeIf { it.isJsonPrimitive }?.asLong
+                                    ?: 0L
+                            }.getOrDefault(0L)
+                            successful[category] = serverTs
+                            SyncLog.d(
+                                "PUT ${category.key} -> HTTP ${res.code}, " +
+                                    "raw=${dataPair.first.length} chars, server ts=$serverTs"
+                            )
+                        } else {
+                            Log.e(TAG, "pushCategories: ${category.key} HTTP ${res.code}")
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "pushCategories: ${category.key} error: ${e.message}")
                     }
@@ -143,6 +169,7 @@ object SyncNetwork {
                 json = body,
                 headers = headers(),
             )
+            SyncLog.d("PUT devices/${creds.deviceId} -> HTTP ${res.code}")
             res.code in 200..299
         } catch (e: Exception) {
             Log.e(TAG, "registerDevice failed: ${e.message}")
@@ -157,7 +184,10 @@ object SyncNetwork {
             val res = app.get("${creds.baseUrl}v1/sync/devices", headers = headers())
             if (res.code == 200) {
                 Gson().fromJson<Map<String, CloudSyncDevice>>(res.text, object : TypeToken<Map<String, CloudSyncDevice>>() {}.type).values.toList()
-            } else null
+            } else {
+                SyncLog.d("GET devices -> HTTP ${res.code}")
+                null
+            }
         } catch (_: Exception) {
             null
         }
