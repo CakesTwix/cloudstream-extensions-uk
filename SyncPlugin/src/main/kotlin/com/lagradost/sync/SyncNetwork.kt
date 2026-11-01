@@ -25,8 +25,15 @@ object SyncNetwork {
     private const val TAG = "CloudSync"
     private const val COMPRESSED_PREFIX = "gz:"
 
-    private fun headers(): Map<String, String> =
-        mapOf("Authorization" to "Bearer ${SyncStorage.creds?.token ?: ""}")
+    private fun headers(): Map<String, String> {
+        val result = mutableMapOf("Authorization" to "Bearer ${SyncStorage.creds?.token ?: ""}")
+        // Heartbeat: сервер оновлює last_active пристрою (тротлінг на боці
+        // сервера), щоб «Був у мережі» у списку пристроїв був актуальним.
+        SyncStorage.creds?.deviceId?.takeIf { it.isNotEmpty() }?.let {
+            result["X-Device-Id"] = it
+        }
+        return result
+    }
 
     fun compressData(data: String): String {
         val bos = ByteArrayOutputStream()
