@@ -91,6 +91,24 @@ class SyncPolicyTest {
     }
 
     @Test
+    fun `polling merges when live local data differs from last synced state`() {
+        // Зміни, чий dirty-стан було втрачено (смерть процесу до debounce,
+        // мережевий збій, старий білд), мають виявлятися за живим хешем.
+        assertTrue(
+            SyncPollPolicy.shouldMerge(
+                hasDirtyCategories = false,
+                hasUnpushedChanges = true,
+            )
+        )
+        assertFalse(
+            SyncPollPolicy.shouldMerge(
+                hasDirtyCategories = false,
+                hasUnpushedChanges = false,
+            )
+        )
+    }
+
+    @Test
     fun `malformed cloud backup is rejected instead of treated as empty`() {
         assertTrue(SyncBackup.parseBackupFile("not-json").isFailure)
         assertTrue(SyncBackup.parseBackupFile("{\"datastore\":{}}").isFailure)

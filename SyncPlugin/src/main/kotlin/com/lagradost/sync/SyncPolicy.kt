@@ -34,7 +34,10 @@ object SyncTime {
 
 /** Вибирає безпечнішу дію polling, якщо локальні зміни ще не відправлені. */
 object SyncPollPolicy {
-    fun shouldMerge(hasDirtyCategories: Boolean): Boolean = hasDirtyCategories
+    fun shouldMerge(
+        hasDirtyCategories: Boolean,
+        hasUnpushedChanges: Boolean = false,
+    ): Boolean = hasDirtyCategories || hasUnpushedChanges
 }
 
 /** Відкладає подію оновлення, якщо синхронізація завершилась до появи MainActivity. */

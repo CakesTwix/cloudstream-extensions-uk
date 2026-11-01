@@ -37,6 +37,24 @@ CloudStream 3 plugin for cross-device synchronization. Pairs with [CloudStream S
 
 Output: `SyncPlugin/build/outputs/plugin/cloudsync.cs3`
 
+## Діагностика
+
+У налаштуваннях плагіна (розділ «Діагностика») є перемикач **«Детальний лог
+синхронізації»**. Увімкніть його, натисніть «Синхронізувати зараз» і дивіться
+Logcat за фільтром `CloudSync`. Лог показує кожне рішення синхронізації:
+
+- `markDirty(...)` — зміну якої категорії помічено;
+- `merge: start ... dirty=[...]` — що планується синхронізувати;
+- `merge <category>: storedHash=... liveHash=... cloudHash=...` — порівняння
+  збереженого, живого та хмарного хешів;
+- `merge fetch <category>: local data differs from cloud` — виявлено
+  невідправлені локальні зміни;
+- `merge: pushing [...]` / `PUT <category> -> HTTP 200 ... server ts=...` —
+  результат відправлення.
+
+Помилки (`Log.e`) пишуться завжди, незалежно від перемикача. Токен у логи
+ніколи не потрапляє.
+
 ## Architecture
 
 ```
