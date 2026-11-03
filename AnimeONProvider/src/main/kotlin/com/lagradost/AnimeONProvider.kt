@@ -7,6 +7,11 @@ import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.models.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class AnimeONProvider : MainAPI() {
 
@@ -160,6 +165,32 @@ class AnimeONProvider : MainAPI() {
         .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .build()
+
+    private val backgroundScope = CoroutineScope(Dispatchers.IO)
+
+    private data class ResolvedEpisode(
+        val links: List<ExtractorLink>,
+        val subtitles: List<SubtitleFile>,
+        val resolvedAt: Long = System.currentTimeMillis()
+    )
+
+    private val episodeResolutionCache =
+        java.util.concurrent.ConcurrentHashMap<String, ResolvedEpisode>()
+    private val episodeSequences =
+        java.util.concurrent.ConcurrentHashMap<Int, List<String>>()
+    private val episodeDataIndex =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Int>>()
+    private val episodeResolveMutexes =
+        java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+
+    private fun isResolvedExpired(r: ResolvedEpisode): Boolean {
+        val now = System.currentTimeMillis() / 1000
+        return r.links.any { l ->
+            Regex("""[?&]expires=(\d+)""").find(l.url)
+                ?.groupValues?.get(1)?.toLongOrNull()
+                ?.let { exp -> exp - 30 <= now } ?: false
+        }
+    }
 
     private fun currentSeasonLabel(): String {
         val cal = java.util.Calendar.getInstance()
@@ -1492,6 +1523,20 @@ class AnimeONProvider : MainAPI() {
 
         val franchise = buildFranchise(animeId)
 
+        val sequence = episodes.map { it.data }
+        episodeSequences[animeId] = sequence
+        sequence.forEachIndexed { idx, d -> episodeDataIndex[d] = animeId to idx }
+
+        if (sequence.isNotEmpty()) {
+            val firstData = sequence.first()
+            backgroundScope.launch {
+                try {
+                    resolveEpisodeToCache(firstData)
+                } catch (_: Exception) {
+                }
+            }
+        }
+
         return if (tvType == TvType.Anime || tvType == TvType.OVA) {
             newAnimeLoadResponse(animeJSON.titleUa, "$mainUrl/anime/$animeId", tvType) {
                 this.posterUrl = posterUrl
@@ -1537,6 +1582,49 @@ class AnimeONProvider : MainAPI() {
         }
     }
 
+    private suspend fun resolveEpisodeToCache(data: String) {
+        val mutex = episodeResolveMutexes.getOrPut(data) { Mutex() }
+        mutex.withLock {
+            episodeResolutionCache[data]?.let { cached ->
+                if (cached.links.isNotEmpty() && !isResolvedExpired(cached)) return@withLock
+            }
+
+            val capturedLinks = mutableListOf<ExtractorLink>()
+            val capturedSubs = mutableListOf<SubtitleFile>()
+
+            val captureLink: (ExtractorLink) -> Unit = { capturedLinks.add(it) }
+            val captureSub: (SubtitleFile) -> Unit = { capturedSubs.add(it) }
+
+            resolveEpisodeLinks(data, captureLink, captureSub)
+
+            if (capturedLinks.isNotEmpty()) {
+                episodeResolutionCache.putIfAbsent(
+                    data,
+                    ResolvedEpisode(capturedLinks, capturedSubs)
+                )
+            }
+        }
+    }
+
+    private fun prefetchNext(currentData: String) {
+        val loc = episodeDataIndex[currentData] ?: return
+        val seq = episodeSequences[loc.first] ?: return
+        val nextIdx = loc.second + 1
+        if (nextIdx >= seq.size) return
+
+        val nextData = seq[nextIdx]
+        episodeResolutionCache[nextData]?.let {
+            if (it.links.isNotEmpty() && !isResolvedExpired(it)) return
+        }
+
+        backgroundScope.launch {
+            try {
+                resolveEpisodeToCache(nextData)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -1549,6 +1637,58 @@ class AnimeONProvider : MainAPI() {
             return loadMovieLinks(animeId, subtitleCallback, callback)
         }
 
+        episodeResolutionCache[data]?.let { cached ->
+            if (cached.links.isNotEmpty() && !isResolvedExpired(cached)) {
+                cached.links.forEach { callback(it) }
+                cached.subtitles.forEach { subtitleCallback(it) }
+                prefetchNext(data)
+                return true
+            }
+        }
+
+        val mutex = episodeResolveMutexes.getOrPut(data) { Mutex() }
+        return mutex.withLock {
+            episodeResolutionCache[data]?.let { cached ->
+                if (cached.links.isNotEmpty() && !isResolvedExpired(cached)) {
+                    cached.links.forEach { callback(it) }
+                    cached.subtitles.forEach { subtitleCallback(it) }
+                    prefetchNext(data)
+                    return@withLock true
+                }
+            }
+
+            val capturedLinks = mutableListOf<ExtractorLink>()
+            val capturedSubs = mutableListOf<SubtitleFile>()
+
+            val wrappedCallback: (ExtractorLink) -> Unit = { link ->
+                capturedLinks.add(link)
+                callback(link)
+            }
+            val wrappedSubCallback: (SubtitleFile) -> Unit = { sub ->
+                capturedSubs.add(sub)
+                subtitleCallback(sub)
+            }
+
+            val result = resolveEpisodeLinks(data, wrappedCallback, wrappedSubCallback)
+
+            if (capturedLinks.isNotEmpty()) {
+                episodeResolutionCache.putIfAbsent(
+                    data,
+                    ResolvedEpisode(capturedLinks, capturedSubs)
+                )
+            }
+
+            prefetchNext(data)
+
+            result
+        }
+    }
+
+    private suspend fun resolveEpisodeLinks(
+        data: String,
+        callback: (ExtractorLink) -> Unit,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ): Boolean {
         val sources: List<EpisodeSource> = try {
             AppUtils.parseJson<List<EpisodeSource>>(data)
         } catch (e: Exception) {
