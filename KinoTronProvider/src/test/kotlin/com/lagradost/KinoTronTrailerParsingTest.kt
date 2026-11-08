@@ -55,4 +55,64 @@ class KinoTronTrailerParsingTest {
             )
         )
     }
+
+    @Test
+    fun `isKinoTronComingSoon розпізнає блок анонсу fmessage`() {
+        val document = Jsoup.parse(
+            """
+            <div class="fmessage">
+                <span style="font-size:14pt;"><b>Фільм скоро вийде українською, наразі це анонс та трейлер.</b></span>
+            </div>
+            """.trimIndent()
+        )
+
+        assertTrue(isKinoTronComingSoon(document))
+    }
+
+    @Test
+    fun `isKinoTronComingSoon повертає false коли немає повідомлення про анонс`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-text">Опис фільму</div>
+            """.trimIndent()
+        )
+
+        assertFalse(isKinoTronComingSoon(document))
+    }
+
+    @Test
+    fun `youtube у video-box використовується як трейлер коли немає окремого trailer-box`() {
+        val document = Jsoup.parse(
+            """
+            <div class="video-box">
+                <iframe data-src="https://www.youtube.com/embed/0PPX_98KEx0"></iframe>
+            </div>
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "https://www.youtube.com/embed/0PPX_98KEx0",
+            extractKinoTronTrailer(document),
+        )
+    }
+
+    @Test
+    fun `сторінка анонсу Одіссея успішно витягує трейлер з trailer-box`() {
+        val document = Jsoup.parse(
+            """
+            <div class="fmessage">
+                <span style="font-size:14pt;"><b>Фільм скоро вийде українською, наразі це анонс та трейлер.</b></span>
+            </div>
+            <div class="video-box hidden trailer-box" id="trailer-box" title="Одіссея український трейлер">
+                <iframe width="560" height="400" data-src="https://www.youtube.com/embed/0PPX_98KEx0" frameborder="0" allowfullscreen></iframe>
+            </div>
+            """.trimIndent()
+        )
+
+        assertTrue(isKinoTronComingSoon(document))
+        assertEquals(
+            "https://www.youtube.com/embed/0PPX_98KEx0",
+            extractKinoTronTrailer(document),
+        )
+    }
 }

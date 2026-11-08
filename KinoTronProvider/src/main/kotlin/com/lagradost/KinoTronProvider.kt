@@ -119,38 +119,45 @@ class KinoTronProvider : MainAPI() {
 
         // Parse episodes
         val episodes = mutableListOf<Episode>()
-        val playerUrl = document.select("div.video-box iframe").attr("data-src")
+        val playerUrl = document.select("div.video-box iframe").attr("data-src").ifBlank {
+            document.select("div.video-box iframe").attr("src")
+        }
         val trailer = extractKinoTronTrailer(document)
-        // Якщо Player1 містить лише той самий YouTube-трейлер, матеріалу для перегляду немає.
-        if (!isKinoTronPlayableMainPlayer(playerUrl, trailer)) return null
-        if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
-        // Ashdi явно розділяє фільми та серіали адресами /vod/ і /serial/.
-        // Деякі сторінки KinoTron мають неточний fsubtitle, тому довіряємо плеєру.
-        if (tvType == TvType.Movie && isKinoTronSeriesPlayerUrl(playerUrl)) {
-            tvType = TvType.TvSeries
+        val isPlayable = isKinoTronPlayableMainPlayer(playerUrl, trailer)
+        val isComingSoon = !isPlayable || isKinoTronComingSoon(document)
+
+        if (isPlayable) {
+            if (playerUrl.contains("/vod/")) { tvType = TvType.Movie }
+            // Ashdi явно розділяє фільми та серіали адресами /vod/ і /serial/.
+            // Деякі сторінки KinoTron мають неточний fsubtitle, тому довіряємо плеєру.
+            if (tvType == TvType.Movie && isKinoTronSeriesPlayerUrl(playerUrl)) {
+                tvType = TvType.TvSeries
+            }
         }
         // Log.d("load-debug", playerUrl)
         // Return to app
         // Parse Episodes as Series
         return if (tvType != TvType.Movie) {
-            val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groups?.get(1)?.value ?: ""
+            if (isPlayable) {
+                val playerRawJson = fileRegex.find(app.get(playerUrl).document.select("script").html())?.groups?.get(1)?.value ?: ""
 
-            AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
-                for(season in dubs.folder){                              // Seasons
-                    for(episode in season.folder){                       // Episodes
-                        episodes.add(
-                             newEpisode("${season.title}|${episode.title}|$playerUrl") {
-                                this.name = episode.title
-                                this.season = season.title.replace(" Сезон ","").toIntOrNull()
-                                this.episode = episode.title.replace("Серія ","").toIntOrNull()
-                                this.posterUrl = episode.poster
-                                this.data = "${season.title}|${episode.title}|$playerUrl"
-                            }
-                        )
+                AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs -> // Dubs
+                    for(season in dubs.folder){                              // Seasons
+                        for(episode in season.folder){                       // Episodes
+                            episodes.add(
+                                 newEpisode("${season.title}|${episode.title}|$playerUrl") {
+                                    this.name = episode.title
+                                    this.season = season.title.replace(" Сезон ","").toIntOrNull()
+                                    this.episode = episode.title.replace("Серія ","").toIntOrNull()
+                                    this.posterUrl = episode.poster
+                                    this.data = "${season.title}|${episode.title}|$playerUrl"
+                                }
+                            )
+                        }
                     }
                 }
             }
-            newTvSeriesLoadResponse(title, url, tvType, episodes) {
+            val response = newTvSeriesLoadResponse(title, url, tvType, episodes) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
@@ -158,13 +165,17 @@ class KinoTronProvider : MainAPI() {
                 this.score = Score.from10(rating)
                 trailer?.let { addTrailer(it) }
             }
+            if (isComingSoon) response.comingSoon = true
+            response
         } else { // Parse as Movie.
-            newMovieLoadResponse(title, url, TvType.Movie, "${title.replace("|", "")}|$playerUrl") {
+            val movieData = if (isPlayable) "${title.replace("|", "")}|$playerUrl" else url
+            newMovieLoadResponse(title, url, TvType.Movie, movieData) {
                 this.posterUrl = poster
                 this.year = year
                 this.plot = description
                 this.tags = tags
                 this.score = Score.from10(rating)
+                this.comingSoon = isComingSoon
                 trailer?.let { addTrailer(it) }
             }
         }
@@ -182,8 +193,12 @@ class KinoTronProvider : MainAPI() {
 
         // Its film, parse one m3u8
         if(dataList.size == 2){
+            val streamPlayerUrl = dataList[1].trim()
+            if (!isKinoTronPlayableMainPlayer(streamPlayerUrl, null)) {
+                return false
+            }
 
-            val m3u8Url = fileRegex.find(app.get(dataList[1]).document.select("script").html())?.groups?.get(1)?.value ?: ""
+            val m3u8Url = fileRegex.find(app.get(streamPlayerUrl).document.select("script").html())?.groups?.get(1)?.value ?: ""
             M3u8Helper.generateM3u8(
                 source = dataList[0],
                 streamUrl = m3u8Url,
@@ -193,25 +208,33 @@ class KinoTronProvider : MainAPI() {
             return true
         }
 
-        val playerRawJson = fileRegex.find(app.get(dataList[2]).document.select("script").html())?.groups?.get(1)?.value ?: ""
+        if (dataList.size == 3) {
+            val serialPlayerUrl = dataList[2].trim()
+            if (!isKinoTronPlayableMainPlayer(serialPlayerUrl, null)) {
+                return false
+            }
 
-        AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                source = dubs.title,
-                                streamUrl = episode.file,
-                                referer = "https://tortuga.wtf/"
-                            ).dropLast(1).forEach(callback)
+            val playerRawJson = fileRegex.find(app.get(serialPlayerUrl).document.select("script").html())?.groups?.get(1)?.value ?: ""
+
+            AppUtils.tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
+                for(season in dubs.folder){                                // Seasons
+                    if(season.title == dataList[0]){
+                        for(episode in season.folder){                     // Episodes
+                            if(episode.title == dataList[1]){
+                                // Add as source
+                                M3u8Helper.generateM3u8(
+                                    source = dubs.title,
+                                    streamUrl = episode.file,
+                                    referer = "https://tortuga.wtf/"
+                                ).dropLast(1).forEach(callback)
+                            }
                         }
                     }
                 }
             }
+            return true
         }
-        return true
+        return false
     }
 }
 
@@ -225,11 +248,23 @@ internal fun isKinoTronPlayableMainPlayer(playerUrl: String?, trailerUrl: String
     return !isYoutube && !duplicateTrailer
 }
 
+/** Визначає, чи є сторінка анонсом / прем'єрою на KinoTron. */
+internal fun isKinoTronComingSoon(document: Document): Boolean {
+    val messageText = document.select(".fmessage").text()
+    if (messageText.contains("скоро вийде", ignoreCase = true) ||
+        messageText.contains("анонс", ignoreCase = true) ||
+        messageText.contains("трейлер", ignoreCase = true)
+    ) {
+        return true
+    }
+    return false
+}
+
 /** Визначає серіальний Ashdi-плеєр незалежно від підпису сторінки KinoTron. */
 internal fun isKinoTronSeriesPlayerUrl(playerUrl: String?): Boolean =
     playerUrl?.contains("/serial/", ignoreCase = true) == true
 
-/** Витягує трейлер із явного trailer-box або відповідного табу KinoTron. */
+/** Витягує трейлер із явного trailer-box, відповідного табу або плеєра YouTube KinoTron. */
 internal fun extractKinoTronTrailer(document: Document): String? {
     fun normalize(raw: String): String? {
         val value = raw.trim()
@@ -251,21 +286,25 @@ internal fun extractKinoTronTrailer(document: Document): String? {
     val trailerIndex = document
         .select(".tabs-sel span")
         .indexOfFirst { it.text().contains("трейлер", ignoreCase = true) }
-    if (trailerIndex < 0) return null
+    if (trailerIndex >= 0) {
+        val iframe = document
+            .select(".tabs-b.video-box")
+            .getOrNull(trailerIndex)
+            ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
+        val tabTrailer = iframe?.let { normalize(it.attr("src").ifBlank { it.attr("data-src") }) }
+        if (tabTrailer != null) return tabTrailer
+    }
 
-    val iframe = document
-        .select(".tabs-b.video-box")
-        .getOrNull(trailerIndex)
-        ?.selectFirst("iframe[src], iframe[data-src], video[src], source[src]")
-        ?: return null
-    return normalize(iframe.attr("src").ifBlank { iframe.attr("data-src") })
+    val candidate = document.select("div.video-box iframe[src], div.video-box iframe[data-src]")
+        .asSequence()
+        .map { it.attr("src").ifBlank { it.attr("data-src") } }
+        .mapNotNull(::normalize)
+        .firstOrNull { it.contains("youtube.com", ignoreCase = true) || it.contains("youtu.be", ignoreCase = true) }
+
+    return candidate
 }
 
 /** Очищає SEO хвости на кшталт "дивитись онлайн" з заголовка KinoTron. */
 internal fun cleanKinoTronTitle(rawTitle: String): String {
-    return rawTitle
-        .replace(Regex("""\s*дивити(?:сь|ся)\s+онлайн.*$""", RegexOption.IGNORE_CASE), "")
-        .replace(Regex("""\s*українською(?:\s+мовою)?(?:\s+онлайн)?\s*$""", RegexOption.IGNORE_CASE), "")
-        .trim()
-        .replace(Regex("""[\s\-–—:]+$"""), "")
+    return com.lagradost.common.TitleUtils.stripSeo(rawTitle)
 }
