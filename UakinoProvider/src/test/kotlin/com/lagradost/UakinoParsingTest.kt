@@ -194,5 +194,28 @@ class UakinoParsingTest {
             )
         )
     }
+
+    @Test
+    fun `released content with playable media is not marked as coming soon even if trailer or announcement text is present`() {
+        val document = Jsoup.parse(
+            """
+            <div class="full-quality">АНОНС</div>
+            <div class="film-info">
+                <div class="fi-item">
+                    <span class="fi-label">Переклад:</span>
+                    <span class="fi-desc">Трейлер</span>
+                </div>
+            </div>
+            """.trimIndent()
+        )
+
+        assertFalse(
+            isUakinoComingSoon(
+                url = "https://uakino.best/seriesss/drama_series/36336-amerykanska-istoriia-zhakhu-13-sezon.html",
+                document = document,
+                hasPlayableMedia = true,
+            )
+        )
+    }
 }
 

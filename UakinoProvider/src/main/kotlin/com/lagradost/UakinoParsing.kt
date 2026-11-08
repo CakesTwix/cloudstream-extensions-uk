@@ -178,7 +178,10 @@ internal fun isUakinoComingSoon(
     document: Document,
     hasPlayableMedia: Boolean,
 ): Boolean {
-    if (!hasPlayableMedia) return true
+    // Якщо для тайтлу вже є доступні серії або робочі відеоплеєри — це повноцінний реліз, не прем'єра
+    if (hasPlayableMedia) return false
+
+    // Для контенту без медіа перевіряємо, чи це явний анонс або якість трейлера
     if (url.contains("/anonsi/", ignoreCase = true)) return true
 
     val qualityText = document.select(".full-quality, .fi-desc").text()
@@ -186,6 +189,6 @@ internal fun isUakinoComingSoon(
         return true
     }
 
-    return false
+    return true
 }
 
