@@ -444,65 +444,6 @@ class UASerialsProProvider : MainAPI() {
         return true
     }
 
-    // THANKS to Hexated!
-    internal fun cryptojsAESHandler(
-        data: AesData?,
-        pass: String,
-        encrypt: Boolean = true
-    ): String {
-        if (data == null || data.s.isNullOrBlank() || data.iv.isNullOrBlank() || data.ct.isNullOrBlank()) {
-            return ""
-        }
-        val salt = try {
-            data.s.decodeHex()
-        } catch (e: Exception) {
-            return ""
-        }
-        val iv = try {
-            data.iv.decodeHex()
-        } catch (e: Exception) {
-            return ""
-        }
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512")
-        val spec = PBEKeySpec(pass.toCharArray(), salt, 999, 256)
-        val key = factory.generateSecret(spec)
-        val cipher = Cipher.getInstance("AES/CBC/NoPadding")
-        return try {
-            if (!encrypt) {
-                cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    SecretKeySpec(key.encoded, "AES"),
-                    IvParameterSpec(iv)
-                )
-                String(cipher.doFinal(base64DecodeArray(data.ct)))
-            } else {
-                cipher.init(
-                    Cipher.ENCRYPT_MODE,
-                    SecretKeySpec(key.encoded, "AES"),
-                    IvParameterSpec(iv)
-                )
-                base64Encode(cipher.doFinal(data.ct.toByteArray()))
-            }
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
-    private fun String.decodeHex(): ByteArray {
-        val clean = filter { it in "0123456789abcdefABCDEF" }
-        check(clean.length % 2 == 0) { "Must have an even length" }
-        return clean.chunked(2)
-            .map { it.toInt(16).toByte() }
-            .toByteArray()
-    }
-
-    data class AesData(
-        @SerializedName("ciphertext") val ct: String? = null,
-        @SerializedName("salt") val s: String? = null,
-        @SerializedName("iv") val iv: String? = null,
-        @SerializedName("iterations") val iterations: Int = 999,
-    )
-
     data class TortugaSeason(
         @SerializedName("title") val title: String,
         @SerializedName("number") val number: String,
@@ -588,7 +529,7 @@ class UASerialsProProvider : MainAPI() {
             if (decrypted.startsWith("http")) return decrypted
 
             val decoded = decodeBase64(encodedString)
-            return decoded?.let { reverseText(it) }
+            return reverseText(decoded)
         }
     }
 }

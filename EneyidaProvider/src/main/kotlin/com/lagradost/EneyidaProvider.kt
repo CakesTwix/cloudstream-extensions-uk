@@ -12,12 +12,13 @@ import com.lagradost.cloudstream3.utils.M3u8Helper
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
+private val eneyidaKeyRegex = Regex("""file\s*:\s*(['"])""")
+
 // Витягує значення поля file: з JS-коду плеєра.
 // Підтримує вкладені JSON-структури серіалів і прямий HLS URL фільму/трейлера.
 internal fun extractEneyidaFileValue(scriptHtml: String): String {
-    val keyRegex = Regex("""file\s*:\s*(['"])""")
-    val match = keyRegex.find(scriptHtml) ?: return ""
-    val quote = match.groupValues[1]
+    val match = eneyidaKeyRegex.find(scriptHtml) ?: return ""
+    val quoteChar = match.groupValues[1][0]
     val start = match.range.last + 1
 
     var i = start
@@ -29,7 +30,7 @@ internal fun extractEneyidaFileValue(scriptHtml: String): String {
             i += 2
             continue
         }
-        if (c.toString() == quote) break
+        if (c == quoteChar) break
         sb.append(c)
         i++
     }

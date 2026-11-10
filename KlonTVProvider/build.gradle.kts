@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 24
+version = 25
 
 dependencies {
     testImplementation(libs.junit)
@@ -28,5 +28,5 @@ cloudstream {
         "Movie",
     )
 
-    iconUrl = "https://www.google.com/s2/favicons?domain=klon.tv&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=klonua.com&sz=%size%"
 }

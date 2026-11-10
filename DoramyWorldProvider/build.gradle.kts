@@ -1,5 +1,5 @@
 // use an integer for version numbers
-version = 2
+version = 3
 
 dependencies {
     implementation(libs.gson)
@@ -28,5 +28,5 @@ cloudstream {
         "Movie",
     )
 
-    iconUrl = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSrZAw8JCRhrw1pDMb5_nYDPYQOPVC4T1JDH3PpLB5Bf35ts32ohXNFsRic&s=10"
+    iconUrl = "https://www.google.com/s2/favicons?domain=doramy.world&sz=%size%"
 }
