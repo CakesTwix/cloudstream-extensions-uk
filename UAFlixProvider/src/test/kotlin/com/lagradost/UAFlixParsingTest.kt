@@ -300,4 +300,42 @@ class UAFlixParsingTest {
             extractUAFlixCardTitle(card)
         )
     }
+
+    @Test
+    fun `extractUAFlixFile extracts single-quoted JSON playlist without breaking on inner double quotes`() {
+        val script = """
+            var player = new Playerjs({
+                id: "player",
+                file: '[{"title":" багатоголосий закадровий","folder":[{"title":"1 серія","file":"https://zetvideo.net/stream/1.m3u8"}]}]',
+                subtitle: ''
+            });
+        """.trimIndent()
+
+        val extracted = extractUAFlixFile(script)
+        assertEquals(
+            """[{"title":" багатоголосий закадровий","folder":[{"title":"1 серія","file":"https://zetvideo.net/stream/1.m3u8"}]}]""",
+            extracted,
+        )
+    }
+
+    @Test
+    fun `extractUAFlixFile extracts double-quoted and single-quoted stream urls`() {
+        val scriptDouble = """file: "https://uafix.net/vod/12345.m3u8""""
+        assertEquals("https://uafix.net/vod/12345.m3u8", extractUAFlixFile(scriptDouble))
+
+        val scriptSingle = """file:'https://uafix.net/vod/67890.m3u8'"""
+        assertEquals("https://uafix.net/vod/67890.m3u8", extractUAFlixFile(scriptSingle))
+    }
+
+    @Test
+    fun `extractUAFlixSubtitleString extracts subtitle from single and double quotes`() {
+        val scriptSingle = """subtitle: '[Українська]https://zetvideo.net/sub.vtt'"""
+        assertEquals("[Українська]https://zetvideo.net/sub.vtt", extractUAFlixSubtitleString(scriptSingle))
+
+        val scriptDouble = """subtitle:"[Українська]https://zetvideo.net/sub.vtt""""
+        assertEquals("[Українська]https://zetvideo.net/sub.vtt", extractUAFlixSubtitleString(scriptDouble))
+
+        assertNull(extractUAFlixSubtitleString(""))
+        assertNull(extractUAFlixSubtitleString(null))
+    }
 }

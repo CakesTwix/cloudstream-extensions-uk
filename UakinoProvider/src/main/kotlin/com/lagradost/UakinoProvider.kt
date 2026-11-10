@@ -3,6 +3,7 @@ package com.lagradost
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
@@ -28,10 +29,15 @@ class UakinoProvider : MainAPI() {
 
     companion object {
         private const val USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
 
-    private val session by lazy { Session(app.baseClient) }
+    private val client by lazy {
+        app.baseClient.newBuilder()
+            .addInterceptor(CloudflareKiller())
+            .build()
+    }
+    private val session by lazy { Session(client) }
 
     // Sections
     override val mainPage =
@@ -45,6 +51,7 @@ class UakinoProvider : MainAPI() {
         )
 
     val blackUrls = "(/news/)|(/franchise/)"
+    private val blackUrlsRegex = Regex(blackUrls)
     val fileRegex = "file\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
     val subsRegex = "subtitle\\s*:\\s*[\"']([^\",']+?)[\"']".toRegex()
 
@@ -119,7 +126,7 @@ class UakinoProvider : MainAPI() {
                 .filterNot { el ->
                     val href = el.select("a.movie-title, a.full-movie").attr("href")
                     val genre = el.select(".fi-label:contains(Жанр:) + .deck-value").text()
-                    href.contains(Regex(blackUrls)) ||
+                    href.contains(blackUrlsRegex) ||
                             (request.name == "Серіали" && (genre.contains("Дорами") || genre.contains("Мультсеріали"))) ||
                             (request.name == "Мультфільми" && href.contains("/cartoonseries/"))
                 }
@@ -167,7 +174,7 @@ class UakinoProvider : MainAPI() {
         return document
             .select("div.movie-item.short-item")
             .filterNot { el ->
-                el.select("a.movie-title, a.full-movie").attr("href").contains(Regex(blackUrls))
+                el.select("a.movie-title, a.full-movie").attr("href").contains(blackUrlsRegex)
             }
             .map { it.toSearchResponse() }
     }

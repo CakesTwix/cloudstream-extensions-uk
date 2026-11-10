@@ -3,6 +3,32 @@ package com.lagradost
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
+private val singleQuoteFileRegex = Regex("""file\s*:\s*'([^']+)'""")
+private val doubleQuoteFileRegex = Regex("""file\s*:\s*"([^"]+)"""")
+
+private val singleQuoteSubtitleRegex = Regex("""subtitle\s*:\s*'([^']*)'""")
+private val doubleQuoteSubtitleRegex = Regex("""subtitle\s*:\s*"([^"]*)"""")
+
+/**
+ * Витягує вміст поля `file` з коду або скриптів плеєра (наприклад, zetvideo.net).
+ * Шукає окремо для одинарних та подвійних лапок, щоб уникнути передчасного обриву
+ * на внутрішніх лапках JSON-плейлістів (`file:'[{"title":"..."}]'`).
+ */
+internal fun extractUAFlixFile(text: String?): String? {
+    if (text.isNullOrBlank()) return null
+    return singleQuoteFileRegex.find(text)?.groupValues?.get(1)
+        ?: doubleQuoteFileRegex.find(text)?.groupValues?.get(1)
+}
+
+/**
+ * Витягує вміст поля `subtitle` з коду плеєра з підтримкою як одинарних, так і подвійних лапок.
+ */
+internal fun extractUAFlixSubtitleString(text: String?): String? {
+    if (text.isNullOrBlank()) return null
+    return singleQuoteSubtitleRegex.find(text)?.groupValues?.get(1)
+        ?: doubleQuoteSubtitleRegex.find(text)?.groupValues?.get(1)
+}
+
 internal data class UAFlixSubtitle(
     val language: String,
     val url: String,
