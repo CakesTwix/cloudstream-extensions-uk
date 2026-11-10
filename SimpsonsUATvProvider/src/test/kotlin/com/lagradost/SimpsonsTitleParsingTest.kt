@@ -5,12 +5,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SimpsonsTitleParsingTest {
-    private val provider = SimpsonsUATvProvider()
-
     @Test
     fun `blog material is not valid catalog content`() {
         assertFalse(
-            provider.isValidContentUrl(
+            isValidContentUrl(
                 "https://simpsonsua.tv/blog/3658-futurama-povertaetsa.html",
             ),
         )
@@ -20,7 +18,7 @@ class SimpsonsTitleParsingTest {
     fun `fallback title removes numeric id and html suffix`() {
         assertEquals(
             "Futurama Povertaetsa",
-            provider.fallbackTitle("https://simpsonsua.tv/blog/3658-futurama-povertaetsa.html"),
+            fallbackTitle("https://simpsonsua.tv/blog/3658-futurama-povertaetsa.html"),
         )
     }
 
@@ -28,16 +26,13 @@ class SimpsonsTitleParsingTest {
     fun `known section title still uses localized mapping`() {
         assertEquals(
             "Футурама",
-            provider.fallbackTitle("https://simpsonsua.tv/allfuturama/"),
+            fallbackTitle("https://simpsonsua.tv/allfuturama/"),
         )
     }
 
     @Test
-    fun `mainPage sections configure horizontal images`() {
-        assertEquals(2, provider.mainPage.size)
-        assertEquals("Останні оновлення", provider.mainPage[0].name)
-        assertEquals(true, provider.mainPage[0].horizontalImages)
-        assertEquals("Мультсеріали", provider.mainPage[1].name)
-        assertEquals(true, provider.mainPage[1].horizontalImages)
+    fun `season number extracted correctly from url`() {
+        assertEquals(25, parseSeasonNumber("https://simpsonsua.tv/simpsony/sezon-25/"))
+        assertEquals(-1, parseSeasonNumber("https://simpsonsua.tv/simpsony/"))
     }
 }

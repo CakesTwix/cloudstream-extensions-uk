@@ -5,8 +5,11 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.common.TitleUtils
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
+
+private val regexUFDubEpisodes = Regex("""https:\/\/ufdub.com\/video\/VIDEOS\.php\?(.*?)'""")
 
 class UFDubProvider : MainAPI() {
 
@@ -50,8 +53,8 @@ class UFDubProvider : MainAPI() {
     }
 
     private fun Element.toSearchResponse(): SearchResponse {
-        val title = this.select(".short-t").text()
-        val href = this.select(".short-t").attr("href").toString()
+        val title = TitleUtils.stripSeo(this.select(".short-t").text())
+        val href = this.select(".short-t").attr("href")
         val posterUrl = mainUrl + this.select(".img-box img").attr("src")
 
         return newMovieSearchResponse(title, href, TvType.Anime) {
@@ -130,7 +133,6 @@ class UFDubProvider : MainAPI() {
         val player = app.get(playerURl).document.select("script").html()
 
         // Parse all episodes
-        val regexUFDubEpisodes = """https:\/\/ufdub.com\/video\/VIDEOS\.php\?(.*?)'""".toRegex()
         val matchResult = regexUFDubEpisodes.findAll(player)
 
         // Drop trailers from episodes
@@ -175,15 +177,15 @@ class UFDubProvider : MainAPI() {
     }
 }
 
-/** Очищає заголовок UFDub, видаляючи вкладений div.short-t-or з оригінальною назвою. */
+/** Очищає заголовок UFDub, видаляючи вкладений div.short-t-or з оригінальною назвою та зайві SEO-хвости. */
 internal fun cleanUFDubTitle(topTitleElement: Element?): String {
     if (topTitleElement == null) return ""
     val clone = topTitleElement.clone()
     clone.select(".short-t-or").remove()
-    val cleaned = clone.text().trim()
-    return cleaned.replace(Regex("""[\s\-–—:]+$"""), "").ifBlank {
-        topTitleElement.ownText().trim().ifBlank {
-            topTitleElement.text().trim()
+    val cleaned = TitleUtils.stripSeo(clone.text())
+    return cleaned.ifBlank {
+        TitleUtils.stripSeo(topTitleElement.ownText()).ifBlank {
+            TitleUtils.stripSeo(topTitleElement.text())
         }
     }
 }

@@ -52,7 +52,7 @@ class UaKinoCXProvider : MainAPI() {
 
     private fun Element.toSearchResponse(): SearchResponse? {
         val titleElement = this.selectFirst("a.item__title, .item__title") ?: return null
-        val title = titleElement.text().trim()
+        val title = cleanUaKinoCXTitle(titleElement.text().trim())
         if (title.isBlank()) return null
         val href = fixUrl(titleElement.attr("href").ifBlank { this.selectFirst("a")?.attr("href") ?: "" })
         val posterUrl = fixUrlNull(this.selectFirst(".item__img img, img")?.attr("src"))
@@ -87,20 +87,19 @@ class UaKinoCXProvider : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url, headers = defaultHeaders).document
 
-        val title = document.selectFirst(".page__header h1, h1")?.let { h1 ->
+        val rawTitle = document.selectFirst(".page__header h1, h1")?.let { h1 ->
             val clone = h1.clone()
             clone.select("small").remove()
             clone.text().trim()
         } ?: document.selectFirst("h1")?.text()?.substringBefore("(")?.trim().orEmpty()
+        val title = cleanUaKinoCXTitle(rawTitle)
 
         val engTitle = document.selectFirst("[itemprop=alternativeHeadline]")?.text()?.trim()
         val poster = fixUrlNull(document.selectFirst(".page__img img, .page__poster img")?.attr("src"))
         val description = document.selectFirst(".page__text .full-text, .page__text")?.text()?.trim()
 
         val year = document.selectFirst("[itemprop=dateCreated]")?.text()?.toIntOrNull()
-            ?: document.selectFirst(".page__header h1 small, h1 small")?.text()?.let {
-                Regex("""\b(19\d\d|20\d\d)\b""").find(it)?.value?.toIntOrNull()
-            }
+            ?: extractYear(document.selectFirst(".page__header h1 small, h1 small")?.text())
 
         val rating = document.selectFirst(".page__ratingscore-ring")?.text()?.trim()
         val contentRating = document.selectFirst(".page__poster .item__label.age, .item__label.age")?.text()?.trim()

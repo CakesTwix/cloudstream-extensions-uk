@@ -1,7 +1,18 @@
 package com.lagradost
 
+import com.lagradost.common.TitleUtils
 import com.lagradost.models.PlayerJson
 import org.jsoup.nodes.Document
+
+private val ortifiedHlsRegex = Regex("""hls\s*:\s*["']([^"']+\.m3u8[^"']*)["']""")
+private val singleQuoteFileRegex = Regex("""file\s*:\s*'([^']+)'""")
+private val doubleQuoteFileRegex = Regex("""file\s*:\s*"([^"]+)"""")
+private val numberRegex = Regex("""\d+""")
+private val yearRegex = Regex("""\b(19\d\d|20\d\d)\b""")
+
+internal fun cleanUaKinoCXTitle(text: String?): String = TitleUtils.stripSeo(text)
+
+internal fun extractYear(text: String?): Int? = text?.let { yearRegex.find(it)?.value?.toIntOrNull() }
 
 internal data class UaKinoCXSubtitle(
     val language: String,
@@ -51,19 +62,15 @@ internal fun extractUaKinoCXPlayerUrls(document: Document): List<String> {
 }
 
 internal fun extractOrtifiedHlsUrl(scriptHtml: String): String? {
-    val regex = Regex("""hls\s*:\s*["']([^"']+\.m3u8[^"']*)["']""")
-    return regex.find(scriptHtml)?.groupValues?.get(1)
+    return ortifiedHlsRegex.find(scriptHtml)?.groupValues?.get(1)
 }
 
 internal fun extractHdvbuaFile(scriptHtml: String): String? {
-    val singleQuoteRegex = Regex("""file\s*:\s*'([^']+)'""")
-    val doubleQuoteRegex = Regex("""file\s*:\s*"([^"]+)"""")
-    return singleQuoteRegex.find(scriptHtml)?.groupValues?.get(1)
-        ?: doubleQuoteRegex.find(scriptHtml)?.groupValues?.get(1)
+    return singleQuoteFileRegex.find(scriptHtml)?.groupValues?.get(1)
+        ?: doubleQuoteFileRegex.find(scriptHtml)?.groupValues?.get(1)
 }
 
 internal fun parseEpisodeNumbers(seasonTitle: String, episodeTitle: String): Pair<Int?, Int?> {
-    val numberRegex = Regex("""\d+""")
     val s = numberRegex.find(seasonTitle)?.value?.toIntOrNull()
     val ep = numberRegex.find(episodeTitle)?.value?.toIntOrNull()
     return s to ep

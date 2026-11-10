@@ -156,4 +156,18 @@ class UaKinoCXParsingTest {
         assertTrue(isUaKinoCXComingSoon(hasPlayableMedia = false))
         assertFalse(isUaKinoCXComingSoon(hasPlayableMedia = true))
     }
+
+    @Test
+    fun `cleanUaKinoCXTitle strips seo tails`() {
+        assertEquals("Дюна: Частина друга", cleanUaKinoCXTitle("Дюна: Частина друга дивитись онлайн українською"))
+        assertEquals("Футурама", cleanUaKinoCXTitle("Футурама - дивитись онлайн"))
+    }
+
+    @Test
+    fun `extractYear parses four-digit year from string`() {
+        assertEquals(2024, extractYear("(2024)"))
+        assertEquals(1999, extractYear("Рік випуску 1999 р."))
+        assertNull(extractYear("без року"))
+        assertNull(extractYear(null))
+    }
 }
