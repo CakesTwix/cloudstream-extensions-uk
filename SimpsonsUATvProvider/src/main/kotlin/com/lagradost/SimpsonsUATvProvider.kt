@@ -3,6 +3,9 @@ package com.lagradost
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.jsoup.nodes.Comment
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -246,29 +249,43 @@ class SimpsonsUATvProvider : MainAPI() {
                 }
                 .distinctBy { it.href }
 
-            sectItems.forEach { item ->
-                if (item.href.endsWith(".html")) {
-                    try {
-                        val itemDoc = app.get(item.href, headers = headers()).document
-                        val rawName = cleanTitle(
-                            itemDoc.selectFirst(".poster h2, h1")?.text()?.trim()
-                                ?: urlSlug(item.href).replace("-", " ")
-                        )
-                        val itemPoster = item.cardPoster
-                            ?: itemDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
-                        val itemDesc = itemDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
-                        into.add(newEpisode(item.href) {
-                            this.name        = "[$sectionLabel] $rawName"
-                            this.season      = seasonNum
-                            this.episode     = into.count { it.season == seasonNum } + 1
-                            this.description = itemDesc
-                            this.posterUrl   = convertToLandscapeProxy(itemPoster)
-                        })
-                    } catch (e: Exception) { }
-                } else {
-                    val subLabel = sectionTitle(item.href)
-                    collectFromSpecialSection(item.href, subLabel, seasonNum, into)
+            val htmlItems = sectItems.filter { it.href.endsWith(".html") }
+            val subSectionItems = sectItems.filter { !it.href.endsWith(".html") }
+
+            if (htmlItems.isNotEmpty()) {
+                val sectEpisodes = coroutineScope {
+                    htmlItems.map { item ->
+                        async {
+                            try {
+                                val itemDoc = app.get(item.href, headers = headers()).document
+                                val rawName = cleanTitle(
+                                    itemDoc.selectFirst(".poster h2, h1")?.text()?.trim()
+                                        ?: urlSlug(item.href).replace("-", " ")
+                                )
+                                val itemPoster = item.cardPoster
+                                    ?: itemDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
+                                val itemDesc = itemDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
+                                newEpisode(item.href) {
+                                    this.name        = "[$sectionLabel] $rawName"
+                                    this.season      = seasonNum
+                                    this.description = itemDesc
+                                    this.posterUrl   = convertToLandscapeProxy(itemPoster)
+                                }
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                    }.awaitAll().filterNotNull()
                 }
+                sectEpisodes.forEach { ep ->
+                    ep.episode = into.count { it.season == seasonNum } + 1
+                    into.add(ep)
+                }
+            }
+
+            subSectionItems.forEach { item ->
+                val subLabel = sectionTitle(item.href)
+                collectFromSpecialSection(item.href, subLabel, seasonNum, into)
             }
         }
     }
@@ -343,37 +360,46 @@ class SimpsonsUATvProvider : MainAPI() {
                 .filter { parseSeasonNumber(it.href) > 0 }
                 .sortedBy { parseSeasonNumber(it.href) }
 
-            seasonItems.forEach { item ->
-                val seasonNum = parseSeasonNumber(item.href)
-                try {
-                    val seasonDoc = app.get(item.href, headers = headers()).document
-                    val cards = seasonDoc.select("#dle-content .movie_item")
-                    var epCounter = 1
-                    cards.forEach { card ->
-                        val a = card.selectFirst("a") ?: return@forEach
-                        val epUrl = a.attr("href").takeIf { it.isNotBlank() } ?: return@forEach
-                        if (parseSeasonNumber(epUrl) > 0 && !epUrl.contains("-seriya")) return@forEach
+            val seasonEpisodes = coroutineScope {
+                seasonItems.map { item ->
+                    async {
+                        val seasonNum = parseSeasonNumber(item.href)
+                        val eps = mutableListOf<Episode>()
+                        try {
+                            val seasonDoc = app.get(item.href, headers = headers()).document
+                            val cards = seasonDoc.select("#dle-content .movie_item")
+                            var epCounter = 1
+                            cards.forEach { card ->
+                                val a = card.selectFirst("a") ?: return@forEach
+                                val epUrl = a.attr("href").takeIf { it.isNotBlank() } ?: return@forEach
+                                if (parseSeasonNumber(epUrl) > 0 && !epUrl.contains("-seriya")) return@forEach
 
-                        val epNum = parseEpisodeNumber(epUrl, epCounter)
-                        if (epNum == epCounter) epCounter++
+                                val epNum = parseEpisodeNumber(epUrl, epCounter)
+                                if (epNum == epCounter) epCounter++
 
-                        val epName = cleanTitle(
-                            a.selectFirst(".descr.nazva")?.text()?.trim()
-                                ?: a.selectFirst(".title, h2")?.text()?.trim()
-                                ?: "Серія $epNum"
-                        )
-                        val epDesc = a.selectFirst(".descr:not(.nazva)")?.text()?.trim()
-                        val epPoster = extractImageUrl(card)
+                                val epName = cleanTitle(
+                                    a.selectFirst(".descr.nazva")?.text()?.trim()
+                                        ?: a.selectFirst(".title, h2")?.text()?.trim()
+                                        ?: "Серія $epNum"
+                                )
+                                val epDesc = a.selectFirst(".descr:not(.nazva)")?.text()?.trim()
+                                val epPoster = extractImageUrl(card)
 
-                        episodes.add(newEpisode(epUrl) {
-                            this.name        = epName
-                            this.season      = seasonNum
-                            this.episode     = epNum
-                            this.description = epDesc
-                            this.posterUrl   = convertToLandscapeProxy(epPoster)
-                        })
+                                eps.add(newEpisode(epUrl) {
+                                    this.name        = epName
+                                    this.season      = seasonNum
+                                    this.episode     = epNum
+                                    this.description = epDesc
+                                    this.posterUrl   = convertToLandscapeProxy(epPoster)
+                                })
+                            }
+                        } catch (e: Exception) { }
+                        seasonNum to eps
                     }
-                } catch (e: Exception) { }
+                }.awaitAll()
+            }
+            seasonEpisodes.sortedBy { it.first }.forEach { (_, eps) ->
+                episodes.addAll(eps)
             }
 
             val directMovies = subItems.filter {
@@ -381,24 +407,33 @@ class SimpsonsUATvProvider : MainAPI() {
             }
             if (directMovies.isNotEmpty()) {
                 val movieSeasonNum = specialSeasonCounter++
-                directMovies.forEach { item ->
-                    try {
-                        val movieDoc = app.get(item.href, headers = headers()).document
-                        val movieTitle = cleanTitle(
-                            movieDoc.selectFirst(".poster h2, h1")?.text()?.trim()
-                                ?: urlSlug(item.href).replace("-", " ")
-                        )
-                        val moviePoster = item.cardPoster
-                            ?: movieDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
-                        val movieDesc = movieDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
-                        episodes.add(newEpisode(item.href) {
-                            this.name        = movieTitle
-                            this.season      = movieSeasonNum
-                            this.episode     = episodes.count { it.season == movieSeasonNum } + 1
-                            this.description = movieDesc
-                            this.posterUrl   = convertToLandscapeProxy(moviePoster)
-                        })
-                    } catch (e: Exception) { }
+                val movieEpisodes = coroutineScope {
+                    directMovies.map { item ->
+                        async {
+                            try {
+                                val movieDoc = app.get(item.href, headers = headers()).document
+                                val movieTitle = cleanTitle(
+                                    movieDoc.selectFirst(".poster h2, h1")?.text()?.trim()
+                                        ?: urlSlug(item.href).replace("-", " ")
+                                )
+                                val moviePoster = item.cardPoster
+                                    ?: movieDoc.selectFirst(".poster img, div.story img")?.let { extractImageUrl(it.parent()) }
+                                val movieDesc = movieDoc.selectFirst(".fullstory, .sez-opys")?.text()?.trim()
+                                newEpisode(item.href) {
+                                    this.name        = movieTitle
+                                    this.season      = movieSeasonNum
+                                    this.description = movieDesc
+                                    this.posterUrl   = convertToLandscapeProxy(moviePoster)
+                                }
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                    }.awaitAll().filterNotNull()
+                }
+                movieEpisodes.forEachIndexed { idx, ep ->
+                    ep.episode = idx + 1
+                    episodes.add(ep)
                 }
             }
 
