@@ -3,11 +3,13 @@ package com.lagradost
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.models.PlayerJson
+import com.lagradost.nicehttp.Session
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -26,6 +28,13 @@ class UaKinoCXProvider : MainAPI() {
         TvType.Cartoon,
     )
 
+    private val client by lazy {
+        app.baseClient.newBuilder()
+            .addInterceptor(CloudflareKiller())
+            .build()
+    }
+    private val session by lazy { Session(client) }
+
     override val mainPage = mainPageOf(
         "$mainUrl/cinema/page/" to "Фільми",
         "$mainUrl/series/page/" to "Серіали",
@@ -34,7 +43,7 @@ class UaKinoCXProvider : MainAPI() {
     )
 
     private val defaultHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 15; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
         "Referer" to "$mainUrl/",
     )
 
@@ -43,7 +52,7 @@ class UaKinoCXProvider : MainAPI() {
         request: MainPageRequest
     ): HomePageResponse {
         val url = "${request.data}$page/"
-        val document = app.get(url, headers = defaultHeaders).document
+        val document = session.get(url, headers = defaultHeaders).document
         val home = document.select(".grid-items__item, .item").mapNotNull {
             it.toSearchResponse()
         }
@@ -77,7 +86,7 @@ class UaKinoCXProvider : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         val searchUrl = "$mainUrl/index.php?do=search&subaction=search&story=$query"
-        val document = app.get(searchUrl, headers = defaultHeaders).document
+        val document = session.get(searchUrl, headers = defaultHeaders).document
 
         return document.select(".grid-items__item, .item").mapNotNull {
             it.toSearchResponse()
@@ -85,7 +94,7 @@ class UaKinoCXProvider : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url, headers = defaultHeaders).document
+        val document = session.get(url, headers = defaultHeaders).document
 
         val rawTitle = document.selectFirst(".page__header h1, h1")?.let { h1 ->
             val clone = h1.clone()
@@ -260,7 +269,7 @@ class UaKinoCXProvider : MainAPI() {
         }
 
         // Movie handling
-        val movieDoc = app.get(data, headers = defaultHeaders).document
+        val movieDoc = session.get(data, headers = defaultHeaders).document
         val playerUrls = extractUaKinoCXPlayerUrls(movieDoc)
         if (playerUrls.isEmpty()) return false
 
