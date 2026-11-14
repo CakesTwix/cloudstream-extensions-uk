@@ -274,103 +274,109 @@ class UAFlixProvider : MainAPI() {
     }
 
     // It works when I click to view the series
-    override suspend fun loadLinks(
-        data: String, // (Serial) [Season Index, Episode Name, url] | (Film) [Title, Player Url]
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val dataList = data.split(", ")
+        override suspend fun loadLinks(
+    data: String, // (Serial) [Season Index, Episode Name, url] | (Film) [Title, Player Url]
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    val dataList = data.split(", ")
 
-        if(dataList.size == 1){
-            var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
-            if(playerUrl.isBlank()) return false
-            if(playerUrl.startsWith("//")){
-                playerUrl = "https:$playerUrl"
-            }
-            if(playerUrl.contains("/vod/")){
-                val playerRes = app.get(playerUrl,
-                        headers = mapOf(
-                                "Referer" to "https://uafix.net/",
-                        ))
-                val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
-                    ?: extractUAFlixFile(playerRes.text)
-                    ?: ""
-
-                val subtitleString = extractUAFlixSubtitleString(playerRes.document.select("script").html())
-                    ?: extractUAFlixSubtitleString(playerRes.text)
-                    ?: ""
-
-                M3u8Helper.generateM3u8(
-                        source = "UAFlix",
-                        streamUrl = playerRawJson,
-                        referer = "https://tortuga.wtf/"
-                ).let { streams ->
-                    if (streams.size > 1) streams.dropLast(1) else streams
-                }.forEach(callback)
-
-                parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
-                    subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                }
-
-                return true
-            }
-            val playerRes = app.get(playerUrl, referer = "https://uafix.net")
+    if(dataList.size == 1){
+        var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
+        if(playerUrl.isBlank()) return false
+        if(playerUrl.startsWith("//")){
+            playerUrl = "https:$playerUrl"
+        }
+        if(playerUrl.contains("/vod/")){
+            val playerRes = app.get(playerUrl,
+                    headers = mapOf(
+                            "Referer" to "https://uafix.net/",
+                    ))
             val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
                 ?: extractUAFlixFile(playerRes.text)
                 ?: ""
-            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-                for(season in dubs.folder){                                // Seasons
-                    val episode = season.folder.firstOrNull() ?: continue
-                    if (episode.file.isBlank()) continue
-                    // Add as source
-                    M3u8Helper.generateM3u8(
-                            source = dubs.title,
-                            streamUrl = episode.file,
-                            referer = "https://tortuga.wtf/"
-                    ).let { streams ->
-                        if (streams.size > 1) streams.dropLast(1) else streams
-                    }.forEach(callback)
 
-                    parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
-                        subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                    }
-                }
+            val subtitleString = extractUAFlixSubtitleString(playerRes.document.select("script").html())
+                ?: extractUAFlixSubtitleString(playerRes.text)
+                ?: ""
+            
+            // Якщо це zetvideo, використовуємо повний URL плеєра як Referer
+            val currentReferer = if (playerUrl.contains("zetvideo.net")) playerUrl else "https://tortuga.wtf/"
+
+            M3u8Helper.generateM3u8(
+                    source = "UAFlix",
+                    streamUrl = playerRawJson,
+                    referer = currentReferer
+            ).let { streams ->
+                if (streams.size > 1) streams.dropLast(1) else streams
+            }.forEach(callback)
+
+            parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
+                subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
             }
 
             return true
         }
-
-
-        val playerRes = app.get(dataList[2], referer = "https://uafix.net")
+        val playerRes = app.get(playerUrl, referer = "https://uafix.net")
         val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
             ?: extractUAFlixFile(playerRes.text)
             ?: ""
         tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
             for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            M3u8Helper.generateM3u8(
-                                    source = dubs.title,
-                                    streamUrl = episode.file,
-                                    referer = "https://tortuga.wtf/"
-                            ).let { streams ->
-                                if (streams.size > 1) streams.dropLast(1) else streams
-                            }.forEach(callback)
+                val episode = season.folder.firstOrNull() ?: continue
+                if (episode.file.isBlank()) continue
+                // Add as source
+                val currentReferer = if (playerUrl.contains("zetvideo.net")) playerUrl else "https://tortuga.wtf/"
 
-                            parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
-                                subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                            }
-                        }
-                    }
+                M3u8Helper.generateM3u8(
+                        source = dubs.title,
+                        streamUrl = episode.file,
+                        referer = currentReferer
+                ).let { streams ->
+                    if (streams.size > 1) streams.dropLast(1) else streams
+                }.forEach(callback)
+
+                parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                    subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
                 }
             }
         }
 
         return true
     }
+
+    val playerRes = app.get(dataList[2], referer = "https://uafix.net")
+    val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
+        ?: extractUAFlixFile(playerRes.text)
+        ?: ""
+    tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
+        for(season in dubs.folder){                                // Seasons
+            if(season.title == dataList[0]){
+                for(episode in season.folder){                     
+                    if(episode.title == dataList[1]){
+                        // Add as source
+                        val currentReferer = if (dataList[2].contains("zetvideo.net")) dataList[2] else "https://tortuga.wtf/"
+
+                        M3u8Helper.generateM3u8(
+                                source = dubs.title,
+                                streamUrl = episode.file,
+                                referer = currentReferer
+                        ).let { streams ->
+                            if (streams.size > 1) streams.dropLast(1) else streams
+                        }.forEach(callback)
+
+                        parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                            subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return true
+        }
 
     private fun extractIntsFromString(string: String): List<MatchResult> {
         return Regex("(\\d+)").findAll(string).toList()
