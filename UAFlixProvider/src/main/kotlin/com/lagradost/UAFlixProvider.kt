@@ -28,11 +28,14 @@ import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.models.PlayerJson
 import com.lagradost.nicehttp.Session
 import okhttp3.FormBody
 import org.jsoup.nodes.Element
+import java.net.URI
 
 class UAFlixProvider : MainAPI() {
 
@@ -43,6 +46,10 @@ class UAFlixProvider : MainAPI() {
     override var lang = "uk"
     override val hasQuickSearch = true
     override val hasDownloadSupport = true
+    // A non-zetvideo HLS master can still reference zetvideo child manifests.
+    override fun getVideoInterceptor(extractorLink: ExtractorLink): okhttp3.Interceptor? =
+        if (extractorLink.type == ExtractorLinkType.M3U8) UAFlixZetvideoInterceptor() else null
+
     override val supportedTypes = setOf(
         TvType.TvSeries,
         TvType.Cartoon,
@@ -274,117 +281,183 @@ class UAFlixProvider : MainAPI() {
     }
 
     // It works when I click to view the series
-        override suspend fun loadLinks(
-    data: String, // (Serial) [Season Index, Episode Name, url] | (Film) [Title, Player Url]
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-    val dataList = data.split(", ")
+    override suspend fun loadLinks(
+        data: String, // (Serial) [Season Index, Episode Name, url] | (Film) [Title, Player Url]
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val dataList = data.split(", ")
 
-    if(dataList.size == 1){
-        var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
-        if(playerUrl.isBlank()) return false
-        if(playerUrl.startsWith("//")){
-            playerUrl = "https:$playerUrl"
-        }
-        if(playerUrl.contains("/vod/")){
-            val playerRes = app.get(playerUrl,
-                    headers = mapOf(
-                            "Referer" to "https://uafix.net/",
-                    ))
+        if (dataList.size == 1) {
+            var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
+            if (playerUrl.isBlank()) return false
+            if (playerUrl.startsWith("//")) {
+                playerUrl = "https:$playerUrl"
+            }
+
+            if (playerUrl.contains("/vod/")) {
+                val playerRes = app.get(
+                    playerUrl,
+                    headers = mapOf("Referer" to "https://uafix.net/")
+                )
+                val playerScript = playerRes.document.select("script").html()
+                val playerRawJson = extractUAFlixFile(playerScript)
+                    ?: extractUAFlixFile(playerRes.text)
+                    ?: ""
+                val subtitleString = extractUAFlixSubtitleString(playerScript)
+                    ?: extractUAFlixSubtitleString(playerRes.text)
+                    ?: ""
+                val currentReferer = uaFlixPlayerReferer(playerUrl)
+
+                emitUaFlixStreamLinks(
+                    source = name,
+                    name = name,
+                    streamUrl = playerRawJson,
+                    referer = currentReferer,
+                    callback = callback
+                )
+
+                parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
+                    subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                }
+                return true
+            }
+
+            val playerRes = app.get(playerUrl, referer = "https://uafix.net")
             val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
                 ?: extractUAFlixFile(playerRes.text)
                 ?: ""
+            val currentReferer = uaFlixPlayerReferer(playerUrl)
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dubs ->
+                for (season in dubs.folder) {
+                    val episode = season.folder.firstOrNull() ?: continue
+                    if (episode.file.isBlank()) continue
 
-            val subtitleString = extractUAFlixSubtitleString(playerRes.document.select("script").html())
-                ?: extractUAFlixSubtitleString(playerRes.text)
-                ?: ""
-            
-            // Якщо це zetvideo, використовуємо повний URL плеєра як Referer
-            val currentReferer = if (playerUrl.contains("zetvideo.net")) playerUrl else "https://tortuga.wtf/"
-
-            M3u8Helper.generateM3u8(
-                    source = "UAFlix",
-                    streamUrl = playerRawJson,
-                    referer = currentReferer
-            ).let { streams ->
-                if (streams.size > 1) streams.dropLast(1) else streams
-            }.forEach(callback)
-
-            parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
-                subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                    emitUaFlixStreamLinks(
+                        source = this.name,
+                        name = dubs.title,
+                        streamUrl = episode.file,
+                        referer = currentReferer,
+                        callback = callback
+                    )
+                    parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                        subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
+                    }
+                }
             }
-
             return true
         }
+
+        val playerUrl = dataList[2]
         val playerRes = app.get(playerUrl, referer = "https://uafix.net")
         val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
             ?: extractUAFlixFile(playerRes.text)
             ?: ""
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                val episode = season.folder.firstOrNull() ?: continue
-                if (episode.file.isBlank()) continue
-                // Add as source
-                val currentReferer = if (playerUrl.contains("zetvideo.net")) playerUrl else "https://tortuga.wtf/"
+        val currentReferer = uaFlixPlayerReferer(playerUrl)
+        tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dubs ->
+            for (season in dubs.folder) {
+                if (season.title != dataList[0]) continue
+                for (episode in season.folder) {
+                    if (episode.title != dataList[1]) continue
 
-                M3u8Helper.generateM3u8(
-                        source = dubs.title,
+                    emitUaFlixStreamLinks(
+                        source = this.name,
+                        name = dubs.title,
                         streamUrl = episode.file,
-                        referer = currentReferer
-                ).let { streams ->
-                    if (streams.size > 1) streams.dropLast(1) else streams
-                }.forEach(callback)
-
-                parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
-                    subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                }
-            }
-        }
-
-        return true
-    }
-
-    val playerRes = app.get(dataList[2], referer = "https://uafix.net")
-    val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
-        ?: extractUAFlixFile(playerRes.text)
-        ?: ""
-    tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-        for(season in dubs.folder){                                // Seasons
-            if(season.title == dataList[0]){
-                for(episode in season.folder){                     
-                    if(episode.title == dataList[1]){
-                        // Add as source
-                        val currentReferer = if (dataList[2].contains("zetvideo.net")) dataList[2] else "https://tortuga.wtf/"
-
-                        M3u8Helper.generateM3u8(
-                                source = dubs.title,
-                                streamUrl = episode.file,
-                                referer = currentReferer
-                        ).let { streams ->
-                            if (streams.size > 1) streams.dropLast(1) else streams
-                        }.forEach(callback)
-
-                        parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
-                            subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                        }
+                        referer = currentReferer,
+                        callback = callback
+                    )
+                    parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                        subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
                     }
                 }
             }
         }
+        return true
     }
-
-    return true
-        }
 
     private fun extractIntsFromString(string: String): List<MatchResult> {
         return Regex("(\\d+)").findAll(string).toList()
     }
 }
 
+internal fun uaFlixPlayerReferer(playerUrl: String): String {
+    val uri = try {
+        URI(playerUrl)
+    } catch (_: Exception) {
+        return "https://tortuga.wtf/"
+    }
+    val scheme = uri.scheme ?: return "https://tortuga.wtf/"
+    val host = uri.host ?: return "https://tortuga.wtf/"
+    val isZetvideoPlayer =
+        (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) &&
+            host.equals("zetvideo.net", ignoreCase = true) &&
+            uri.rawUserInfo == null
+    return if (isZetvideoPlayer) playerUrl else "https://tortuga.wtf/"
+}
+
 internal fun parseEpisodeNumbers(seasonTitle: String, episodeTitle: String): Pair<Int?, Int?> {
     val numberRegex = Regex("\\d+")
     return numberRegex.find(seasonTitle)?.value?.toIntOrNull() to
         numberRegex.find(episodeTitle)?.value?.toIntOrNull()
+}
+
+internal suspend fun emitUaFlixStreamLinks(
+    source: String,
+    name: String,
+    streamUrl: String,
+    referer: String,
+    callback: (ExtractorLink) -> Unit,
+    streamGenerator: suspend (String, String, String, String) -> List<ExtractorLink> = { linkSource, linkName, url, linkReferer ->
+        M3u8Helper.generateM3u8(
+            source = linkSource,
+            name = linkName,
+            streamUrl = url,
+            referer = linkReferer
+        )
+    }
+) {
+    val generated = streamGenerator(source, name, streamUrl, referer)
+    val selected = if (generated.size > 1) generated.dropLast(1) else generated
+    val links = if (generated.isEmpty() && streamUrl.isValidZetvideoHlsUrl()) {
+        listOf(
+            newUaFlixMasterLink(source, name, streamUrl, referer)
+        )
+    } else {
+        selected
+    }
+    links.forEach(callback)
+}
+
+// Use the constructor signature shared with older CloudstreamApi runtimes.
+@Suppress("DEPRECATION_ERROR")
+private fun newUaFlixMasterLink(
+    source: String,
+    name: String,
+    streamUrl: String,
+    referer: String
+): ExtractorLink = ExtractorLink(
+    source,
+    name,
+    streamUrl,
+    referer,
+    Qualities.Unknown.value,
+    ExtractorLinkType.M3U8,
+    emptyMap(),
+    null
+)
+
+private fun String.isValidZetvideoHlsUrl(): Boolean {
+    val uri = try {
+        URI(this)
+    } catch (_: Exception) {
+        return false
+    }
+    val scheme = uri.scheme ?: return false
+    val host = uri.host ?: return false
+    return (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) &&
+        host.equals("zetvideo.net", ignoreCase = true) &&
+        uri.rawUserInfo == null &&
+        uri.rawPath?.endsWith(".m3u8", ignoreCase = true) == true
 }

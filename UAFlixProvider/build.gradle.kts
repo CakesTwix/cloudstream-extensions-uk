@@ -1,11 +1,12 @@
 // use an integer for version numbers
-version = 24
+version = 25
 
 dependencies {
     implementation(libs.gson)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.cloudstreamapi)
 }
 
 cloudstream {
