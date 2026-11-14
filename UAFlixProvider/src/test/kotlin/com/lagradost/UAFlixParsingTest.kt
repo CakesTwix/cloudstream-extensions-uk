@@ -1,11 +1,16 @@
 package com.lagradost
 
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.Qualities
+import kotlinx.coroutines.test.runTest
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.jsoup.Jsoup
 
 class UAFlixParsingTest {
     @Test
@@ -338,4 +343,106 @@ class UAFlixParsingTest {
         assertNull(extractUAFlixSubtitleString(""))
         assertNull(extractUAFlixSubtitleString(null))
     }
+
+    @Test
+    fun `serial stream emission preserves source name referer and quality selection`() = runTest {
+        val streamUrl = "https://zetvideo.net/vid/series/master.m3u8"
+        val referer = "https://tortuga.wtf/"
+        val generated = listOf(
+            testExtractorLink("UAFlix", "Ukrainian Dub", "$streamUrl?quality=1080", referer, 1080),
+            testExtractorLink("UAFlix", "Ukrainian Dub", "$streamUrl?quality=720", referer, 720),
+            testExtractorLink("UAFlix", "Ukrainian Dub", "$streamUrl?quality=480", referer, 480)
+        )
+        val emitted = mutableListOf<ExtractorLink>()
+        var generatorArguments: List<String>? = null
+
+        emitUaFlixStreamLinks(
+            source = "UAFlix",
+            name = "Ukrainian Dub",
+            streamUrl = streamUrl,
+            referer = referer,
+            callback = emitted::add
+        ) { source, name, url, linkReferer ->
+            generatorArguments = listOf(source, name, url, linkReferer)
+            generated
+        }
+
+        assertEquals(listOf("UAFlix", "Ukrainian Dub", streamUrl, referer), generatorArguments)
+        assertEquals(2, emitted.size)
+        assertSame(generated[0], emitted[0])
+        assertSame(generated[1], emitted[1])
+        assertEquals(listOf(1080, 720), emitted.map { it.quality })
+        emitted.forEach { link ->
+            assertEquals("UAFlix", link.source)
+            assertEquals("Ukrainian Dub", link.name)
+            assertEquals(referer, link.referer)
+            assertEquals(ExtractorLinkType.M3U8, link.type)
+        }
+    }
+
+    @Test
+    fun `empty zetvideo extraction emits the original master manifest`() = runTest {
+        val streamUrl = "https://zetvideo.net/vid/series/master.m3u8?token=abc"
+        val emitted = mutableListOf<ExtractorLink>()
+
+        emitUaFlixStreamLinks(
+            source = "UAFlix",
+            name = "Ukrainian Dub",
+            streamUrl = streamUrl,
+            referer = "https://tortuga.wtf/",
+            callback = emitted::add
+        ) { _, _, _, _ -> emptyList() }
+
+        assertEquals(1, emitted.size)
+        with(emitted.single()) {
+            assertEquals("UAFlix", source)
+            assertEquals("Ukrainian Dub", name)
+            assertEquals(streamUrl, url)
+            assertEquals("https://tortuga.wtf/", referer)
+            assertEquals(Qualities.Unknown.value, quality)
+            assertEquals(ExtractorLinkType.M3U8, type)
+        }
+    }
+
+    @Test
+    fun `empty extraction does not invent fallback links for unrelated urls`() = runTest {
+        val rejectedUrls = listOf(
+            "https://example.test/master.m3u8",
+            "https://zetvideo.net.evil.test/master.m3u8",
+            "https://sub.zetvideo.net/master.m3u8",
+            "https://zetvideo.net/video.mp4",
+            "https://zetvideo.net:invalid/master.m3u8",
+            "not a URL"
+        )
+
+        rejectedUrls.forEach { streamUrl ->
+            val emitted = mutableListOf<ExtractorLink>()
+            emitUaFlixStreamLinks(
+                source = "UAFlix",
+                name = "Ukrainian Dub",
+                streamUrl = streamUrl,
+                referer = "https://tortuga.wtf/",
+                callback = emitted::add
+            ) { _, _, _, _ -> emptyList() }
+            assertTrue("Unexpected fallback for $streamUrl", emitted.isEmpty())
+        }
+    }
+
+    @Suppress("DEPRECATION_ERROR")
+    private fun testExtractorLink(
+        source: String,
+        name: String,
+        url: String,
+        referer: String,
+        quality: Int
+    ): ExtractorLink = ExtractorLink(
+        source,
+        name,
+        url,
+        referer,
+        quality,
+        ExtractorLinkType.M3U8,
+        emptyMap(),
+        null
+    )
 }

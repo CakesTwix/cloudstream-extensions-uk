@@ -28,11 +28,14 @@ import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.toRatingInt
 import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.models.PlayerJson
 import com.lagradost.nicehttp.Session
 import okhttp3.FormBody
 import org.jsoup.nodes.Element
+import java.net.URI
 
 class UAFlixProvider : MainAPI() {
 
@@ -43,6 +46,10 @@ class UAFlixProvider : MainAPI() {
     override var lang = "uk"
     override val hasQuickSearch = true
     override val hasDownloadSupport = true
+    // A non-zetvideo HLS master can still reference zetvideo child manifests.
+    override fun getVideoInterceptor(extractorLink: ExtractorLink): okhttp3.Interceptor? =
+        if (extractorLink.type == ExtractorLinkType.M3U8) UAFlixZetvideoInterceptor() else null
+
     override val supportedTypes = setOf(
         TvType.TvSeries,
         TvType.Cartoon,
@@ -301,13 +308,13 @@ class UAFlixProvider : MainAPI() {
                     ?: extractUAFlixSubtitleString(playerRes.text)
                     ?: ""
 
-                M3u8Helper.generateM3u8(
-                        source = "UAFlix",
-                        streamUrl = playerRawJson,
-                        referer = "https://tortuga.wtf/"
-                ).let { streams ->
-                    if (streams.size > 1) streams.dropLast(1) else streams
-                }.forEach(callback)
+                emitUaFlixStreamLinks(
+                    source = name,
+                    name = name,
+                    streamUrl = playerRawJson,
+                    referer = "https://tortuga.wtf/",
+                    callback = callback
+                )
 
                 parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
                     subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
@@ -324,13 +331,13 @@ class UAFlixProvider : MainAPI() {
                     val episode = season.folder.firstOrNull() ?: continue
                     if (episode.file.isBlank()) continue
                     // Add as source
-                    M3u8Helper.generateM3u8(
-                            source = dubs.title,
-                            streamUrl = episode.file,
-                            referer = "https://tortuga.wtf/"
-                    ).let { streams ->
-                        if (streams.size > 1) streams.dropLast(1) else streams
-                    }.forEach(callback)
+                    emitUaFlixStreamLinks(
+                        source = this.name,
+                        name = dubs.title,
+                        streamUrl = episode.file,
+                        referer = "https://tortuga.wtf/",
+                        callback = callback
+                    )
 
                     parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
                         subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
@@ -352,13 +359,13 @@ class UAFlixProvider : MainAPI() {
                     for(episode in season.folder){                     // Episodes
                         if(episode.title == dataList[1]){
                             // Add as source
-                            M3u8Helper.generateM3u8(
-                                    source = dubs.title,
-                                    streamUrl = episode.file,
-                                    referer = "https://tortuga.wtf/"
-                            ).let { streams ->
-                                if (streams.size > 1) streams.dropLast(1) else streams
-                            }.forEach(callback)
+                            emitUaFlixStreamLinks(
+                                source = this.name,
+                                name = dubs.title,
+                                streamUrl = episode.file,
+                                referer = "https://tortuga.wtf/",
+                                callback = callback
+                            )
 
                             parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
                                 subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
@@ -381,4 +388,63 @@ internal fun parseEpisodeNumbers(seasonTitle: String, episodeTitle: String): Pai
     val numberRegex = Regex("\\d+")
     return numberRegex.find(seasonTitle)?.value?.toIntOrNull() to
         numberRegex.find(episodeTitle)?.value?.toIntOrNull()
+}
+
+internal suspend fun emitUaFlixStreamLinks(
+    source: String,
+    name: String,
+    streamUrl: String,
+    referer: String,
+    callback: (ExtractorLink) -> Unit,
+    streamGenerator: suspend (String, String, String, String) -> List<ExtractorLink> = { linkSource, linkName, url, linkReferer ->
+        M3u8Helper.generateM3u8(
+            source = linkSource,
+            name = linkName,
+            streamUrl = url,
+            referer = linkReferer
+        )
+    }
+) {
+    val generated = streamGenerator(source, name, streamUrl, referer)
+    val selected = if (generated.size > 1) generated.dropLast(1) else generated
+    val links = if (generated.isEmpty() && streamUrl.isValidZetvideoHlsUrl()) {
+        listOf(
+            newUaFlixMasterLink(source, name, streamUrl, referer)
+        )
+    } else {
+        selected
+    }
+    links.forEach(callback)
+}
+
+// Use the constructor signature shared with older CloudstreamApi runtimes.
+@Suppress("DEPRECATION_ERROR")
+private fun newUaFlixMasterLink(
+    source: String,
+    name: String,
+    streamUrl: String,
+    referer: String
+): ExtractorLink = ExtractorLink(
+    source,
+    name,
+    streamUrl,
+    referer,
+    Qualities.Unknown.value,
+    ExtractorLinkType.M3U8,
+    emptyMap(),
+    null
+)
+
+private fun String.isValidZetvideoHlsUrl(): Boolean {
+    val uri = try {
+        URI(this)
+    } catch (_: Exception) {
+        return false
+    }
+    val scheme = uri.scheme ?: return false
+    val host = uri.host ?: return false
+    return (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) &&
+        host.equals("zetvideo.net", ignoreCase = true) &&
+        uri.rawUserInfo == null &&
+        uri.rawPath?.endsWith(".m3u8", ignoreCase = true) == true
 }
