@@ -345,9 +345,10 @@ class UAFlixParsingTest {
     }
 
     @Test
-    fun `serial stream emission preserves source name referer and quality selection`() = runTest {
+    fun `zetvideo player URL is used as the generated stream Referer`() = runTest {
         val streamUrl = "https://zetvideo.net/vid/series/master.m3u8"
-        val referer = "https://tortuga.wtf/"
+        val playerUrl = "https://zetvideo.net/vod70728?token=player"
+        val referer = uaFlixPlayerReferer(playerUrl)
         val generated = listOf(
             testExtractorLink("UAFlix", "Ukrainian Dub", "$streamUrl?quality=1080", referer, 1080),
             testExtractorLink("UAFlix", "Ukrainian Dub", "$streamUrl?quality=720", referer, 720),
@@ -381,15 +382,72 @@ class UAFlixParsingTest {
     }
 
     @Test
-    fun `empty zetvideo extraction emits the original master manifest`() = runTest {
+    fun `only exact zetvideo player hosts use their full URL as HLS Referer`() {
+        val playerUrl = "https://zetvideo.net/vod70728?token=player"
+
+        assertEquals(playerUrl, uaFlixPlayerReferer(playerUrl))
+        assertEquals(
+            "https://tortuga.wtf/",
+            uaFlixPlayerReferer("https://player.example/vod/70728")
+        )
+        assertEquals(
+            "https://tortuga.wtf/",
+            uaFlixPlayerReferer("https://zetvideo.net.evil.test/vod/70728")
+        )
+        assertEquals(
+            "https://tortuga.wtf/",
+            uaFlixPlayerReferer("https://user@zetvideo.net/vod/70728")
+        )
+        assertEquals("https://tortuga.wtf/", uaFlixPlayerReferer("not a URL"))
+        assertEquals("https://tortuga.wtf/", uaFlixPlayerReferer("relative/player"))
+    }
+
+    @Test
+    fun `non zetvideo player keeps the Tortuga Referer on generated and fallback links`() = runTest {
+        val streamUrl = "https://zetvideo.net/vid/series/master.m3u8"
+        val playerUrl = "https://player.example/vod/70728"
+        val expectedReferer = "https://tortuga.wtf/"
+        val referer = uaFlixPlayerReferer(playerUrl)
+        val generatedLinks = mutableListOf<ExtractorLink>()
+        var generatorReferer: String? = null
+
+        emitUaFlixStreamLinks(
+            source = "UAFlix",
+            name = "Ukrainian Dub",
+            streamUrl = streamUrl,
+            referer = referer,
+            callback = generatedLinks::add
+        ) { source, name, url, linkReferer ->
+            generatorReferer = linkReferer
+            listOf(testExtractorLink(source, name, url, linkReferer, 720))
+        }
+
+        assertEquals(expectedReferer, generatorReferer)
+        assertEquals(expectedReferer, generatedLinks.single().referer)
+
+        val fallbackLinks = mutableListOf<ExtractorLink>()
+        emitUaFlixStreamLinks(
+            source = "UAFlix",
+            name = "Ukrainian Dub",
+            streamUrl = streamUrl,
+            referer = referer,
+            callback = fallbackLinks::add
+        ) { _, _, _, _ -> emptyList() }
+        assertEquals(expectedReferer, fallbackLinks.single().referer)
+    }
+
+    @Test
+    fun `empty zetvideo extraction emits the original master manifest with selected Referer`() = runTest {
         val streamUrl = "https://zetvideo.net/vid/series/master.m3u8?token=abc"
+        val playerUrl = "https://zetvideo.net/vod70728?token=player"
+        val expectedReferer = uaFlixPlayerReferer(playerUrl)
         val emitted = mutableListOf<ExtractorLink>()
 
         emitUaFlixStreamLinks(
             source = "UAFlix",
             name = "Ukrainian Dub",
             streamUrl = streamUrl,
-            referer = "https://tortuga.wtf/",
+            referer = expectedReferer,
             callback = emitted::add
         ) { _, _, _, _ -> emptyList() }
 
@@ -398,7 +456,7 @@ class UAFlixParsingTest {
             assertEquals("UAFlix", source)
             assertEquals("Ukrainian Dub", name)
             assertEquals(streamUrl, url)
-            assertEquals("https://tortuga.wtf/", referer)
+            assertEquals(expectedReferer, referer)
             assertEquals(Qualities.Unknown.value, quality)
             assertEquals(ExtractorLinkType.M3U8, type)
         }

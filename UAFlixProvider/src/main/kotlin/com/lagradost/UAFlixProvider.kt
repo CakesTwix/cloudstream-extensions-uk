@@ -289,99 +289,112 @@ class UAFlixProvider : MainAPI() {
     ): Boolean {
         val dataList = data.split(", ")
 
-        if(dataList.size == 1){
+        if (dataList.size == 1) {
             var playerUrl = app.get(data).document.select(".video-box iframe").attr("src")
-            if(playerUrl.isBlank()) return false
-            if(playerUrl.startsWith("//")){
+            if (playerUrl.isBlank()) return false
+            if (playerUrl.startsWith("//")) {
                 playerUrl = "https:$playerUrl"
             }
-            if(playerUrl.contains("/vod/")){
-                val playerRes = app.get(playerUrl,
-                        headers = mapOf(
-                                "Referer" to "https://uafix.net/",
-                        ))
-                val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
+
+            if (playerUrl.contains("/vod/")) {
+                val playerRes = app.get(
+                    playerUrl,
+                    headers = mapOf("Referer" to "https://uafix.net/")
+                )
+                val playerScript = playerRes.document.select("script").html()
+                val playerRawJson = extractUAFlixFile(playerScript)
                     ?: extractUAFlixFile(playerRes.text)
                     ?: ""
-
-                val subtitleString = extractUAFlixSubtitleString(playerRes.document.select("script").html())
+                val subtitleString = extractUAFlixSubtitleString(playerScript)
                     ?: extractUAFlixSubtitleString(playerRes.text)
                     ?: ""
+                val currentReferer = uaFlixPlayerReferer(playerUrl)
 
                 emitUaFlixStreamLinks(
                     source = name,
                     name = name,
                     streamUrl = playerRawJson,
-                    referer = "https://tortuga.wtf/",
+                    referer = currentReferer,
                     callback = callback
                 )
 
                 parseUAFlixSubtitle(subtitleString)?.let { subtitle ->
                     subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
                 }
-
                 return true
             }
+
             val playerRes = app.get(playerUrl, referer = "https://uafix.net")
             val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
                 ?: extractUAFlixFile(playerRes.text)
                 ?: ""
-            tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-                for(season in dubs.folder){                                // Seasons
+            val currentReferer = uaFlixPlayerReferer(playerUrl)
+            tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dubs ->
+                for (season in dubs.folder) {
                     val episode = season.folder.firstOrNull() ?: continue
                     if (episode.file.isBlank()) continue
-                    // Add as source
+
                     emitUaFlixStreamLinks(
                         source = this.name,
                         name = dubs.title,
                         streamUrl = episode.file,
-                        referer = "https://tortuga.wtf/",
+                        referer = currentReferer,
                         callback = callback
                     )
-
                     parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
                         subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
                     }
                 }
             }
-
             return true
         }
 
-
-        val playerRes = app.get(dataList[2], referer = "https://uafix.net")
+        val playerUrl = dataList[2]
+        val playerRes = app.get(playerUrl, referer = "https://uafix.net")
         val playerRawJson = extractUAFlixFile(playerRes.document.select("script").html())
             ?: extractUAFlixFile(playerRes.text)
             ?: ""
-        tryParseJson<List<PlayerJson>>(playerRawJson)?.map { dubs ->   // Dubs
-            for(season in dubs.folder){                                // Seasons
-                if(season.title == dataList[0]){
-                    for(episode in season.folder){                     // Episodes
-                        if(episode.title == dataList[1]){
-                            // Add as source
-                            emitUaFlixStreamLinks(
-                                source = this.name,
-                                name = dubs.title,
-                                streamUrl = episode.file,
-                                referer = "https://tortuga.wtf/",
-                                callback = callback
-                            )
+        val currentReferer = uaFlixPlayerReferer(playerUrl)
+        tryParseJson<List<PlayerJson>>(playerRawJson)?.forEach { dubs ->
+            for (season in dubs.folder) {
+                if (season.title != dataList[0]) continue
+                for (episode in season.folder) {
+                    if (episode.title != dataList[1]) continue
 
-                            parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
-                                subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
-                            }
-                        }
+                    emitUaFlixStreamLinks(
+                        source = this.name,
+                        name = dubs.title,
+                        streamUrl = episode.file,
+                        referer = currentReferer,
+                        callback = callback
+                    )
+                    parseUAFlixSubtitle(episode.subtitle)?.let { subtitle ->
+                        subtitleCallback.invoke(newSubtitleFile(subtitle.language, subtitle.url))
                     }
                 }
             }
         }
-
         return true
     }
 
     private fun extractIntsFromString(string: String): List<MatchResult> {
         return Regex("(\\d+)").findAll(string).toList()
     }
+}
+
+internal fun uaFlixPlayerReferer(playerUrl: String): String {
+    val uri = try {
+        URI(playerUrl)
+    } catch (_: Exception) {
+        return "https://tortuga.wtf/"
+    }
+    val scheme = uri.scheme ?: return "https://tortuga.wtf/"
+    val host = uri.host ?: return "https://tortuga.wtf/"
+    val isZetvideoPlayer =
+        (scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)) &&
+            host.equals("zetvideo.net", ignoreCase = true) &&
+            uri.rawUserInfo == null
+    return if (isZetvideoPlayer) playerUrl else "https://tortuga.wtf/"
 }
 
 internal fun parseEpisodeNumbers(seasonTitle: String, episodeTitle: String): Pair<Int?, Int?> {
