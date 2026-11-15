@@ -15,6 +15,72 @@ internal fun normalizeUakinoPlayerUrl(rawUrl: String): String = when {
     else -> rawUrl
 }
 
+internal fun selectUakinoPlayerReferer(playerUrl: String, fallbackReferer: String): String {
+    val uri = try {
+        java.net.URI(playerUrl)
+    } catch (_: Exception) {
+        return fallbackReferer
+    }
+    val scheme = uri.scheme?.lowercase() ?: return fallbackReferer
+    val host = uri.host ?: return fallbackReferer
+    if (scheme !in setOf("http", "https") || uri.rawUserInfo != null || uri.port !in -1..65535) {
+        return fallbackReferer
+    }
+
+    if (host.equals("ashdi.vip", ignoreCase = true)) {
+        return playerUrl.substringBefore('#')
+    }
+
+    return try {
+        java.net.URI(scheme, null, host, uri.port, "/", null, null).toString()
+    } catch (_: Exception) {
+        fallbackReferer
+    }
+}
+
+internal fun selectUakinoStreamReferer(playerReferer: String, streamUrl: String): String {
+    val refererUri = try {
+        java.net.URI(playerReferer)
+    } catch (_: Exception) {
+        return playerReferer
+    }
+    val scheme = refererUri.scheme?.lowercase() ?: return playerReferer
+    val host = refererUri.host ?: return playerReferer
+    if (scheme !in setOf("http", "https") || refererUri.rawUserInfo != null || refererUri.port !in -1..65535) {
+        return playerReferer
+    }
+
+    val targetUri = try {
+        java.net.URI(streamUrl)
+    } catch (_: Exception) {
+        null
+    }
+    val targetScheme = targetUri?.scheme?.lowercase()
+    val targetHost = targetUri?.host
+    if (scheme == "https" && targetScheme == "http") return ""
+    if (!host.equals("ashdi.vip", ignoreCase = true)) return playerReferer
+
+    val sameOrigin = targetUri != null &&
+        targetScheme == scheme &&
+        targetHost.equals(host, ignoreCase = true) &&
+        targetUri.rawUserInfo == null &&
+        targetUri.port in -1..65535 &&
+        effectiveUakinoPort(targetScheme, targetUri.port) == effectiveUakinoPort(scheme, refererUri.port)
+    if (sameOrigin) return playerReferer
+
+    return try {
+        java.net.URI(scheme, null, host, refererUri.port, "/", null, null).toString()
+    } catch (_: Exception) {
+        playerReferer
+    }
+}
+
+private fun effectiveUakinoPort(scheme: String, port: Int): Int = when {
+    port >= 0 -> port
+    scheme == "https" -> 443
+    else -> 80
+}
+
 internal fun normalizeUakinoPlayerUrlOrNull(rawUrl: String?): String? {
     val clean = rawUrl?.trim().orEmpty()
     if (clean.isBlank() || clean.equals("null", ignoreCase = true) || clean.startsWith("javascript:", ignoreCase = true)) return null

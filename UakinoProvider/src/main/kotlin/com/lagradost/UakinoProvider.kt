@@ -6,10 +6,11 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.M3u8Helper
+import com.lagradost.cloudstream3.utils.HlsPlaylistParser
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.nicehttp.Session
-import java.net.URL
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import java.util.*
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -440,24 +441,14 @@ class UakinoProvider : MainAPI() {
         val pageFiles = fileRegex.findAll(pageHtml).map { it.groupValues[1] }.toList()
         val pageStreams = pageFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
         pageStreams.forEach { streamUrl ->
-            callback(
-                ExtractorLink(
-                    source = name,
-                    name = "$name - $title",
-                    url = streamUrl,
-                    referer = "$mainUrl/",
-                    quality = Qualities.Unknown.value,
-                    type = ExtractorLinkType.M3U8
-                )
+            emitUakinoM3u8Links(
+                source = name,
+                name = "$name - $title",
+                streamUrl = streamUrl,
+                referer = "$mainUrl/",
+                session = session,
+                callback = callback
             )
-            try {
-                val streams = M3u8Helper.generateM3u8(
-                    source = "$name - $title",
-                    streamUrl = streamUrl,
-                    referer = "$mainUrl/"
-                )
-                streams.forEach(callback)
-            } catch (e: Throwable) { }
         }
     }
 
@@ -479,34 +470,17 @@ class UakinoProvider : MainAPI() {
         val rawFiles = fileRegex.findAll(fullContent).map { it.groupValues[1] }.toList()
         val allStreamUrls = rawFiles.flatMap { resolveUakinoStreamUrls(it) }.distinct()
 
-        val playerReferer = try {
-            URL(normalizedUrl).let { "${it.protocol}://${it.host}/" }
-        } catch (e: Throwable) {
-            "$mainUrl/"
-        }
+        val playerReferer = selectUakinoPlayerReferer(normalizedUrl, "$mainUrl/")
 
         allStreamUrls.forEach { m3uLink ->
-            // 1. Direct master playlist ExtractorLink (native ExoPlayer playback)
-            callback(
-                ExtractorLink(
-                    source = name,
-                    name = "$name - $sourceName",
-                    url = m3uLink,
-                    referer = playerReferer,
-                    quality = Qualities.Unknown.value,
-                    type = ExtractorLinkType.M3U8
-                )
+            emitUakinoM3u8Links(
+                source = name,
+                name = "$name - $sourceName",
+                streamUrl = m3uLink,
+                referer = playerReferer,
+                session = session,
+                callback = callback
             )
-
-            // 2. M3u8Helper to extract individual quality streams (1080p, 720p, etc.)
-            try {
-                val streams = M3u8Helper.generateM3u8(
-                    source = "$name - $sourceName",
-                    streamUrl = m3uLink,
-                    referer = playerReferer
-                )
-                streams.forEach(callback)
-            } catch (e: Throwable) { }
         }
 
         val subtitleUrl = subsRegex.find(fullContent)?.groups?.get(1)?.value ?: ""
@@ -522,6 +496,140 @@ class UakinoProvider : MainAPI() {
         }
     }
 }
+
+internal fun parseUakinoMasterVariants(
+    source: String,
+    name: String,
+    masterUrl: String,
+    playerReferer: String,
+    playlistText: String,
+): List<ExtractorLink> {
+    val playlist = HlsPlaylistParser.parse(masterUrl, playlistText) ?: return emptyList()
+    return playlist.variants
+        .asSequence()
+        .filter { !it.isTrickPlay() && it.isPlayableStandalone(playlist) }
+        .mapNotNull { variant ->
+            val variantUrl = variant.url.toString()
+            val height = variant.format.height.takeIf { it > 0 }
+            val variantReferer = selectUakinoStreamReferer(playerReferer, variantUrl)
+            newUakinoM3u8Link(
+                source = source,
+                name = "$name - ${height?.let { "${it}p" } ?: "Unknown"}",
+                url = variantUrl,
+                referer = variantReferer,
+                quality = height ?: Qualities.Unknown.value,
+                headers = uakinoRefererHeaders(variantReferer),
+            )
+        }
+        .distinctBy { it.url }
+        .toList()
+}
+
+internal const val UAKINO_MAX_PLAYLIST_BYTES = 1024 * 1024
+
+private val UAKINO_NON_PLAYLIST_EXTENSIONS = setOf("aac", "avi", "m4v", "mkv", "mov", "mp3", "mp4", "ts", "webm")
+
+private fun shouldProbeUakinoPlaylist(streamUrl: String): Boolean {
+    val path = try {
+        java.net.URI(streamUrl).rawPath ?: return true
+    } catch (_: Exception) {
+        return true
+    }
+    if (path.split('/').any { it.equals("vod", ignoreCase = true) }) return false
+    val extension = path.substringAfterLast('/').substringAfterLast('.', "").lowercase()
+    return extension !in UAKINO_NON_PLAYLIST_EXTENSIONS
+}
+
+private suspend fun readUakinoPlaylistBody(body: okhttp3.ResponseBody): String? {
+    if (body.contentLength() > UAKINO_MAX_PLAYLIST_BYTES) return null
+
+    val output = okio.Buffer()
+    val source = body.source()
+    val context = kotlinx.coroutines.currentCoroutineContext()
+    var totalBytes = 0L
+    try {
+        while (true) {
+            context.ensureActive()
+            val remaining = UAKINO_MAX_PLAYLIST_BYTES - totalBytes
+            if (remaining == 0L) return null
+            val read = source.read(output, minOf(8 * 1024L, remaining))
+            if (read < 0) return String(output.readByteArray(), Charsets.UTF_8)
+            if (read == 0L) continue
+            totalBytes += read
+        }
+    } finally {
+        source.close()
+    }
+}
+
+internal suspend fun emitUakinoM3u8Links(
+    source: String,
+    name: String,
+    streamUrl: String,
+    referer: String,
+    session: Session,
+    callback: (ExtractorLink) -> Unit,
+) {
+    val masterReferer = selectUakinoStreamReferer(referer, streamUrl)
+    callback(
+        newUakinoM3u8Link(
+            source = source,
+            name = name,
+            url = streamUrl,
+            referer = masterReferer,
+            quality = Qualities.Unknown.value,
+            headers = uakinoRefererHeaders(masterReferer),
+        )
+    )
+
+    if (!shouldProbeUakinoPlaylist(streamUrl)) return
+
+    try {
+        val response = session.get(
+            streamUrl,
+            headers = uakinoRefererHeaders(masterReferer),
+            allowRedirects = false,
+        )
+        val playlistText = response.okhttpResponse.use { rawResponse ->
+            val body = rawResponse.body
+            if (!rawResponse.isSuccessful || body.contentLength() > UAKINO_MAX_PLAYLIST_BYTES) {
+                return@use null
+            }
+            val contentType = body.contentType()
+            if (contentType?.type == "video" && !contentType.subtype.contains("mpegurl", ignoreCase = true)) {
+                return@use null
+            }
+            readUakinoPlaylistBody(body)
+        } ?: return
+        parseUakinoMasterVariants(source, name, streamUrl, referer, playlistText).forEach(callback)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) { }
+}
+
+private fun uakinoRefererHeaders(referer: String): Map<String, String> =
+    if (referer.isBlank()) emptyMap() else mapOf("Referer" to referer)
+
+@Suppress("DEPRECATION_ERROR")
+internal fun newUakinoM3u8Link(
+    source: String,
+    name: String,
+    url: String,
+    referer: String,
+    quality: Int,
+    type: ExtractorLinkType = ExtractorLinkType.M3U8,
+    headers: Map<String, String> = emptyMap(),
+    extractorData: String? = null
+): ExtractorLink = ExtractorLink(
+    source,
+    name,
+    url,
+    referer,
+    quality,
+    type,
+    headers,
+    extractorData
+)
 
 /**
  * Витягує тільки iframe/посилання з вкладки трейлера.

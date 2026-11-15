@@ -1,9 +1,13 @@
 // use an integer for version numbers
-version = 36
+version = 37
 
 dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.cloudstreamapi)
+    testImplementation(files(provider { gradle.gradleUserHomeDir.resolve("caches/cloudstream/cloudstream/cloudstream.jar") }))
+    compileOnly("io.ktor:ktor-http-jvm:3.5.0")
+    testImplementation("io.ktor:ktor-http-jvm:3.5.0")
 }
 
 cloudstream {
